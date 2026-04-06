@@ -1,11 +1,14 @@
 import mongoose from "mongoose";
-import { config } from "./config.js";
+import { config, hasMongoEnv } from "./config.js";
 
 export async function connectDb() {
-  if (!process.env.MONGODB_URI && process.env.RAILWAY_ENVIRONMENT) {
+  if (process.env.RAILWAY_ENVIRONMENT && !hasMongoEnv()) {
     console.error(
-      "[db] MONGODB_URI is not set. Railway has no MongoDB on localhost.\n" +
-        "    In the Railway server service → Variables, add MONGODB_URI (e.g. MongoDB Atlas connection string)."
+      "[db] No MongoDB connection string in environment. Railway has no DB on localhost.\n" +
+        "    On the API service → Variables, set one of:\n" +
+        "      MONGODB_URI   (e.g. MongoDB Atlas)\n" +
+        "      MONGO_URL / MONGO_URI (Railway Mongo plugin or copied connection string)\n" +
+        "    Or add a variable reference from your Railway Mongo service to MONGO_URL."
     );
     process.exit(1);
   }

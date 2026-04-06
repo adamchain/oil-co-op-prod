@@ -5,9 +5,21 @@ const cents = (v: string | undefined, fallback: number) => {
   return Number.isFinite(n) ? n : fallback;
 };
 
+/** Railway Mongo plugin often sets MONGO_URL; Atlas / docs usually use MONGODB_URI. */
+const LOCAL_MONGO_FALLBACK = "mongodb://127.0.0.1:27017/oilcoop";
+
+function resolveMongoUri(): string {
+  const keys = ["MONGODB_URI", "MONGO_URL", "MONGO_URI", "MONGODB_URL"] as const;
+  for (const key of keys) {
+    const v = process.env[key]?.trim();
+    if (v && /^mongodb(\+srv)?:\/\//i.test(v)) return v;
+  }
+  return LOCAL_MONGO_FALLBACK;
+}
+
 export const config = {
   port: parseInt(process.env.PORT || "4000", 10),
-  mongoUri: process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/oilcoop",
+  mongoUri: resolveMongoUri(),
   jwtSecret: process.env.JWT_SECRET || "dev-only-change-me-in-production-32chars",
   clientOrigin: process.env.CLIENT_ORIGIN || "http://localhost:5173",
   stripeSecretKey: process.env.STRIPE_SECRET_KEY || "",
@@ -24,3 +36,8 @@ export const config = {
 };
 
 export const stripeEnabled = Boolean(config.stripeSecretKey);
+
+/** True when any supported Mongo env var is set (not the local dev default). */
+export function hasMongoEnv(): boolean {
+  return config.mongoUri !== LOCAL_MONGO_FALLBACK;
+}
