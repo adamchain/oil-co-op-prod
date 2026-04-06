@@ -227,6 +227,7 @@ router.get("/me", requireAuth, async (req: AuthedRequest, res) => {
     role: m.role,
     phone: m.phone,
     addressLine1: m.addressLine1,
+    addressLine2: m.addressLine2,
     city: m.city,
     state: m.state,
     postalCode: m.postalCode,
@@ -239,6 +240,7 @@ router.get("/me", requireAuth, async (req: AuthedRequest, res) => {
     lifetimeAnnualFeeWaived: m.lifetimeAnnualFeeWaived,
     referralWaiveCredits: m.referralWaiveCredits,
     notificationSettings: m.notificationSettings,
+    legacyProfile: m.legacyProfile || {},
   });
 });
 

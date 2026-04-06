@@ -78,6 +78,7 @@ const patchMemberSchema = z.object({
   notes: z.string().optional(),
   paymentMethod: z.enum(["card", "check"]).optional(),
   autoRenew: z.boolean().optional(),
+  legacyProfile: z.record(z.string(), z.unknown()).optional(),
 });
 
 router.patch("/members/:id", async (req: AuthedRequest, res) => {
@@ -125,6 +126,12 @@ router.patch("/members/:id", async (req: AuthedRequest, res) => {
     if (body.paymentMethod === "check") member.autoRenew = false;
   }
   if (body.autoRenew !== undefined) member.autoRenew = body.autoRenew;
+  if (body.legacyProfile !== undefined) {
+    member.legacyProfile = {
+      ...(typeof member.legacyProfile === "object" && member.legacyProfile ? member.legacyProfile : {}),
+      ...body.legacyProfile,
+    };
+  }
   await member.save();
 
   await logActivity(

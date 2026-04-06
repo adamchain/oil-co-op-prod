@@ -23,6 +23,7 @@ export default function AdminMemberPage() {
       successfulReferralCount?: number;
       referralWaiveCredits?: number;
       lifetimeAnnualFeeWaived?: boolean;
+      legacyProfile?: Record<string, unknown>;
     };
     billing: Array<{ _id: string; kind: string; status: string; amountCents: number; createdAt: string }>;
     activity: Array<{ action: string; createdAt: string }>;
@@ -32,6 +33,7 @@ export default function AdminMemberPage() {
   const [status, setStatus] = useState("active");
   const [msg, setMsg] = useState("");
   const [saving, setSaving] = useState(false);
+  const [legacyJson, setLegacyJson] = useState("{}");
 
   useEffect(() => {
     if (!token || !id) return;
@@ -46,6 +48,7 @@ export default function AdminMemberPage() {
       setOilId(typeof oc === "object" && oc ? oc._id : typeof oc === "string" ? oc : "");
       setNotes(d.member.notes || "");
       setStatus(d.member.status);
+      setLegacyJson(JSON.stringify(d.member.legacyProfile || {}, null, 2));
     });
   }, [token, id]);
 
@@ -61,6 +64,7 @@ export default function AdminMemberPage() {
           oilCompanyId: oilId || null,
           notes,
           status,
+          legacyProfile: JSON.parse(legacyJson || "{}"),
         }),
       });
       setMsg("Saved.");
@@ -133,6 +137,18 @@ export default function AdminMemberPage() {
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
             style={{ width: "100%", maxWidth: "480px", resize: "vertical" }}
+          />
+        </div>
+        <div style={{ marginBottom: "0.75rem" }}>
+          <label style={{ display: "block", fontSize: "0.7rem", textTransform: "uppercase", color: "var(--admin-muted)", marginBottom: "0.35rem" }}>
+            Legacy profile (JSON)
+          </label>
+          <textarea
+            className="admin-input"
+            value={legacyJson}
+            onChange={(e) => setLegacyJson(e.target.value)}
+            rows={8}
+            style={{ width: "100%", maxWidth: "640px", resize: "vertical", fontFamily: "monospace" }}
           />
         </div>
         {msg && <p style={{ color: msg === "Saved." ? "var(--admin-text)" : "#b91c1c", fontSize: "0.875rem" }}>{msg}</p>}

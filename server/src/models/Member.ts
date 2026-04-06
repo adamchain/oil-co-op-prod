@@ -80,6 +80,8 @@ const memberSchema = new Schema(
 
     notes: { type: String, default: "" },
     signedUpVia: { type: String, enum: ["web", "phone", "admin"], default: "web" },
+    /** Flexible store for legacy workbench/profile fields not yet normalized. */
+    legacyProfile: { type: Schema.Types.Mixed, default: {} },
   },
   { timestamps: true }
 );
