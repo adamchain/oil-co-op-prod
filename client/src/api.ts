@@ -1,4 +1,5 @@
-const base = "";
+/** Empty in dev (Vite proxies /api → server). Set VITE_API_URL on the client Railway service to your API public URL. */
+const base = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
 export async function api<T>(
   path: string,
