@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "start": "serve dist -l ${PORT:-8080} --single"
+    "start": "npx serve dist -l 8080 --single"
   },
   "dependencies": {
     "react": "^19.0.0",
