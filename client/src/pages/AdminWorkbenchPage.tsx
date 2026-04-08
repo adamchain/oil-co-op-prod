@@ -67,14 +67,12 @@ const WB_OIL_STATUS = ["ACTIVE", "INACTIVE", "PROSPECTIVE", "RESIDENT", "NO OIL"
 const WB_PROPANE_STATUS = ["ACTIVE", "INACTIVE", "PROSPECTIVE", "RESIDENT", "NO PROPANE", "UNKNOWN"] as const;
 const ELECTRIC_STATUS = ["ELECTRIC", "PENDING", "INTERESTED", "UNKNOWN", "DROPPED"] as const;
 const REC_TYPE = ["IND", "BUS"] as const;
-const _PHONE_TYPE = ["HOME", "WORK", "CELL"] as const;
-const _HOW_JOINED = ["PHO", "WEB", "REF", "MAIL"] as const;
-const _REFERRAL_SOURCE = ["CCAG", "MEMBER", "OTHER"] as const;
-void _PHONE_TYPE; void _HOW_JOINED; void _REFERRAL_SOURCE;
+const PHONE_TYPE = ["HOME", "WORK", "CELL"] as const;
+const HOW_JOINED = ["PHO", "WEB", "REF", "MAIL"] as const;
+const REFERRAL_SOURCE = ["CCAG", "MEMBER", "OTHER"] as const;
 
 export default function AdminWorkbenchPage() {
-  const { token, member: _staff } = useAuth();
-  void _staff;
+  const { token, member: staff } = useAuth();
   const [activeTab, setActiveTab] = useState<TabName>("Data Entry");
   const [members, setMembers] = useState<Member[]>([]);
   const [search, setSearch] = useState("");
@@ -104,7 +102,6 @@ export default function AdminWorkbenchPage() {
     oilCompanyId: "",
     legacyProfile: {} as Record<string, unknown>,
   });
-  const [showDetailView, setShowDetailView] = useState(false);
 
   async function loadMembers() {
     if (!token) return;
@@ -194,17 +191,15 @@ export default function AdminWorkbenchPage() {
       .slice(0, 5);
   }
 
-  const _recordCount = `${members.length ? index + 1 : 0}`;
-  void _recordCount;
+  const recordCount = `${members.length ? index + 1 : 0}`;
 
-  const _nav = (kind: "first" | "prev" | "next" | "last") => {
+  const nav = (kind: "first" | "prev" | "next" | "last") => {
     if (!members.length) return;
     if (kind === "first") setIndex(0);
     if (kind === "last") setIndex(members.length - 1);
     if (kind === "prev") setIndex((i) => Math.max(0, i - 1));
     if (kind === "next") setIndex((i) => Math.min(members.length - 1, i + 1));
   };
-  void _nav;
 
   const saveCurrent = async () => {
     if (!token || !current) return;
@@ -248,7 +243,7 @@ export default function AdminWorkbenchPage() {
     await loadMembers();
   };
 
-  const _addCompany = async () => {
+  const addCompany = async () => {
     if (!token || !newCompanyName.trim()) return;
     await api("/api/admin/oil-companies", {
       method: "POST",
@@ -264,33 +259,41 @@ export default function AdminWorkbenchPage() {
     setNewCompanyPhone("");
     await loadOilCompanies();
   };
-  void _addCompany;
 
   return (
     <>
-      {/* Header Section - matching reference layout */}
-      <div className="admin-page-header">
-        <h1 className="admin-page-title-main">
-          {activeTab === "Data Entry" ? "Members" : activeTab}
-        </h1>
-        <div className="admin-page-header-actions">
-          <button className="admin-btn admin-btn-primary" type="button" onClick={() => void addMember(false)}>
-            + New Member
-          </button>
+      <div className="admin-card">
+        <div className="admin-toolbar">
+          <div className="admin-toolbar-nav">
+            <button className="admin-btn" onClick={() => nav("first")}>|&lt;</button>
+            <button className="admin-btn" onClick={() => nav("prev")}>&lt;</button>
+            <button className="admin-btn" onClick={() => nav("next")}>&gt;</button>
+            <button className="admin-btn" onClick={() => nav("last")}>&gt;|</button>
+          </div>
+          <input className="admin-input" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search any field..." />
+          <select className="admin-input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="all">All Records</option>
+            <option value="active">Active Members</option>
+            <option value="inactive">Inactive Members</option>
+            <option value="prospective">Prospective</option>
+          </select>
+          <button className="admin-btn" onClick={() => void loadMembers()} disabled={loading}>{loading ? "Loading..." : "Search"}</button>
+          <span className="admin-meta">
+            Record {recordCount} | Found {members.length} of {members.length}
+          </span>
+          <span className="admin-meta">
+            Staff: {staff?.firstName || "Admin"} {staff?.lastName || "User"}
+          </span>
         </div>
       </div>
 
-      {/* Tabs Section */}
       <div className="admin-card">
         <div className="admin-workbench-tabs">
           {tabs.map((tab) => (
             <button
               key={tab}
               className={`admin-btn admin-tab-btn ${tab === activeTab ? "admin-btn-primary" : ""}`}
-              onClick={() => {
-                setActiveTab(tab);
-                if (tab !== "Data Entry") setShowDetailView(false);
-              }}
+              onClick={() => setActiveTab(tab)}
             >
               {tab}
             </button>
@@ -299,231 +302,289 @@ export default function AdminWorkbenchPage() {
       </div>
 
       <div className="admin-card">
+        <div className="admin-actions-row">
+          <button className="admin-btn admin-btn-primary" type="button" onClick={() => void addMember(false)}>ADD NEW MEMBER</button>
+          <button className="admin-btn" type="button" onClick={() => void addMember(true)}>ADD PROSPECT</button>
+          <button className="admin-btn" type="button" onClick={() => void deleteCurrent()}>DELETE THIS MEMBER</button>
+          <button
+            className="admin-btn"
+            type="button"
+            onClick={() => document.getElementById("admin-oil-co-quickadd")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+          >
+            ADD NEW CO.
+          </button>
+          <button className="admin-btn admin-btn-primary" type="button" onClick={() => void saveCurrent()}>SAVE CHANGES</button>
+        </div>
 
-        {activeTab === "Data Entry" && !showDetailView && (
+        {activeTab === "Data Entry" && current && (
           <div className="admin-workbench-data-entry">
-            {/* Filters Section */}
-            <div className="admin-orders-filters">
-              <input
-                type="text"
-                className="admin-search-input"
-                placeholder="Search members..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-              <select className="admin-filter-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-                <option value="all">All Status</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="prospective">Prospective</option>
-              </select>
-              <button className="admin-btn" onClick={() => void loadMembers()} disabled={loading}>
-                {loading ? "Loading..." : "Search"}
-              </button>
-            </div>
-
-            {/* Members Table */}
-            <div className="admin-orders-table-wrapper">
-              <table className="admin-orders-table">
-                <thead>
-                  <tr>
-                    <th>Member</th>
-                    <th>Date</th>
-                    <th>Contact</th>
-                    <th>Status</th>
-                    <th>Oil Co</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {members.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} style={{ textAlign: "center", padding: "2rem" }}>
-                        No members found. Try adjusting your search.
-                      </td>
-                    </tr>
-                  ) : (
-                    members.map((m, i) => (
-                      <tr key={m._id}>
-                        <td>
-                          <span className="admin-order-number">#{m.memberNumber || m._id.slice(-5)}</span>
-                          <br />
-                          <span style={{ color: "var(--admin-muted)", fontSize: "0.85rem" }}>
-                            {m.firstName} {m.lastName}
-                          </span>
-                        </td>
-                        <td>{m.createdAt ? new Date(m.createdAt).toLocaleDateString() : "—"}</td>
-                        <td>
-                          <span style={{ fontSize: "0.9rem" }}>{m.email || "—"}</span>
-                          {m.phone && <><br /><span style={{ color: "var(--admin-muted)", fontSize: "0.85rem" }}>{m.phone}</span></>}
-                        </td>
-                        <td>
-                          <span className={`admin-status-badge admin-status-${m.status === "active" ? "new" : m.status === "expired" ? "on-hold" : "cancelled"}`}>
-                            {m.status}
-                          </span>
-                        </td>
-                        <td>{m.oilCompanyId?.name || "—"}</td>
-                        <td>
-                          <button
-                            className="admin-action-btn"
-                            onClick={() => {
-                              setIndex(i);
-                              setShowDetailView(true);
-                            }}
-                          >
-                            View
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {activeTab === "Data Entry" && showDetailView && current && (
-          <div className="admin-workbench-data-entry">
-            {/* Back Button */}
-            <button className="admin-back-btn" onClick={() => setShowDetailView(false)}>
-              &larr; Back to Members
-            </button>
-
-            {/* Member Detail Card */}
-            <div className="admin-order-detail-card">
-              {/* Member Header */}
-              <div className={`admin-order-header admin-order-header-${current.status === "active" ? "new" : current.status === "expired" ? "onhold" : "cancelled"}`}>
-                <h2 className="admin-order-header-title">
-                  Member: #{current.memberNumber || current._id.slice(-5)} — {current.firstName} {current.lastName}
-                </h2>
+            <div className="admin-card admin-workbench-section">
+              <h2>Member Identity</h2>
+              <div className="admin-form-grid">
+                <label className="admin-form-span-2">
+                  Status
+                  <select
+                    className="admin-input"
+                    value={legacyValue("workbenchMemberStatus") || "ACTIVE"}
+                    onChange={(e) => setLegacy("workbenchMemberStatus", e.target.value)}
+                  >
+                    {WB_MEMBER_STATUS.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  ID
+                  <input className="admin-input" value={legacyValue("legacyId")} onChange={(e) => setLegacy("legacyId", e.target.value)} placeholder={current.memberNumber || ""} />
+                </label>
+                <label>
+                  Rec Type
+                  <select className="admin-input" value={legacyValue("recordType") || "IND"} onChange={(e) => setLegacy("recordType", e.target.value)}>
+                    {REC_TYPE.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  New Member Dt
+                  <input className="admin-input" value={legacyValue("newMemberDt")} onChange={(e) => setLegacy("newMemberDt", e.target.value)} placeholder={current.createdAt ? new Date(current.createdAt).toLocaleDateString() : ""} />
+                </label>
+                <p className="admin-readonly-hint">System created: {current.createdAt ? new Date(current.createdAt).toLocaleDateString() : "—"}</p>
+                <label>
+                  Original Start Date
+                  <input className="admin-input" value={legacyValue("originalStartDate")} onChange={(e) => setLegacy("originalStartDate", e.target.value)} />
+                </label>
+                <div className="admin-checkbox-grid">
+                  <label>
+                    <input type="checkbox" checked={legacyBool("seniorMember")} onChange={(e) => setLegacy("seniorMember", e.target.checked)} />
+                    Senior
+                  </label>
+                  <label>
+                    <input type="checkbox" checked={legacyBool("useBothNames")} onChange={(e) => setLegacy("useBothNames", e.target.checked)} />
+                    Use Both Names
+                  </label>
+                  <label>
+                    <input type="checkbox" checked={legacyBool("mailAddr")} onChange={(e) => setLegacy("mailAddr", e.target.checked)} />
+                    Mail Addr
+                  </label>
+                </div>
+                <label>First Name 1<input className="admin-input" value={form.firstName} onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))} /></label>
+                <label>Mid Name 1<input className="admin-input" value={legacyValue("midName1")} onChange={(e) => setLegacy("midName1", e.target.value)} /></label>
+                <label>Last Name 1<input className="admin-input" value={form.lastName} onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))} /></label>
+                <label>Suffix 1<input className="admin-input" value={legacyValue("suffix1")} onChange={(e) => setLegacy("suffix1", e.target.value)} /></label>
+                <label>First Name 2<input className="admin-input" value={legacyValue("firstName2")} onChange={(e) => setLegacy("firstName2", e.target.value)} /></label>
+                <label>Mid Name 2<input className="admin-input" value={legacyValue("midName2")} onChange={(e) => setLegacy("midName2", e.target.value)} /></label>
+                <label>Last Name 2<input className="admin-input" value={legacyValue("lastName2")} onChange={(e) => setLegacy("lastName2", e.target.value)} /></label>
+                <label>Suffix 2<input className="admin-input" value={legacyValue("suffix2")} onChange={(e) => setLegacy("suffix2", e.target.value)} /></label>
+                <label>Street No<input className="admin-input" value={legacyValue("streetNo")} onChange={(e) => setLegacy("streetNo", e.target.value)} /></label>
+                <label>Street Nm<input className="admin-input" value={form.addressLine1} onChange={(e) => setForm((f) => ({ ...f, addressLine1: e.target.value }))} /></label>
+                <label>Apt No 1<input className="admin-input" value={legacyValue("aptNo1")} onChange={(e) => setLegacy("aptNo1", e.target.value)} /></label>
+                <label>Address Line2<input className="admin-input" value={form.addressLine2} onChange={(e) => setForm((f) => ({ ...f, addressLine2: e.target.value }))} /></label>
+                <label>City<input className="admin-input" value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} /></label>
+                <label>State<input className="admin-input" value={form.state} onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))} /></label>
+                <label>Zip<input className="admin-input" value={form.postalCode} onChange={(e) => setForm((f) => ({ ...f, postalCode: e.target.value }))} /></label>
+                <label>Plus 4<input className="admin-input" value={legacyValue("plus4")} onChange={(e) => setLegacy("plus4", e.target.value)} /></label>
+                <label>Company<input className="admin-input" value={legacyValue("company")} onChange={(e) => setLegacy("company", e.target.value)} /></label>
+                <label>Employer<input className="admin-input" value={legacyValue("employer")} onChange={(e) => setLegacy("employer", e.target.value)} /></label>
+                <label>The Next Step?<input className="admin-input" value={legacyValue("nextStep")} onChange={(e) => setLegacy("nextStep", e.target.value)} /></label>
+                <label>Referred By ID<input className="admin-input" value={legacyValue("referredById")} onChange={(e) => setLegacy("referredById", e.target.value)} /></label>
+                <label>Date Referred<input className="admin-input" value={legacyValue("dateReferred")} onChange={(e) => setLegacy("dateReferred", e.target.value)} /></label>
+                <label className="admin-form-span-2 admin-note-field">
+                  Note
+                  <textarea className="admin-input admin-note-input" value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
+                </label>
               </div>
+            </div>
 
-              {/* Member Body */}
-              <div className="admin-order-body">
-                <p className="admin-order-intro">
-                  Member since <strong>{current.createdAt ? new Date(current.createdAt).toLocaleDateString() : "Unknown"}</strong>
-                </p>
+            <div className="admin-card admin-workbench-section">
+              <h2>Electric</h2>
+              <div className="admin-form-grid">
+                <label className="admin-form-span-2">
+                  Electric Status
+                  <select className="admin-input" value={legacyValue("electricStatus") || "UNKNOWN"} onChange={(e) => setLegacy("electricStatus", e.target.value)}>
+                    {ELECTRIC_STATUS.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>Elec Sign Up Date<input className="admin-input" value={legacyValue("elecSignUpDate")} onChange={(e) => setLegacy("elecSignUpDate", e.target.value)} /></label>
+                <label>Elec Start Date<input className="admin-input" value={legacyValue("elecStartDate")} onChange={(e) => setLegacy("elecStartDate", e.target.value)} /></label>
+                <label>Name Key<input className="admin-input" value={legacyValue("nameKey")} onChange={(e) => setLegacy("nameKey", e.target.value)} /></label>
+                <label>Dropped Date<input className="admin-input" value={legacyValue("droppedDate")} onChange={(e) => setLegacy("droppedDate", e.target.value)} /></label>
+                <label className="admin-form-span-2">Electricity Account Number<input className="admin-input" value={legacyValue("electricAccountNumber")} onChange={(e) => setLegacy("electricAccountNumber", e.target.value)} /></label>
+                <div className="admin-checkbox-grid">
+                  <label>
+                    <input type="checkbox" checked={legacyBool("notPaidCurrentYr")} onChange={(e) => setLegacy("notPaidCurrentYr", e.target.checked)} />
+                    Not Paid Current Yr
+                  </label>
+                  <label>
+                    <input type="checkbox" checked={legacyBool("delinquent")} onChange={(e) => setLegacy("delinquent", e.target.checked)} />
+                    Delinquent
+                  </label>
+                </div>
+              </div>
+            </div>
 
-                {/* Member Info Table */}
-                <table className="admin-order-products-table">
-                  <thead>
-                    <tr>
-                      <th>Field</th>
-                      <th>Value</th>
-                    </tr>
-                  </thead>
+            <div className="admin-card admin-workbench-section">
+              <h2>Oil Company Status</h2>
+              <div className="admin-form-grid">
+                <label className="admin-form-span-2">
+                  Status
+                  <select className="admin-input" value={legacyValue("oilWorkbenchStatus") || "ACTIVE"} onChange={(e) => setLegacy("oilWorkbenchStatus", e.target.value)}>
+                    {WB_OIL_STATUS.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="admin-form-span-2">
+                  Oil Co Code
+                  <select className="admin-input" value={form.oilCompanyId} onChange={(e) => setForm((f) => ({ ...f, oilCompanyId: e.target.value }))}>
+                    <option value="">—</option>
+                    {oilCompanies.map((oc) => (
+                      <option key={oc._id} value={oc._id}>{oc.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>Oil ID<input className="admin-input" value={legacyValue("oilId")} onChange={(e) => setLegacy("oilId", e.target.value)} /></label>
+                <label>Oil Co Info<input className="admin-input" value={legacyValue("oilCoInfo")} onChange={(e) => setLegacy("oilCoInfo", e.target.value)} /></label>
+                <label>Oil Start Date<input className="admin-input" value={legacyValue("oilStartDate")} onChange={(e) => setLegacy("oilStartDate", e.target.value)} /></label>
+                <label>
+                  How Joined
+                  <select className="admin-input" value={legacyValue("howJoined") || "WEB"} onChange={(e) => setLegacy("howJoined", e.target.value)}>
+                    {HOW_JOINED.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Referral
+                  <select className="admin-input" value={legacyValue("referralSource") || "OTHER"} onChange={(e) => setLegacy("referralSource", e.target.value)}>
+                    {REFERRAL_SOURCE.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <div className="admin-card admin-workbench-section">
+              <h2>Contact Information</h2>
+              <div className="admin-form-grid">
+                <label>Phone 1<input className="admin-input" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} /></label>
+                <label>
+                  Type of Phone 1
+                  <select className="admin-input" value={legacyValue("typePhone1") || "HOME"} onChange={(e) => setLegacy("typePhone1", e.target.value)}>
+                    {PHONE_TYPE.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>P1 Ext<input className="admin-input" value={legacyValue("p1Ext")} onChange={(e) => setLegacy("p1Ext", e.target.value)} /></label>
+                <label>Phone 2<input className="admin-input" value={legacyValue("phone2")} onChange={(e) => setLegacy("phone2", e.target.value)} /></label>
+                <label>
+                  Type of Phone 2
+                  <select className="admin-input" value={legacyValue("typePhone2") || "HOME"} onChange={(e) => setLegacy("typePhone2", e.target.value)}>
+                    {PHONE_TYPE.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>P2 Ext<input className="admin-input" value={legacyValue("p2Ext")} onChange={(e) => setLegacy("p2Ext", e.target.value)} /></label>
+                <label>Phone 3<input className="admin-input" value={legacyValue("phone3")} onChange={(e) => setLegacy("phone3", e.target.value)} /></label>
+                <label>
+                  Type of Phone 3
+                  <select className="admin-input" value={legacyValue("typePhone3") || "HOME"} onChange={(e) => setLegacy("typePhone3", e.target.value)}>
+                    {PHONE_TYPE.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>P3 Ext<input className="admin-input" value={legacyValue("p3Ext")} onChange={(e) => setLegacy("p3Ext", e.target.value)} /></label>
+                <label>
+                  E Mail
+                  <input className="admin-input" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
+                </label>
+                <label>
+                  &nbsp;
+                  <span style={{ display: "flex", alignItems: "center", gap: "0.45rem", marginTop: "0.35rem" }}>
+                    <input type="checkbox" checked={legacyBool("emailOptOut")} onChange={(e) => setLegacy("emailOptOut", e.target.checked)} />
+                    <span style={{ fontSize: "0.78rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--admin-muted)" }}>
+                      Opted Out
+                    </span>
+                  </span>
+                </label>
+                <label>E Mail 2<input className="admin-input" value={legacyValue("email2")} onChange={(e) => setLegacy("email2", e.target.value)} /></label>
+                <label>Call Back<input className="admin-input" value={legacyValue("callBack")} onChange={(e) => setLegacy("callBack", e.target.value)} /></label>
+                <label>Call Back Date<input className="admin-input" value={legacyValue("callBackDate")} onChange={(e) => setLegacy("callBackDate", e.target.value)} /></label>
+                <label className="admin-form-span-2 admin-note-field">
+                  Note
+                  <textarea className="admin-input admin-note-input" value={legacyValue("contactNote")} onChange={(e) => setLegacy("contactNote", e.target.value)} />
+                </label>
+              </div>
+            </div>
+
+            <div className="admin-card admin-workbench-section">
+              <h2>Propane Company Info</h2>
+              <div className="admin-form-grid">
+                <label className="admin-form-span-2">
+                  Propane Status
+                  <select className="admin-input" value={legacyValue("propaneStatus") || "UNKNOWN"} onChange={(e) => setLegacy("propaneStatus", e.target.value)}>
+                    {WB_PROPANE_STATUS.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="admin-form-span-2">Prop Co Info<input className="admin-input" value={legacyValue("propCoInfo")} onChange={(e) => setLegacy("propCoInfo", e.target.value)} /></label>
+                <label>Prop Co Code<input className="admin-input" value={legacyValue("propCoCode")} onChange={(e) => setLegacy("propCoCode", e.target.value)} /></label>
+                <label>Propane ID<input className="admin-input" value={legacyValue("propaneId")} onChange={(e) => setLegacy("propaneId", e.target.value)} /></label>
+                <label>Propane Start Date<input className="admin-input" value={legacyValue("propaneStartDate")} onChange={(e) => setLegacy("propaneStartDate", e.target.value)} /></label>
+              </div>
+            </div>
+
+            <div className="admin-card admin-workbench-section">
+              <h2>Delivery Status</h2>
+              <div className="admin-form-grid">
+                <div className="admin-checkbox-grid">
+                  <label>
+                    <input type="checkbox" checked={legacyBool("nrdOil")} onChange={(e) => setLegacy("nrdOil", e.target.checked)} />
+                    NRD-Oil
+                  </label>
+                  <label>
+                    <input type="checkbox" checked={legacyBool("nrdProp")} onChange={(e) => setLegacy("nrdProp", e.target.checked)} />
+                    NRD-Prop
+                  </label>
+                </div>
+                <label className="admin-form-span-2 admin-note-field">
+                  Delivery History
+                  <textarea className="admin-input admin-note-input" value={legacyValue("deliveryHistory")} onChange={(e) => setLegacy("deliveryHistory", e.target.value)} />
+                </label>
+              </div>
+            </div>
+
+            <div id="admin-oil-co-quickadd" className="admin-card admin-workbench-section">
+              <h2>Oil Company / Quick Add</h2>
+              <div className="admin-form-grid">
+                <label className="admin-form-span-2">Company Name<input className="admin-input" value={newCompanyName} onChange={(e) => setNewCompanyName(e.target.value)} /></label>
+                <label>Contact Email<input className="admin-input" value={newCompanyEmail} onChange={(e) => setNewCompanyEmail(e.target.value)} /></label>
+                <label>Contact Phone<input className="admin-input" value={newCompanyPhone} onChange={(e) => setNewCompanyPhone(e.target.value)} /></label>
+              </div>
+              <button type="button" className="admin-btn admin-small-top" onClick={() => void addCompany()}>ADD NEW CO.</button>
+            </div>
+
+            <div className="admin-card admin-workbench-section">
+              <h2>Current Record</h2>
+              <div className="admin-table-wrap">
+                <table className="admin-table">
                   <tbody>
-                    <tr><td>Status</td><td>
-                      <select
-                        className="admin-input"
-                        value={legacyValue("workbenchMemberStatus") || "ACTIVE"}
-                        onChange={(e) => setLegacy("workbenchMemberStatus", e.target.value)}
-                      >
-                        {WB_MEMBER_STATUS.map((s) => (
-                          <option key={s} value={s}>{s}</option>
-                        ))}
-                      </select>
-                    </td></tr>
-                    <tr><td>First Name</td><td><input className="admin-input" value={form.firstName} onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))} /></td></tr>
-                    <tr><td>Last Name</td><td><input className="admin-input" value={form.lastName} onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))} /></td></tr>
-                    <tr><td>Email</td><td><input className="admin-input" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} /></td></tr>
-                    <tr><td>Phone</td><td><input className="admin-input" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} /></td></tr>
-                    <tr><td>Oil Company</td><td>
-                      <select className="admin-input" value={form.oilCompanyId} onChange={(e) => setForm((f) => ({ ...f, oilCompanyId: e.target.value }))}>
-                        <option value="">—</option>
-                        {oilCompanies.map((oc) => (
-                          <option key={oc._id} value={oc._id}>{oc.name}</option>
-                        ))}
-                      </select>
-                    </td></tr>
+                    <tr><th>Member #</th><td>{current.memberNumber || "—"}</td></tr>
+                    <tr><th>Workbench Status</th><td>{legacyValue("workbenchMemberStatus") || "—"}</td></tr>
+                    <tr><th>New Member Dt</th><td>{current.createdAt ? new Date(current.createdAt).toLocaleDateString() : "—"}</td></tr>
+                    <tr><th>Name</th><td>{current.firstName} {current.lastName}</td></tr>
+                    <tr><th>Oil Co</th><td>{current.oilCompanyId?.name || "—"}</td></tr>
+                    <tr><th>Oil ID</th><td>{legacyValue("oilId") || "—"}</td></tr>
+                    <tr><th>Propane ID</th><td>{legacyValue("propaneId") || "—"}</td></tr>
                   </tbody>
                 </table>
-
-                {/* Totals Section */}
-                <div className="admin-order-totals">
-                  <div className="admin-order-total-row">
-                    <span className="admin-total-label">Record Type:</span>
-                    <span className="admin-total-value">
-                      <select className="admin-input" value={legacyValue("recordType") || "IND"} onChange={(e) => setLegacy("recordType", e.target.value)} style={{ width: "auto" }}>
-                        {REC_TYPE.map((s) => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                    </span>
-                  </div>
-                  <div className="admin-order-total-row">
-                    <span className="admin-total-label">Oil Status:</span>
-                    <span className="admin-total-value">
-                      <select className="admin-input" value={legacyValue("oilWorkbenchStatus") || "ACTIVE"} onChange={(e) => setLegacy("oilWorkbenchStatus", e.target.value)} style={{ width: "auto" }}>
-                        {WB_OIL_STATUS.map((s) => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                    </span>
-                  </div>
-                  <div className="admin-order-total-row admin-order-total-final">
-                    <span className="admin-total-label">Member Status:</span>
-                    <span className="admin-total-value">{current.status.toUpperCase()}</span>
-                  </div>
-                </div>
-
-                {/* Billing Address Section */}
-                <div className="admin-billing-section">
-                  <h4 className="admin-billing-title">Address</h4>
-                  <div className="admin-billing-address">
-                    <div className="admin-form-grid">
-                      <label>Street No<input className="admin-input" value={legacyValue("streetNo")} onChange={(e) => setLegacy("streetNo", e.target.value)} /></label>
-                      <label>Street Name<input className="admin-input" value={form.addressLine1} onChange={(e) => setForm((f) => ({ ...f, addressLine1: e.target.value }))} /></label>
-                      <label>Apt<input className="admin-input" value={legacyValue("aptNo1")} onChange={(e) => setLegacy("aptNo1", e.target.value)} /></label>
-                      <label>Address Line 2<input className="admin-input" value={form.addressLine2} onChange={(e) => setForm((f) => ({ ...f, addressLine2: e.target.value }))} /></label>
-                      <label>City<input className="admin-input" value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} /></label>
-                      <label>State<input className="admin-input" value={form.state} onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))} /></label>
-                      <label>Zip<input className="admin-input" value={form.postalCode} onChange={(e) => setForm((f) => ({ ...f, postalCode: e.target.value }))} /></label>
-                      <label>Plus 4<input className="admin-input" value={legacyValue("plus4")} onChange={(e) => setLegacy("plus4", e.target.value)} /></label>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Additional Info Section */}
-                <div className="admin-billing-section">
-                  <h4 className="admin-billing-title">Oil & Propane</h4>
-                  <div className="admin-billing-address">
-                    <div className="admin-form-grid">
-                      <label>Oil ID<input className="admin-input" value={legacyValue("oilId")} onChange={(e) => setLegacy("oilId", e.target.value)} /></label>
-                      <label>Oil Start Date<input className="admin-input" value={legacyValue("oilStartDate")} onChange={(e) => setLegacy("oilStartDate", e.target.value)} /></label>
-                      <label>Propane Status
-                        <select className="admin-input" value={legacyValue("propaneStatus") || "UNKNOWN"} onChange={(e) => setLegacy("propaneStatus", e.target.value)}>
-                          {WB_PROPANE_STATUS.map((s) => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                      </label>
-                      <label>Propane ID<input className="admin-input" value={legacyValue("propaneId")} onChange={(e) => setLegacy("propaneId", e.target.value)} /></label>
-                      <label>Electric Status
-                        <select className="admin-input" value={legacyValue("electricStatus") || "UNKNOWN"} onChange={(e) => setLegacy("electricStatus", e.target.value)}>
-                          {ELECTRIC_STATUS.map((s) => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                      </label>
-                      <label>Electric Account<input className="admin-input" value={legacyValue("electricAccountNumber")} onChange={(e) => setLegacy("electricAccountNumber", e.target.value)} /></label>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Notes Section */}
-                <div className="admin-billing-section">
-                  <h4 className="admin-billing-title">Notes</h4>
-                  <div className="admin-billing-address">
-                    <textarea
-                      className="admin-input admin-note-input"
-                      value={form.notes}
-                      onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-                      style={{ width: "100%", minHeight: "80px" }}
-                    />
-                  </div>
-                </div>
-
-                {/* Footer Actions */}
-                <div className="admin-order-footer-message">
-                  <div className="admin-actions-row">
-                    <button className="admin-btn admin-btn-primary" onClick={() => void saveCurrent()}>Save Changes</button>
-                    <button className="admin-btn" onClick={() => void deleteCurrent()}>Delete Member</button>
-                  </div>
-                </div>
               </div>
             </div>
           </div>
