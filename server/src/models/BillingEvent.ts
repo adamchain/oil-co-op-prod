@@ -10,6 +10,11 @@ const billingEventSchema = new Schema(
     },
     amountCents: { type: Number, required: true },
     stripePaymentIntentId: { type: String, default: "" },
+    /** Authorize.Net transaction id for phone/admin card charges. */
+    authnetTransactionId: { type: String, default: "" },
+    authnetAuthCode: { type: String, default: "" },
+    cardLast4: { type: String, default: "" },
+    cardType: { type: String, default: "" },
     status: {
       type: String,
       enum: ["pending", "succeeded", "failed", "waived", "mock"],

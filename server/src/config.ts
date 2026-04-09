@@ -33,9 +33,18 @@ export const config = {
     pass: process.env.SMTP_PASS || "",
   },
   emailFrom: process.env.EMAIL_FROM || "Oil Co-op <noreply@example.com>",
+  authorizeNet: {
+    loginId: process.env.AUTHNET_LOGIN_ID || "",
+    transactionKey: process.env.AUTHNET_TRANSACTION_KEY || "",
+    /** "sandbox" (default) or "production" */
+    env: (process.env.AUTHNET_ENV || "sandbox").toLowerCase(),
+  },
 };
 
 export const stripeEnabled = Boolean(config.stripeSecretKey);
+export const authorizeNetEnabled = Boolean(
+  config.authorizeNet.loginId && config.authorizeNet.transactionKey
+);
 
 /** True when any supported Mongo env var is set (not the local dev default). */
 export function hasMongoEnv(): boolean {

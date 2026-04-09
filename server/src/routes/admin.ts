@@ -11,6 +11,8 @@ import { Referral } from "../models/Referral.js";
 import { logActivity } from "../services/activity.js";
 import { sendMemberEmail } from "../services/mail.js";
 import { nextJuneFirstAfterSignup } from "../utils/juneBilling.js";
+import { chargeCard } from "../services/authorizeNet.js";
+import { config, authorizeNetEnabled } from "../config.js";
 import bcrypt from "bcryptjs";
 
 const router = Router();
@@ -20,9 +22,13 @@ router.use(requireAuth, requireAdmin);
 router.get("/members", async (req, res) => {
   const q = (req.query.q as string) || "";
   const status = req.query.status as string | undefined;
+  const signedUpVia = req.query.signedUpVia as string | undefined;
   const filter: Record<string, unknown> = { role: "member" };
   if (status && ["active", "expired", "cancelled"].includes(status)) {
     filter.status = status;
+  }
+  if (signedUpVia && ["web", "phone", "admin"].includes(signedUpVia)) {
+    filter.signedUpVia = signedUpVia;
   }
   if (q.trim()) {
     const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
@@ -545,6 +551,140 @@ router.get("/exceptions", async (_req, res) => {
     },
     tasks,
   });
+});
+
+/**
+ * Authorize.Net card charge initiated from the admin workbench (phone sign-ups
+ * and staff-processed payments). Card data is sent directly to Authorize.Net
+ * and is never stored. Only the auth response (transId, last4, authCode) is
+ * persisted in the BillingEvent for reconciliation.
+ */
+const chargeSchema = z.object({
+  amountCents: z.number().int().positive(),
+  kind: z.enum(["registration", "annual", "manual_adjustment"]).default("annual"),
+  billingYear: z.number().int().optional(),
+  description: z.string().optional(),
+  card: z.object({
+    number: z.string().min(12),
+    expiration: z.string().min(4),
+    cvv: z.string().min(3),
+    nameOnCard: z.string().optional(),
+  }),
+});
+
+router.post("/members/:id/charge", async (req: AuthedRequest, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const parsed = chargeSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const member = await Member.findById(req.params.id);
+  if (!member || member.role !== "member") {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  const body = parsed.data;
+
+  if (!authorizeNetEnabled) {
+    // Dev/mock path — record a mock success so the UI flow can be exercised.
+    const mock = await BillingEvent.create({
+      memberId: member._id,
+      kind: body.kind,
+      amountCents: body.amountCents,
+      status: "mock",
+      description: body.description || `Mock ${body.kind} charge (Authorize.Net not configured)`,
+      billingYear: body.billingYear ?? new Date().getFullYear(),
+      processedByAdminId: req.userId,
+      cardLast4: body.card.number.replace(/\D/g, "").slice(-4),
+    });
+    await logActivity(
+      member._id,
+      "admin_card_charge_mock",
+      { amountCents: body.amountCents, adminId: req.userId },
+      new mongoose.Types.ObjectId(req.userId!)
+    );
+    res.json({ ok: true, mock: true, billingEvent: mock });
+    return;
+  }
+
+  const result = await chargeCard({
+    amountCents: body.amountCents,
+    cardNumber: body.card.number,
+    expiration: body.card.expiration,
+    cardCode: body.card.cvv,
+    invoiceNumber: member.memberNumber || String(member._id).slice(-8),
+    description: body.description || `${body.kind} — ${member.memberNumber || ""}`.trim(),
+    email: member.email,
+    firstName: member.firstName,
+    lastName: member.lastName,
+    addressLine1: member.addressLine1,
+    city: member.city,
+    state: member.state,
+    postalCode: member.postalCode,
+  });
+
+  if (!result.ok) {
+    const failed = await BillingEvent.create({
+      memberId: member._id,
+      kind: body.kind,
+      amountCents: body.amountCents,
+      status: "failed",
+      description: `Authorize.Net: ${result.error}`,
+      billingYear: body.billingYear ?? new Date().getFullYear(),
+      processedByAdminId: req.userId,
+      cardLast4: body.card.number.replace(/\D/g, "").slice(-4),
+    });
+    await logActivity(
+      member._id,
+      "admin_card_charge_failed",
+      { error: result.error, adminId: req.userId },
+      new mongoose.Types.ObjectId(req.userId!)
+    );
+    res.status(402).json({ ok: false, error: result.error, billingEvent: failed });
+    return;
+  }
+
+  const ok = await BillingEvent.create({
+    memberId: member._id,
+    kind: body.kind,
+    amountCents: result.amountCents,
+    status: "succeeded",
+    description: body.description || `Admin charge (Authorize.Net)`,
+    billingYear: body.billingYear ?? new Date().getFullYear(),
+    processedByAdminId: req.userId,
+    authnetTransactionId: result.transactionId,
+    authnetAuthCode: result.authCode,
+    cardLast4: result.accountLast4,
+    cardType: result.accountType,
+  });
+
+  if (body.kind === "annual") {
+    member.lastAnnualChargeAt = new Date();
+    member.lastAnnualChargeAmountCents = result.amountCents;
+    member.nextAnnualBillingDate = nextJuneFirstAfterSignup(new Date());
+  }
+  if (body.kind === "registration") {
+    member.registrationFeePaidAt = new Date();
+  }
+  await member.save();
+
+  await logActivity(
+    member._id,
+    "admin_card_charge_succeeded",
+    {
+      amountCents: result.amountCents,
+      transactionId: result.transactionId,
+      adminId: req.userId,
+    },
+    new mongoose.Types.ObjectId(req.userId!)
+  );
+
+  res.json({ ok: true, billingEvent: ok, registrationFeeCents: config.registrationFeeCents });
 });
 
 export default router;
