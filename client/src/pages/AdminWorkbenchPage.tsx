@@ -36,15 +36,17 @@ type Member = {
   postalCode?: string;
   status: "active" | "expired" | "cancelled";
   notes?: string;
+  notesHistory?: NoteEntry[];
   createdAt?: string;
   oilCompanyId?: { _id: string; name: string } | null;
   legacyProfile?: Record<string, unknown>;
 };
 
-type OilCompany = { _id: string; name: string; contactEmail?: string; contactPhone?: string };
+type OilCompany = { _id: string; name: string; contactEmail?: string; contactPhone?: string; notes?: string };
 type BillingEvent = { _id: string; kind: string; status: string; amountCents: number; billingYear?: number; createdAt: string };
 type Comm = { _id: string; channel: string; subject?: string; status: string; createdAt: string };
 type Referral = { referrerMemberId?: { firstName?: string; lastName?: string; email?: string } };
+type NoteEntry = { _id?: string; text: string; createdAt: string; createdBy: string };
 
 function defaultWorkbenchMemberStatus(m: Member): string {
   const lp = (m.legacyProfile || {}) as Record<string, unknown>;
@@ -84,6 +86,14 @@ export default function AdminWorkbenchPage() {
   const [communications, setCommunications] = useState<Comm[]>([]);
   const [referral, setReferral] = useState<Referral | null>(null);
   const [oilCoWorksheetId, setOilCoWorksheetId] = useState("");
+
+  // Oil Company editing state
+  const [editingOilCo, setEditingOilCo] = useState<OilCompany | null>(null);
+  const [oilCoForm, setOilCoForm] = useState({ name: "", contactEmail: "", contactPhone: "", notes: "" });
+  const [showAddOilCo, setShowAddOilCo] = useState(false);
+
+  // Notes state
+  const [newNote, setNewNote] = useState("");
 
   const [form, setForm] = useState({
     firstName: "",
@@ -240,6 +250,70 @@ export default function AdminWorkbenchPage() {
     await loadMembers();
   };
 
+  // Oil Company CRUD functions
+  const saveOilCompany = async () => {
+    if (!token) return;
+    if (editingOilCo) {
+      await api(`/api/admin/oil-companies/${editingOilCo._id}`, {
+        method: "PATCH",
+        token,
+        body: JSON.stringify(oilCoForm),
+      });
+    } else {
+      await api("/api/admin/oil-companies", {
+        method: "POST",
+        token,
+        body: JSON.stringify(oilCoForm),
+      });
+    }
+    await loadOilCompanies();
+    setEditingOilCo(null);
+    setShowAddOilCo(false);
+    setOilCoForm({ name: "", contactEmail: "", contactPhone: "", notes: "" });
+  };
+
+  const deleteOilCompany = async (id: string, name: string) => {
+    if (!token) return;
+    if (!confirm(`Delete oil company "${name}"?`)) return;
+    await api(`/api/admin/oil-companies/${id}`, { method: "DELETE", token });
+    await loadOilCompanies();
+  };
+
+  const startEditOilCo = (oc: OilCompany) => {
+    setEditingOilCo(oc);
+    setOilCoForm({
+      name: oc.name,
+      contactEmail: oc.contactEmail || "",
+      contactPhone: oc.contactPhone || "",
+      notes: oc.notes || "",
+    });
+    setShowAddOilCo(false);
+  };
+
+  const startAddOilCo = () => {
+    setEditingOilCo(null);
+    setOilCoForm({ name: "", contactEmail: "", contactPhone: "", notes: "" });
+    setShowAddOilCo(true);
+  };
+
+  const cancelOilCoEdit = () => {
+    setEditingOilCo(null);
+    setShowAddOilCo(false);
+    setOilCoForm({ name: "", contactEmail: "", contactPhone: "", notes: "" });
+  };
+
+  // Notes functions
+  const addNote = async () => {
+    if (!token || !current || !newNote.trim()) return;
+    await api(`/api/admin/members/${current._id}/notes`, {
+      method: "POST",
+      token,
+      body: JSON.stringify({ text: newNote.trim() }),
+    });
+    setNewNote("");
+    await loadMembers();
+  };
+
 
   return (
     <div className="admin-workbench">
@@ -361,11 +435,55 @@ export default function AdminWorkbenchPage() {
                 <label>Zip<input className="admin-input" value={form.postalCode} onChange={(e) => setForm((f) => ({ ...f, postalCode: e.target.value }))} /></label>
                 <label className="admin-form-span-2">Company<input className="admin-input" value={legacyValue("company")} onChange={(e) => setLegacy("company", e.target.value)} /></label>
                 <label className="admin-form-span-2">&nbsp;</label>
-                <label className="admin-form-span-2 admin-note-field">
-                  Note
-                  <textarea className="admin-input admin-note-input" value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
+                <label className="admin-form-span-4 admin-note-field">
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.25rem" }}>
+                    <span>Internal Notes</span>
+                    <span style={{ fontSize: "0.65rem", color: "var(--wb-muted)" }}>
+                      {(current?.notesHistory || []).length} saved note(s)
+                    </span>
+                  </div>
+                  <div className="admin-notes-history" style={{ maxHeight: "150px", overflowY: "auto", border: "1px solid var(--wb-border)", borderRadius: "var(--wb-radius-sm)", padding: "0.5rem", marginBottom: "0.5rem", background: "var(--wb-surface)" }}>
+                    {(current?.notesHistory || []).length === 0 && !form.notes ? (
+                      <p style={{ color: "var(--wb-muted)", fontSize: "0.75rem", margin: 0 }}>No notes yet</p>
+                    ) : (
+                      <>
+                        {form.notes && (
+                          <div style={{ paddingBottom: "0.5rem", borderBottom: "1px solid var(--wb-border)", marginBottom: "0.5rem" }}>
+                            <div style={{ fontSize: "0.65rem", color: "var(--wb-muted)", marginBottom: "0.15rem" }}>Legacy Note</div>
+                            <div style={{ fontSize: "0.8rem", whiteSpace: "pre-wrap" }}>{form.notes}</div>
+                          </div>
+                        )}
+                        {[...(current?.notesHistory || [])].reverse().map((note, i) => (
+                          <div key={note._id || i} style={{ paddingBottom: "0.5rem", borderBottom: i < (current?.notesHistory || []).length - 1 ? "1px solid var(--wb-border)" : "none", marginBottom: "0.5rem" }}>
+                            <div style={{ fontSize: "0.65rem", color: "var(--wb-muted)", marginBottom: "0.15rem" }}>
+                              {new Date(note.createdAt).toLocaleDateString()} {new Date(note.createdAt).toLocaleTimeString()} — {note.createdBy}
+                            </div>
+                            <div style={{ fontSize: "0.8rem", whiteSpace: "pre-wrap" }}>{note.text}</div>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", gap: "0.5rem" }}>
+                    <textarea
+                      className="admin-input admin-note-input"
+                      style={{ flex: 1 }}
+                      value={newNote}
+                      onChange={(e) => setNewNote(e.target.value)}
+                      placeholder="Add a new note..."
+                      rows={2}
+                    />
+                    <button
+                      type="button"
+                      className="admin-wb-btn admin-wb-btn-primary"
+                      style={{ alignSelf: "flex-end" }}
+                      onClick={addNote}
+                      disabled={!newNote.trim()}
+                    >
+                      Add Note
+                    </button>
+                  </div>
                 </label>
-                <label className="admin-form-span-2">&nbsp;</label>
                 <label>Employer<input className="admin-input" value={legacyValue("employer")} onChange={(e) => setLegacy("employer", e.target.value)} /></label>
                 <label className="admin-form-span-3">&nbsp;</label>
                 <label>The Next Step?<input className="admin-input" value={legacyValue("nextStep")} onChange={(e) => setLegacy("nextStep", e.target.value)} /></label>
@@ -566,6 +684,28 @@ export default function AdminWorkbenchPage() {
                 </label>
               </div>
               <button type="button" className="admin-btn" style={{fontSize: "0.6rem", padding: "0.2rem 0.5rem", background: "#dc2626", color: "#fff", borderColor: "#b91c1c"}}>DELIVERY HISTORY</button>
+            </div>
+
+            <div className="admin-wb-panel">
+              <div className="admin-wb-panel-title">Legacy Profile</div>
+              <div className="admin-form-grid-4" style={{ fontSize: "0.75rem" }}>
+                <label>Legacy ID<input className="admin-input" readOnly value={legacyValue("legacyId") || "—"} /></label>
+                <label>Record Type<input className="admin-input" readOnly value={legacyValue("recordType") || "—"} /></label>
+                <label>Import Source<input className="admin-input" readOnly value={legacyValue("importSource") || "—"} /></label>
+                <label>Date Added<input className="admin-input" readOnly value={legacyValue("dateAdd") || "—"} /></label>
+                <label>Date Updated<input className="admin-input" readOnly value={legacyValue("dateUpdat") || "—"} /></label>
+                <label>Last User<input className="admin-input" readOnly value={legacyValue("lastUser") || "—"} /></label>
+                <label>Key Codes<input className="admin-input" readOnly value={legacyValue("keyCodes") || "—"} /></label>
+                <label>Carrier Rt<input className="admin-input" readOnly value={legacyValue("carrierRt") || "—"} /></label>
+                <label>Oil Co Raw<input className="admin-input" readOnly value={legacyValue("oilCoRaw") || "—"} /></label>
+                <label>Plus 4<input className="admin-input" readOnly value={legacyValue("plus4") || "—"} /></label>
+                <label>Formal 1<input className="admin-input" readOnly value={legacyValue("formal1") || "—"} /></label>
+                <label>Formal 2<input className="admin-input" readOnly value={legacyValue("formal2") || "—"} /></label>
+                <label>Pref 1<input className="admin-input" readOnly value={legacyValue("pref1") || "—"} /></label>
+                <label>Pref 2<input className="admin-input" readOnly value={legacyValue("pref2") || "—"} /></label>
+                <label>Generation 1<input className="admin-input" readOnly value={legacyValue("generation1") || "—"} /></label>
+                <label>Generation 2<input className="admin-input" readOnly value={legacyValue("generation2") || "—"} /></label>
+              </div>
             </div>
 
             </div> {/* end right col */}
@@ -934,10 +1074,74 @@ export default function AdminWorkbenchPage() {
           <div className="admin-workbench-data-entry">
             <div className="admin-card admin-workbench-section">
               <h2>Oil Co Form</h2>
+              <div className="admin-actions-row" style={{ marginBottom: "1rem" }}>
+                <button type="button" className="admin-wb-btn admin-wb-btn-primary" onClick={startAddOilCo}>
+                  Add Oil Company
+                </button>
+              </div>
+
+              {(showAddOilCo || editingOilCo) && (
+                <div className="admin-wb-panel" style={{ marginBottom: "1rem" }}>
+                  <div className="admin-wb-panel-title">{editingOilCo ? "Edit Oil Company" : "Add Oil Company"}</div>
+                  <div className="admin-form-grid-4">
+                    <label className="admin-form-span-2">
+                      Company Name *
+                      <input
+                        className="admin-input"
+                        value={oilCoForm.name}
+                        onChange={(e) => setOilCoForm((f) => ({ ...f, name: e.target.value }))}
+                        placeholder="Enter company name"
+                      />
+                    </label>
+                    <label>
+                      Phone
+                      <input
+                        className="admin-input"
+                        value={oilCoForm.contactPhone}
+                        onChange={(e) => setOilCoForm((f) => ({ ...f, contactPhone: e.target.value }))}
+                        placeholder="(555) 555-5555"
+                      />
+                    </label>
+                    <label>
+                      Email
+                      <input
+                        className="admin-input"
+                        type="email"
+                        value={oilCoForm.contactEmail}
+                        onChange={(e) => setOilCoForm((f) => ({ ...f, contactEmail: e.target.value }))}
+                        placeholder="contact@company.com"
+                      />
+                    </label>
+                    <label className="admin-form-span-4 admin-note-field">
+                      Notes
+                      <textarea
+                        className="admin-input admin-note-input"
+                        value={oilCoForm.notes}
+                        onChange={(e) => setOilCoForm((f) => ({ ...f, notes: e.target.value }))}
+                        placeholder="Internal notes about this company..."
+                      />
+                    </label>
+                  </div>
+                  <div className="admin-actions-row" style={{ marginTop: "0.75rem" }}>
+                    <button
+                      type="button"
+                      className="admin-wb-btn admin-wb-btn-success"
+                      onClick={saveOilCompany}
+                      disabled={!oilCoForm.name.trim()}
+                    >
+                      {editingOilCo ? "Update Company" : "Add Company"}
+                    </button>
+                    <button type="button" className="admin-wb-btn admin-wb-btn-secondary" onClick={cancelOilCoEdit}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <h3>Oil Company Information</h3>
               <div className="admin-table-wrap">
                 <table className="admin-table">
-                  <thead><tr><th>Code</th><th>Company Name</th><th>Phone</th><th>Contact</th></tr></thead>
+                  <thead><tr><th>Code</th><th>Company Name</th><th>Phone</th><th>Contact</th><th>Actions</th></tr></thead>
                   <tbody>
                     {oilCompanies.map((oc) => (
                       <tr key={oc._id}>
@@ -945,6 +1149,26 @@ export default function AdminWorkbenchPage() {
                         <td>{oc.name}</td>
                         <td>{oc.contactPhone || "—"}</td>
                         <td>{oc.contactEmail || "—"}</td>
+                        <td>
+                          <div style={{ display: "flex", gap: "0.5rem" }}>
+                            <button
+                              type="button"
+                              className="admin-wb-btn admin-wb-btn-secondary"
+                              style={{ fontSize: "0.7rem", padding: "0.2rem 0.5rem" }}
+                              onClick={() => startEditOilCo(oc)}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              className="admin-wb-btn admin-wb-btn-danger"
+                              style={{ fontSize: "0.7rem", padding: "0.2rem 0.5rem" }}
+                              onClick={() => deleteOilCompany(oc._id, oc.name)}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

@@ -13,6 +13,15 @@ const notificationSettingsSchema = new Schema(
   { _id: false }
 );
 
+const noteEntrySchema = new Schema(
+  {
+    text: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now },
+    createdBy: { type: String, default: "" }, // admin email or "system"
+  },
+  { _id: true }
+);
+
 const memberSchema = new Schema(
   {
     memberNumber: { type: String, unique: true, sparse: true },
@@ -79,6 +88,8 @@ const memberSchema = new Schema(
     reminderCycleYear: { type: Number, default: null },
 
     notes: { type: String, default: "" },
+    /** Array of timestamped notes - new notes are added to this array */
+    notesHistory: { type: [noteEntrySchema], default: [] },
     signedUpVia: { type: String, enum: ["web", "phone", "admin"], default: "web" },
     /** Flexible store for legacy workbench/profile fields not yet normalized. */
     legacyProfile: { type: Schema.Types.Mixed, default: {} },

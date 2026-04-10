@@ -283,6 +283,54 @@ router.post("/members", async (req: AuthedRequest, res) => {
   res.status(201).json({ member });
 });
 
+const addNoteSchema = z.object({
+  text: z.string().min(1),
+});
+
+router.post("/members/:id/notes", async (req: AuthedRequest, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const parsed = addNoteSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const member = await Member.findById(req.params.id);
+  if (!member || member.role !== "member") {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  // Get admin info for attribution
+  const admin = await Member.findById(req.userId).select("email firstName lastName").lean() as { email?: string; firstName?: string; lastName?: string } | null;
+  const createdBy = admin ? `${admin.firstName || ""} ${admin.lastName || ""}`.trim() || admin.email || "admin" : "admin";
+
+  const newNote = {
+    text: parsed.data.text,
+    createdAt: new Date(),
+    createdBy,
+  };
+
+  // Initialize notesHistory array if not present
+  if (!Array.isArray(member.notesHistory)) {
+    member.notesHistory = [];
+  }
+
+  member.notesHistory.push(newNote);
+  await member.save();
+
+  await logActivity(
+    member._id,
+    "admin_note_added",
+    { notePreview: parsed.data.text.slice(0, 100), adminId: req.userId },
+    new mongoose.Types.ObjectId(req.userId!)
+  );
+
+  res.json({ ok: true, note: newNote, notesHistory: member.notesHistory });
+});
+
 router.delete("/members/:id", async (req: AuthedRequest, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) {
     res.status(400).json({ error: "Invalid id" });
@@ -330,6 +378,53 @@ router.post("/oil-companies", async (req, res) => {
   }
   const oc = await OilCompany.create(parsed.data);
   res.status(201).json({ oilCompany: oc });
+});
+
+router.patch("/oil-companies/:id", async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const parsed = oilCoSchema.partial().safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const oc = await OilCompany.findById(req.params.id);
+  if (!oc) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const body = parsed.data;
+  if (body.name !== undefined) oc.name = body.name;
+  if (body.contactEmail !== undefined) oc.contactEmail = body.contactEmail;
+  if (body.contactPhone !== undefined) oc.contactPhone = body.contactPhone;
+  if (body.notes !== undefined) oc.notes = body.notes;
+  await oc.save();
+  res.json({ oilCompany: oc });
+});
+
+router.delete("/oil-companies/:id", async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const oc = await OilCompany.findById(req.params.id);
+  if (!oc) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  // Check if any members are assigned to this company
+  const memberCount = await Member.countDocuments({ oilCompanyId: oc._id });
+  if (memberCount > 0) {
+    // Soft delete - just mark as inactive
+    oc.active = false;
+    await oc.save();
+    res.json({ ok: true, softDeleted: true, message: `Company deactivated (${memberCount} members still assigned)` });
+    return;
+  }
+  await oc.deleteOne();
+  res.json({ ok: true });
 });
 
 router.get("/reports/summary", async (_req, res) => {
