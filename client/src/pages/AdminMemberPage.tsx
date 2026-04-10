@@ -4,6 +4,7 @@ import { api } from "../api";
 import { useAuth } from "../authContext";
 
 type OilCo = { _id: string; name: string };
+type NoteEntry = { _id?: string; text: string; createdAt: string; createdBy: string };
 
 export default function AdminMemberPage() {
   const { id } = useParams<{ id: string }>();
@@ -19,6 +20,7 @@ export default function AdminMemberPage() {
       status: string;
       oilCompanyId?: string | { _id: string; name: string } | null;
       notes?: string;
+      notesHistory?: NoteEntry[];
       nextAnnualBillingDate?: string;
       successfulReferralCount?: number;
       referralWaiveCredits?: number;
@@ -33,7 +35,7 @@ export default function AdminMemberPage() {
   const [status, setStatus] = useState("active");
   const [msg, setMsg] = useState("");
   const [saving, setSaving] = useState(false);
-  const [legacyJson, setLegacyJson] = useState("{}");
+  const [newNote, setNewNote] = useState("");
 
   useEffect(() => {
     if (!token || !id) return;
@@ -48,7 +50,6 @@ export default function AdminMemberPage() {
       setOilId(typeof oc === "object" && oc ? oc._id : typeof oc === "string" ? oc : "");
       setNotes(d.member.notes || "");
       setStatus(d.member.status);
-      setLegacyJson(JSON.stringify(d.member.legacyProfile || {}, null, 2));
     });
   }, [token, id]);
 
@@ -62,9 +63,7 @@ export default function AdminMemberPage() {
         token,
         body: JSON.stringify({
           oilCompanyId: oilId || null,
-          notes,
           status,
-          legacyProfile: JSON.parse(legacyJson || "{}"),
         }),
       });
       setMsg("Saved.");
@@ -76,6 +75,29 @@ export default function AdminMemberPage() {
       setSaving(false);
     }
   }
+
+  async function addNote() {
+    if (!token || !id || !newNote.trim()) return;
+    setSaving(true);
+    try {
+      await api(`/api/admin/members/${id}/notes`, {
+        method: "POST",
+        token,
+        body: JSON.stringify({ text: newNote.trim() }),
+      });
+      setNewNote("");
+      const d = await api<NonNullable<typeof data>>(`/api/admin/members/${id}`, { token });
+      setData(d);
+      setMsg("Note added.");
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Error adding note");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const lp = data?.member?.legacyProfile || {};
+  const legacyValue = (key: string) => String((lp as Record<string, unknown>)[key] ?? "");
 
   if (!data) {
     return <p style={{ color: "var(--admin-muted)" }}>Loading…</p>;
@@ -127,34 +149,137 @@ export default function AdminMemberPage() {
             <option value="cancelled">cancelled</option>
           </select>
         </div>
-        <div style={{ marginBottom: "0.75rem" }}>
+        <div style={{ marginBottom: "1rem" }}>
           <label style={{ display: "block", fontSize: "0.7rem", textTransform: "uppercase", color: "var(--admin-muted)", marginBottom: "0.35rem" }}>
-            Internal notes
+            Internal notes ({(m.notesHistory || []).length} saved)
           </label>
-          <textarea
-            className="admin-input"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={3}
-            style={{ width: "100%", maxWidth: "480px", resize: "vertical" }}
-          />
+          <div style={{ border: "1px solid var(--admin-border)", borderRadius: "8px", padding: "0.75rem", maxHeight: "200px", overflowY: "auto", background: "#fafafa", marginBottom: "0.5rem", maxWidth: "640px" }}>
+            {(m.notesHistory || []).length === 0 && !notes ? (
+              <p style={{ color: "var(--admin-muted)", fontSize: "0.8rem", margin: 0 }}>No notes yet</p>
+            ) : (
+              <>
+                {notes && (
+                  <div style={{ paddingBottom: "0.5rem", borderBottom: "1px solid var(--admin-border)", marginBottom: "0.5rem" }}>
+                    <div style={{ fontSize: "0.65rem", color: "var(--admin-muted)", marginBottom: "0.15rem" }}>Legacy Note</div>
+                    <div style={{ fontSize: "0.85rem", whiteSpace: "pre-wrap" }}>{notes}</div>
+                  </div>
+                )}
+                {[...(m.notesHistory || [])].reverse().map((note, i) => (
+                  <div key={note._id || i} style={{ paddingBottom: "0.5rem", borderBottom: i < (m.notesHistory || []).length - 1 ? "1px solid var(--admin-border)" : "none", marginBottom: "0.5rem" }}>
+                    <div style={{ fontSize: "0.65rem", color: "var(--admin-muted)", marginBottom: "0.15rem" }}>
+                      {new Date(note.createdAt).toLocaleDateString()} {new Date(note.createdAt).toLocaleTimeString()} — {note.createdBy}
+                    </div>
+                    <div style={{ fontSize: "0.85rem", whiteSpace: "pre-wrap" }}>{note.text}</div>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+          <div style={{ display: "flex", gap: "0.5rem", maxWidth: "640px" }}>
+            <textarea
+              className="admin-input"
+              value={newNote}
+              onChange={(e) => setNewNote(e.target.value)}
+              placeholder="Add a new note..."
+              rows={2}
+              style={{ flex: 1, resize: "vertical" }}
+            />
+            <button
+              type="button"
+              className="admin-btn admin-btn-primary"
+              style={{ alignSelf: "flex-end" }}
+              onClick={() => void addNote()}
+              disabled={!newNote.trim() || saving}
+            >
+              Add Note
+            </button>
+          </div>
         </div>
-        <div style={{ marginBottom: "0.75rem" }}>
-          <label style={{ display: "block", fontSize: "0.7rem", textTransform: "uppercase", color: "var(--admin-muted)", marginBottom: "0.35rem" }}>
-            Legacy profile (JSON)
-          </label>
-          <textarea
-            className="admin-input"
-            value={legacyJson}
-            onChange={(e) => setLegacyJson(e.target.value)}
-            rows={8}
-            style={{ width: "100%", maxWidth: "640px", resize: "vertical", fontFamily: "monospace" }}
-          />
-        </div>
-        {msg && <p style={{ color: msg === "Saved." ? "var(--admin-text)" : "#b91c1c", fontSize: "0.875rem" }}>{msg}</p>}
+        {msg && <p style={{ color: msg.includes("Error") ? "#b91c1c" : "var(--admin-text)", fontSize: "0.875rem" }}>{msg}</p>}
         <button type="button" className="admin-btn admin-btn-primary" onClick={() => void save()} disabled={saving}>
           Save
         </button>
+      </div>
+
+      <div className="admin-card">
+        <h2>Legacy profile</h2>
+        <p style={{ color: "var(--admin-muted)", fontSize: "0.8125rem", marginTop: 0 }}>
+          Imported data from FileMaker database
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "0.75rem" }}>
+          <div>
+            <label style={{ display: "block", fontSize: "0.65rem", textTransform: "uppercase", color: "var(--admin-muted)", marginBottom: "0.2rem" }}>Legacy ID</label>
+            <input className="admin-input" readOnly value={legacyValue("legacyId") || "—"} style={{ width: "100%" }} />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: "0.65rem", textTransform: "uppercase", color: "var(--admin-muted)", marginBottom: "0.2rem" }}>Record Type</label>
+            <input className="admin-input" readOnly value={legacyValue("recordType") || "—"} style={{ width: "100%" }} />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: "0.65rem", textTransform: "uppercase", color: "var(--admin-muted)", marginBottom: "0.2rem" }}>Import Source</label>
+            <input className="admin-input" readOnly value={legacyValue("importSource") || "—"} style={{ width: "100%" }} />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: "0.65rem", textTransform: "uppercase", color: "var(--admin-muted)", marginBottom: "0.2rem" }}>Date Added</label>
+            <input className="admin-input" readOnly value={legacyValue("dateAdd") || "—"} style={{ width: "100%" }} />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: "0.65rem", textTransform: "uppercase", color: "var(--admin-muted)", marginBottom: "0.2rem" }}>Date Updated</label>
+            <input className="admin-input" readOnly value={legacyValue("dateUpdat") || "—"} style={{ width: "100%" }} />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: "0.65rem", textTransform: "uppercase", color: "var(--admin-muted)", marginBottom: "0.2rem" }}>Last User</label>
+            <input className="admin-input" readOnly value={legacyValue("lastUser") || "—"} style={{ width: "100%" }} />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: "0.65rem", textTransform: "uppercase", color: "var(--admin-muted)", marginBottom: "0.2rem" }}>Oil Co Raw</label>
+            <input className="admin-input" readOnly value={legacyValue("oilCoRaw") || "—"} style={{ width: "100%" }} />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: "0.65rem", textTransform: "uppercase", color: "var(--admin-muted)", marginBottom: "0.2rem" }}>Oil ID</label>
+            <input className="admin-input" readOnly value={legacyValue("oilId") || "—"} style={{ width: "100%" }} />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: "0.65rem", textTransform: "uppercase", color: "var(--admin-muted)", marginBottom: "0.2rem" }}>First Name 2</label>
+            <input className="admin-input" readOnly value={legacyValue("firstName2") || "—"} style={{ width: "100%" }} />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: "0.65rem", textTransform: "uppercase", color: "var(--admin-muted)", marginBottom: "0.2rem" }}>Last Name 2</label>
+            <input className="admin-input" readOnly value={legacyValue("lastName2") || "—"} style={{ width: "100%" }} />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: "0.65rem", textTransform: "uppercase", color: "var(--admin-muted)", marginBottom: "0.2rem" }}>Mid Name 1</label>
+            <input className="admin-input" readOnly value={legacyValue("midName1") || "—"} style={{ width: "100%" }} />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: "0.65rem", textTransform: "uppercase", color: "var(--admin-muted)", marginBottom: "0.2rem" }}>Mid Name 2</label>
+            <input className="admin-input" readOnly value={legacyValue("midName2") || "—"} style={{ width: "100%" }} />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: "0.65rem", textTransform: "uppercase", color: "var(--admin-muted)", marginBottom: "0.2rem" }}>Company</label>
+            <input className="admin-input" readOnly value={legacyValue("company") || "—"} style={{ width: "100%" }} />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: "0.65rem", textTransform: "uppercase", color: "var(--admin-muted)", marginBottom: "0.2rem" }}>Phone 2</label>
+            <input className="admin-input" readOnly value={legacyValue("phone2") || "—"} style={{ width: "100%" }} />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: "0.65rem", textTransform: "uppercase", color: "var(--admin-muted)", marginBottom: "0.2rem" }}>Street No</label>
+            <input className="admin-input" readOnly value={legacyValue("streetNo") || "—"} style={{ width: "100%" }} />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: "0.65rem", textTransform: "uppercase", color: "var(--admin-muted)", marginBottom: "0.2rem" }}>Apt No</label>
+            <input className="admin-input" readOnly value={legacyValue("aptNo1") || "—"} style={{ width: "100%" }} />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: "0.65rem", textTransform: "uppercase", color: "var(--admin-muted)", marginBottom: "0.2rem" }}>Key Codes</label>
+            <input className="admin-input" readOnly value={legacyValue("keyCodes") || "—"} style={{ width: "100%" }} />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: "0.65rem", textTransform: "uppercase", color: "var(--admin-muted)", marginBottom: "0.2rem" }}>Carrier Rt</label>
+            <input className="admin-input" readOnly value={legacyValue("carrierRt") || "—"} style={{ width: "100%" }} />
+          </div>
+        </div>
       </div>
 
       <div className="admin-card">
