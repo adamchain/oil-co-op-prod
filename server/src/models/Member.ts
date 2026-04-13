@@ -62,8 +62,16 @@ const memberSchema = new Schema(
       default: "card",
     },
     autoRenew: { type: Boolean, default: true },
+
+    /** Stripe integration (legacy/alternative) */
     stripeCustomerId: { type: String, default: "" },
     stripeDefaultPaymentMethodId: { type: String, default: "" },
+
+    /** Authorize.Net CIM integration for stored cards */
+    authnetCustomerProfileId: { type: String, default: "" },
+    authnetPaymentProfileId: { type: String, default: "" },
+    authnetCardLast4: { type: String, default: "" },
+    authnetCardExpiry: { type: String, default: "" }, // "MMYY"
 
     /** Next annual membership billing (always aligned to June 1 cycle). */
     nextAnnualBillingDate: { type: Date, required: true },

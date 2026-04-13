@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import mongoose from "mongoose";
+import crypto from "crypto";
 import { requireAuth, requireAdmin, type AuthedRequest } from "../middleware/auth.js";
 import { Member } from "../models/Member.js";
 import { OilCompany } from "../models/OilCompany.js";
@@ -8,10 +9,11 @@ import { BillingEvent } from "../models/BillingEvent.js";
 import { ActivityLog } from "../models/ActivityLog.js";
 import { CommunicationLog } from "../models/CommunicationLog.js";
 import { Referral } from "../models/Referral.js";
+import { PaymentToken } from "../models/PaymentToken.js";
 import { logActivity } from "../services/activity.js";
-import { sendMemberEmail } from "../services/mail.js";
+import { sendMemberEmail, sendPaymentLinkEmail, sendOilCompanyAssignedEmail } from "../services/mail.js";
 import { nextJuneFirstAfterSignup } from "../utils/juneBilling.js";
-import { chargeCard } from "../services/authorizeNet.js";
+import { chargeCard, addPaymentProfile, createCustomerProfile } from "../services/authorizeNet.js";
 import { config, authorizeNetEnabled } from "../config.js";
 import bcrypt from "bcryptjs";
 
@@ -780,6 +782,161 @@ router.post("/members/:id/charge", async (req: AuthedRequest, res) => {
   );
 
   res.json({ ok: true, billingEvent: ok, registrationFeeCents: config.registrationFeeCents });
+});
+
+/**
+ * Generate a payment link for a member.
+ * This creates a unique token that the member can use to pay without logging in.
+ */
+const paymentLinkSchema = z.object({
+  amountCents: z.number().int().positive().optional(),
+  kind: z.enum(["annual", "registration"]).default("annual"),
+  billingYear: z.number().int().optional(),
+  expiresInDays: z.number().int().min(1).max(90).default(30),
+});
+
+router.post("/members/:id/payment-link", async (req: AuthedRequest, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const parsed = paymentLinkSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const member = await Member.findById(req.params.id);
+  if (!member || member.role !== "member") {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  const body = parsed.data;
+  const amountCents = body.amountCents ?? config.annualFeeCents;
+  const billingYear = body.billingYear ?? new Date().getFullYear();
+  const token = crypto.randomBytes(32).toString("hex");
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + body.expiresInDays);
+
+  await PaymentToken.create({
+    token,
+    memberId: member._id,
+    amountCents,
+    kind: body.kind,
+    billingYear,
+    expiresAt,
+  });
+
+  const paymentUrl = `${config.clientOrigin}/pay/${token}`;
+
+  // Send payment link email
+  await sendPaymentLinkEmail(member, amountCents, paymentUrl, expiresAt);
+
+  await logActivity(
+    member._id,
+    "admin_payment_link_sent",
+    { amountCents, kind: body.kind, expiresAt: expiresAt.toISOString(), adminId: req.userId },
+    new mongoose.Types.ObjectId(req.userId!)
+  );
+
+  res.json({
+    ok: true,
+    paymentUrl,
+    token,
+    expiresAt: expiresAt.toISOString(),
+    amountCents,
+  });
+});
+
+/**
+ * Store card on file for a member (admin-initiated).
+ * Creates or updates the Authorize.Net CIM profile.
+ */
+const storeCardSchema = z.object({
+  cardNumber: z.string().min(12),
+  expiration: z.string().min(4),
+  cvv: z.string().min(3),
+});
+
+router.post("/members/:id/store-card", async (req: AuthedRequest, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const parsed = storeCardSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const member = await Member.findById(req.params.id);
+  if (!member || member.role !== "member") {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  if (!authorizeNetEnabled) {
+    res.status(400).json({ error: "Authorize.Net not configured" });
+    return;
+  }
+
+  const body = parsed.data;
+
+  // Create customer profile if needed
+  let customerProfileId = member.authnetCustomerProfileId;
+  if (!customerProfileId) {
+    const profileResult = await createCustomerProfile({
+      merchantCustomerId: member.memberNumber || String(member._id),
+      email: member.email,
+      description: `${member.firstName} ${member.lastName}`,
+    });
+    if (!profileResult.ok) {
+      res.status(400).json({ error: profileResult.error });
+      return;
+    }
+    customerProfileId = profileResult.customerProfileId;
+  }
+
+  // Add payment profile
+  const paymentResult = await addPaymentProfile({
+    customerProfileId,
+    cardNumber: body.cardNumber,
+    expirationDate: body.expiration,
+    cardCode: body.cvv,
+    firstName: member.firstName,
+    lastName: member.lastName,
+    addressLine1: member.addressLine1,
+    city: member.city,
+    state: member.state,
+    postalCode: member.postalCode,
+  });
+
+  if (!paymentResult.ok) {
+    res.status(400).json({ error: paymentResult.error });
+    return;
+  }
+
+  // Update member with CIM profile IDs
+  member.authnetCustomerProfileId = customerProfileId;
+  member.authnetPaymentProfileId = paymentResult.paymentProfileId;
+  member.authnetCardLast4 = paymentResult.cardLast4;
+  member.authnetCardExpiry = body.expiration.replace(/\D/g, "");
+  member.paymentMethod = "card";
+  member.autoRenew = true;
+  await member.save();
+
+  await logActivity(
+    member._id,
+    "admin_card_stored",
+    { cardLast4: paymentResult.cardLast4, adminId: req.userId },
+    new mongoose.Types.ObjectId(req.userId!)
+  );
+
+  res.json({
+    ok: true,
+    cardLast4: paymentResult.cardLast4,
+    customerProfileId,
+    paymentProfileId: paymentResult.paymentProfileId,
+  });
 });
 
 export default router;

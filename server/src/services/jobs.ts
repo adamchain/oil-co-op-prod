@@ -1,9 +1,10 @@
 import cron from "node-cron";
 import { Member } from "../models/Member.js";
 import { BillingEvent } from "../models/BillingEvent.js";
-import { config, stripeEnabled } from "../config.js";
+import { config, stripeEnabled, authorizeNetEnabled } from "../config.js";
 import { followingJuneFirst, daysUntil, juneFirstYear } from "../utils/juneBilling.js";
 import { chargeAnnualForCustomer } from "./stripeBilling.js";
+import { chargeCustomerProfile } from "./authorizeNet.js";
 import { sendMemberEmail } from "./mail.js";
 import { logActivity } from "./activity.js";
 
@@ -134,7 +135,12 @@ async function runJuneFirstAnnualBilling() {
 
     const amount = config.annualFeeCents;
 
-    if (m.paymentMethod === "check" || !m.stripeCustomerId || !m.stripeDefaultPaymentMethodId) {
+    // Check if member has Authorize.Net stored card
+    const hasAuthnetCard = m.authnetCustomerProfileId && m.authnetPaymentProfileId;
+    const hasStripeCard = m.stripeCustomerId && m.stripeDefaultPaymentMethodId;
+
+    // Check payers or no card on file → send invoice
+    if (m.paymentMethod === "check" || (!hasAuthnetCard && !hasStripeCard)) {
       await BillingEvent.create({
         memberId: m._id,
         kind: "annual",
@@ -160,6 +166,80 @@ async function runJuneFirstAnnualBilling() {
       continue;
     }
 
+    // Try Authorize.Net CIM first (preferred)
+    if (hasAuthnetCard && authorizeNetEnabled) {
+      const authnetResult = await chargeCustomerProfile({
+        customerProfileId: m.authnetCustomerProfileId!,
+        paymentProfileId: m.authnetPaymentProfileId!,
+        amountCents: amount,
+        invoiceNumber: `${m.memberNumber}-${year}`,
+        description: `Annual membership ${year}`,
+      });
+
+      if (authnetResult.ok) {
+        await BillingEvent.create({
+          memberId: m._id,
+          kind: "annual",
+          amountCents: amount,
+          status: "succeeded",
+          authnetTransactionId: authnetResult.transactionId,
+          authnetAuthCode: authnetResult.authCode,
+          cardLast4: authnetResult.accountLast4,
+          billingYear: year,
+          description: "Authorize.Net auto-charge",
+        });
+        m.lastAnnualChargeAt = new Date();
+        m.lastAnnualChargeAmountCents = amount;
+        m.nextAnnualBillingDate = followingJuneFirst(j1);
+        m.reminderSent30d = false;
+        m.reminderSent7d = false;
+        m.reminderSent1d = false;
+        await m.save();
+        await logActivity(m._id, "annual_charge_succeeded", {
+          amountCents: amount,
+          processor: "authnet",
+          transactionId: authnetResult.transactionId,
+        });
+
+        // Send confirmation email
+        if (m.notificationSettings?.emailEnabled && m.notificationSettings?.billingNotices) {
+          await sendMemberEmail(
+            m._id,
+            m.email,
+            "Annual membership — payment received",
+            `Hello ${m.firstName},\n\nYour annual membership fee of $${(amount / 100).toFixed(2)} has been charged to your card on file (ending ${authnetResult.accountLast4}).\n\nTransaction ID: ${authnetResult.transactionId}\n\nThank you for your continued membership!\n`
+          );
+        }
+        continue;
+      } else {
+        // Authorize.Net charge failed
+        await BillingEvent.create({
+          memberId: m._id,
+          kind: "annual",
+          amountCents: amount,
+          status: "failed",
+          description: `Authorize.Net: ${authnetResult.error}`,
+          billingYear: year,
+        });
+        await logActivity(m._id, "annual_charge_failed", {
+          error: authnetResult.error,
+          processor: "authnet",
+        });
+
+        // Send failure notification
+        if (m.notificationSettings?.emailEnabled && m.notificationSettings?.billingNotices) {
+          await sendMemberEmail(
+            m._id,
+            m.email,
+            "Annual membership — payment failed",
+            `Hello ${m.firstName},\n\nWe were unable to process your annual membership fee of $${(amount / 100).toFixed(2)}.\n\nPlease call the office to update your payment information or arrange an alternative payment method.\n`
+          );
+        }
+        continue;
+      }
+    }
+
+    // Fallback to Stripe if no Authorize.Net
     if (!stripeEnabled) {
       await BillingEvent.create({
         memberId: m._id,
@@ -181,8 +261,8 @@ async function runJuneFirstAnnualBilling() {
     }
 
     const result = await chargeAnnualForCustomer({
-      customerId: m.stripeCustomerId,
-      paymentMethodId: m.stripeDefaultPaymentMethodId,
+      customerId: m.stripeCustomerId!,
+      paymentMethodId: m.stripeDefaultPaymentMethodId!,
       amountCents: amount,
       memberEmail: m.email,
     });
@@ -203,7 +283,7 @@ async function runJuneFirstAnnualBilling() {
       m.reminderSent7d = false;
       m.reminderSent1d = false;
       await m.save();
-      await logActivity(m._id, "annual_charge_succeeded", { amountCents: amount });
+      await logActivity(m._id, "annual_charge_succeeded", { amountCents: amount, processor: "stripe" });
     } else {
       await BillingEvent.create({
         memberId: m._id,
@@ -215,6 +295,7 @@ async function runJuneFirstAnnualBilling() {
       });
       await logActivity(m._id, "annual_charge_failed", {
         error: "failed" in result ? result.failed : "",
+        processor: "stripe",
       });
     }
   }

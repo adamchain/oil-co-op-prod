@@ -3,6 +3,14 @@ import { config } from "../config.js";
 import { CommunicationLog } from "../models/CommunicationLog.js";
 import type { MemberDoc } from "../models/Member.js";
 import type mongoose from "mongoose";
+import {
+  welcomeEmailHtml,
+  renewalReminderHtml,
+  paymentSuccessHtml,
+  paymentFailedHtml,
+  paymentLinkHtml,
+  oilCompanyAssignedHtml,
+} from "./emailTemplates.js";
 
 let transporter: nodemailer.Transporter | null = null;
 
@@ -79,13 +87,197 @@ function escapeHtml(s: string) {
 
 export async function sendWelcomeEmail(member: MemberDoc) {
   if (!member.notificationSettings?.emailEnabled) return;
-  const name = `${member.firstName} ${member.lastName}`.trim();
+  const nextBilling = member.nextAnnualBillingDate
+    ? new Date(member.nextAnnualBillingDate).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    : "June 1";
+
+  const text =
+    `Hi ${member.firstName},\n\nThank you for joining Citizen's Oil Co-op!\n\n` +
+    `Your member number is: ${member.memberNumber || "pending"}\n` +
+    `Your next annual billing date is: ${nextBilling}\n\n` +
+    `Our team will assign your oil company shortly; you will be notified when that is complete.\n`;
+
+  const html = welcomeEmailHtml(
+    member.firstName,
+    member.memberNumber || "pending",
+    nextBilling
+  );
+
   await sendMemberEmail(
     member._id,
     member.email,
-    "Welcome to the heating oil co-op",
-    `Hi ${name},\n\nThank you for joining. Your registration payment was received.\n\n` +
-      `Annual membership renews on June 1. You will receive reminders at 30, 7, and 1 day before your billing date.\n\n` +
-      `Our team will assign your oil company shortly; you will be notified when that is complete.\n`
+    "Welcome to Citizen's Oil Co-op",
+    text,
+    html
+  );
+}
+
+export async function sendRenewalReminderEmail(
+  member: MemberDoc,
+  daysUntil: number,
+  amount: number
+) {
+  if (!member.notificationSettings?.emailEnabled) return;
+  if (!member.notificationSettings?.renewalReminders) return;
+
+  const billingDate = member.nextAnnualBillingDate
+    ? new Date(member.nextAnnualBillingDate).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      })
+    : "June 1";
+
+  const amountStr = `$${(amount / 100).toFixed(2)}`;
+  const isAutoRenew = member.paymentMethod === "card" && member.autoRenew;
+  const cardLast4 = member.authnetCardLast4 || undefined;
+
+  const text =
+    `Hi ${member.firstName},\n\n` +
+    `Your annual Oil Co-op membership fee of ${amountStr} will be billed in ${daysUntil} days on ${billingDate}.\n\n` +
+    (isAutoRenew
+      ? `Your card on file will be charged automatically.\n`
+      : `Please mail a check or call the office to pay by card.\n`);
+
+  const html = renewalReminderHtml(
+    member.firstName,
+    daysUntil,
+    billingDate,
+    amountStr,
+    isAutoRenew,
+    cardLast4
+  );
+
+  await sendMemberEmail(
+    member._id,
+    member.email,
+    `Annual membership renewal - ${daysUntil === 1 ? "Tomorrow" : `${daysUntil} days`}`,
+    text,
+    html
+  );
+}
+
+export async function sendPaymentSuccessEmail(
+  member: MemberDoc,
+  amount: number,
+  transactionId: string,
+  cardLast4: string,
+  billingYear: number
+) {
+  if (!member.notificationSettings?.emailEnabled) return;
+  if (!member.notificationSettings?.billingNotices) return;
+
+  const amountStr = `$${(amount / 100).toFixed(2)}`;
+
+  const text =
+    `Hi ${member.firstName},\n\n` +
+    `Your annual membership payment of ${amountStr} has been processed successfully.\n\n` +
+    `Card: ****${cardLast4}\n` +
+    `Transaction ID: ${transactionId}\n` +
+    `Billing Year: ${billingYear}\n\n` +
+    `Thank you for your continued membership!\n`;
+
+  const html = paymentSuccessHtml(
+    member.firstName,
+    amountStr,
+    transactionId,
+    cardLast4,
+    billingYear
+  );
+
+  await sendMemberEmail(
+    member._id,
+    member.email,
+    "Payment received - Oil Co-op membership",
+    text,
+    html
+  );
+}
+
+export async function sendPaymentFailedEmail(
+  member: MemberDoc,
+  amount: number,
+  reason?: string
+) {
+  if (!member.notificationSettings?.emailEnabled) return;
+  if (!member.notificationSettings?.billingNotices) return;
+
+  const amountStr = `$${(amount / 100).toFixed(2)}`;
+
+  const text =
+    `Hi ${member.firstName},\n\n` +
+    `We were unable to process your annual membership payment of ${amountStr}.\n\n` +
+    (reason ? `Reason: ${reason}\n\n` : "") +
+    `Please call our office to update your payment method or arrange an alternative payment.\n`;
+
+  const html = paymentFailedHtml(member.firstName, amountStr, reason);
+
+  await sendMemberEmail(
+    member._id,
+    member.email,
+    "Payment failed - Action required",
+    text,
+    html
+  );
+}
+
+export async function sendPaymentLinkEmail(
+  member: MemberDoc,
+  amount: number,
+  paymentUrl: string,
+  expiresAt: Date
+) {
+  if (!member.notificationSettings?.emailEnabled) return;
+
+  const amountStr = `$${(amount / 100).toFixed(2)}`;
+  const expiresStr = expiresAt.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  const text =
+    `Hi ${member.firstName},\n\n` +
+    `Click the link below to pay your annual membership fee of ${amountStr}:\n\n` +
+    `${paymentUrl}\n\n` +
+    `This link expires on ${expiresStr}.\n`;
+
+  const html = paymentLinkHtml(member.firstName, amountStr, paymentUrl, expiresStr);
+
+  await sendMemberEmail(
+    member._id,
+    member.email,
+    `Pay your Oil Co-op membership - ${amountStr}`,
+    text,
+    html
+  );
+}
+
+export async function sendOilCompanyAssignedEmail(
+  member: MemberDoc,
+  companyName: string,
+  companyPhone?: string
+) {
+  if (!member.notificationSettings?.emailEnabled) return;
+  if (!member.notificationSettings?.oilCompanyUpdates) return;
+
+  const text =
+    `Hi ${member.firstName},\n\n` +
+    `Your Oil Co-op membership has been linked to: ${companyName}\n\n` +
+    (companyPhone ? `Phone: ${companyPhone}\n\n` : "") +
+    `You can now enjoy co-op member pricing on your heating oil deliveries.\n`;
+
+  const html = oilCompanyAssignedHtml(member.firstName, companyName, companyPhone);
+
+  await sendMemberEmail(
+    member._id,
+    member.email,
+    "Your oil company has been assigned",
+    text,
+    html
   );
 }

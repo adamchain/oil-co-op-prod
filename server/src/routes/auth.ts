@@ -3,10 +3,11 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { Member } from "../models/Member.js";
 import { BillingEvent } from "../models/BillingEvent.js";
-import { config, stripeEnabled } from "../config.js";
+import { config, stripeEnabled, authorizeNetEnabled } from "../config.js";
 import { nextJuneFirstAfterSignup } from "../utils/juneBilling.js";
 import { applyReferralCredit, findReferrerByToken } from "../services/referrals.js";
 import { confirmPaymentIntent } from "../services/stripeBilling.js";
+import { createProfileAndCharge } from "../services/authorizeNet.js";
 import { sendWelcomeEmail } from "../services/mail.js";
 import { logActivity } from "../services/activity.js";
 import { requireAuth, signToken, type AuthedRequest } from "../middleware/auth.js";
@@ -28,6 +29,10 @@ const registerSchema = z.object({
   referrerToken: z.string().optional().default(""),
   /** Required when Stripe is configured — client confirms card first */
   paymentIntentId: z.string().optional(),
+  /** Authorize.Net card data (when using Accept.js) */
+  cardNumber: z.string().optional(),
+  cardExpiry: z.string().optional(), // "MMYY" or "MM/YY"
+  cardCvv: z.string().optional(),
 });
 
 async function nextMemberNumber(): Promise<string> {
@@ -90,27 +95,6 @@ router.post("/register", async (req, res) => {
     return;
   }
 
-  if (stripeEnabled) {
-    if (!body.paymentIntentId) {
-      res.status(400).json({ error: "paymentIntentId required when Stripe is enabled" });
-      return;
-    }
-    try {
-      const pi = await confirmPaymentIntent(body.paymentIntentId);
-      if (pi.status !== "succeeded") {
-        res.status(402).json({ error: "Payment not completed", status: pi.status });
-        return;
-      }
-      if (pi.amount !== config.registrationFeeCents) {
-        res.status(400).json({ error: "Payment amount does not match registration fee" });
-        return;
-      }
-    } catch (e) {
-      res.status(402).json({ error: "Payment verification failed", detail: String(e) });
-      return;
-    }
-  }
-
   const passwordHash = await bcrypt.hash(body.password, 10);
   const signupDate = new Date();
   const nextAnnual = nextJuneFirstAfterSignup(signupDate);
@@ -120,6 +104,81 @@ router.post("/register", async (req, res) => {
   if (body.referrerToken) {
     const ref = await findReferrerByToken(body.referrerToken);
     if (ref) referredByMemberId = ref._id;
+  }
+
+  // Payment processing variables
+  let authnetCustomerProfileId = "";
+  let authnetPaymentProfileId = "";
+  let authnetCardLast4 = "";
+  let authnetTransactionId = "";
+  let stripePaymentIntentId = "";
+  let paymentStatus: "succeeded" | "mock" | "pending" = "mock";
+
+  // Handle payment based on method
+  if (body.paymentMethod === "card") {
+    // Try Authorize.Net first (preferred)
+    if (authorizeNetEnabled && body.cardNumber && body.cardExpiry && body.cardCvv) {
+      const authnetResult = await createProfileAndCharge({
+        merchantCustomerId: memberNumber,
+        email: body.email.toLowerCase(),
+        cardNumber: body.cardNumber,
+        expirationDate: body.cardExpiry,
+        cardCode: body.cardCvv,
+        firstName: body.firstName,
+        lastName: body.lastName,
+        addressLine1: body.addressLine1,
+        city: body.city,
+        state: body.state,
+        postalCode: body.postalCode,
+        amountCents: config.registrationFeeCents,
+        invoiceNumber: `REG-${memberNumber}`,
+        description: "Co-op registration fee",
+      });
+
+      if (!authnetResult.ok) {
+        res.status(402).json({
+          error: "Payment failed",
+          detail: authnetResult.error,
+        });
+        return;
+      }
+
+      authnetCustomerProfileId = authnetResult.customerProfileId;
+      authnetPaymentProfileId = authnetResult.paymentProfileId;
+      authnetCardLast4 = authnetResult.cardLast4;
+      authnetTransactionId = authnetResult.transactionId;
+      paymentStatus = "succeeded";
+    }
+    // Fallback to Stripe
+    else if (stripeEnabled) {
+      if (!body.paymentIntentId) {
+        res.status(400).json({ error: "paymentIntentId required when Stripe is enabled" });
+        return;
+      }
+      try {
+        const pi = await confirmPaymentIntent(body.paymentIntentId);
+        if (pi.status !== "succeeded") {
+          res.status(402).json({ error: "Payment not completed", status: pi.status });
+          return;
+        }
+        if (pi.amount !== config.registrationFeeCents) {
+          res.status(400).json({ error: "Payment amount does not match registration fee" });
+          return;
+        }
+        stripePaymentIntentId = body.paymentIntentId;
+        paymentStatus = "succeeded";
+      } catch (e) {
+        res.status(402).json({ error: "Payment verification failed", detail: String(e) });
+        return;
+      }
+    }
+    // No payment processor enabled - mock
+    else if (!body.cardNumber) {
+      paymentStatus = "mock";
+    }
+  } else {
+    // Check payment - mark as pending
+    paymentStatus = "pending";
   }
 
   const member = await Member.create({
@@ -139,7 +198,12 @@ router.post("/register", async (req, res) => {
     nextAnnualBillingDate: nextAnnual,
     oilCompanyId: null,
     referredByMemberId: referredByMemberId ?? null,
-    registrationFeePaidAt: signupDate,
+    registrationFeePaidAt: paymentStatus === "succeeded" ? signupDate : null,
+    // Authorize.Net CIM profile IDs
+    authnetCustomerProfileId,
+    authnetPaymentProfileId,
+    authnetCardLast4,
+    authnetCardExpiry: body.cardExpiry || "",
     notificationSettings: {
       emailEnabled: true,
       renewalReminders: true,
@@ -155,9 +219,13 @@ router.post("/register", async (req, res) => {
     memberId: member._id,
     kind: "registration",
     amountCents: config.registrationFeeCents,
-    status: stripeEnabled ? "succeeded" : "mock",
-    stripePaymentIntentId: body.paymentIntentId || "",
-    description: "Registration fee (charged at signup)",
+    status: paymentStatus,
+    stripePaymentIntentId: stripePaymentIntentId || undefined,
+    authnetTransactionId: authnetTransactionId || undefined,
+    cardLast4: authnetCardLast4 || undefined,
+    description: paymentStatus === "pending"
+      ? "Registration fee (awaiting check payment)"
+      : "Registration fee (charged at signup)",
   });
 
   if (referredByMemberId) {
@@ -167,6 +235,7 @@ router.post("/register", async (req, res) => {
   await logActivity(member._id, "member_registered", {
     memberNumber,
     nextAnnualBillingDate: nextAnnual.toISOString(),
+    paymentProcessor: authnetTransactionId ? "authnet" : stripePaymentIntentId ? "stripe" : "none",
   });
 
   await sendWelcomeEmail(member);

@@ -8,6 +8,7 @@ import { config } from "./config.js";
 import authRoutes from "./routes/auth.js";
 import meRoutes from "./routes/me.js";
 import adminRoutes from "./routes/admin.js";
+import paymentsRoutes from "./routes/payments.js";
 import { startScheduledJobs } from "./services/jobs.js";
 
 const app = express();
@@ -37,6 +38,7 @@ app.get("/api/health", (_req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/me", meRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/payments", paymentsRoutes);
 
 if (fs.existsSync(clientDist)) {
   app.get(/^(?!\/api).*/, (_req, res) => {
