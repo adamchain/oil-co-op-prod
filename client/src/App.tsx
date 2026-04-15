@@ -13,6 +13,7 @@ import AdminRenewalsPage from "./pages/AdminRenewalsPage";
 import AdminCommunicationsPage from "./pages/AdminCommunicationsPage";
 import AdminExceptionsPage from "./pages/AdminExceptionsPage";
 import AdminWorkbenchPage from "./pages/AdminWorkbenchPage";
+import AdminEmailTemplatesPage from "./pages/AdminEmailTemplatesPage";
 
 function RequireAuth({ admin }: { admin?: boolean }) {
   const { token, member } = useAuth();
@@ -47,6 +48,7 @@ export default function App() {
             <Route path="communications" element={<AdminCommunicationsPage />} />
             <Route path="exceptions" element={<AdminExceptionsPage />} />
             <Route path="reports" element={<AdminReportsPage />} />
+            <Route path="email-templates" element={<AdminEmailTemplatesPage />} />
           </Route>
         </Route>
 

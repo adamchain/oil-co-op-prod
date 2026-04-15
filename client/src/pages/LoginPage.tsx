@@ -54,46 +54,6 @@ export default function LoginPage() {
       <h1 className="mkt-page-title">Member sign in</h1>
       <p className="mkt-lead">Access your account, notification preferences, and renewal details.</p>
       <div className="mkt-card-form" style={{ maxWidth: "400px" }}>
-        <div style={{ marginBottom: "1rem", paddingBottom: "1rem", borderBottom: "1px solid var(--color-border)" }}>
-          <p style={{ margin: "0 0 0.6rem", fontSize: "0.85rem", color: "var(--color-text-muted)" }}>
-            Mock login (local dev)
-          </p>
-          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-            <button
-              type="button"
-              className="mkt-btn mkt-btn-ghost"
-              style={{ padding: "0.45rem 0.75rem", fontSize: "0.85rem" }}
-              disabled={loading}
-              onClick={() => {
-                setEmail("admin@example.com");
-                setPassword("ChangeMeAdmin!123");
-              }}
-            >
-              Fill admin
-            </button>
-            <button
-              type="button"
-              className="mkt-btn mkt-btn-ghost"
-              style={{ padding: "0.45rem 0.75rem", fontSize: "0.85rem" }}
-              disabled={loading}
-              onClick={() => {
-                setEmail("emma.caruso@seed.oilcoop.local");
-                setPassword("MemberDemo!123");
-              }}
-            >
-              Fill member
-            </button>
-            <button
-              type="button"
-              className="mkt-btn mkt-btn-primary"
-              style={{ padding: "0.45rem 0.75rem", fontSize: "0.85rem" }}
-              disabled={loading}
-              onClick={() => void doLogin({ email: "admin@example.com", password: "ChangeMeAdmin!123" })}
-            >
-              One-click admin
-            </button>
-          </div>
-        </div>
         <form onSubmit={onSubmit}>
           <div className="mkt-field">
             <label>Email</label>

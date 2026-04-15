@@ -48,6 +48,14 @@ type Comm = { _id: string; channel: string; subject?: string; status: string; cr
 type Referral = { referrerMemberId?: { firstName?: string; lastName?: string; email?: string } };
 type NoteEntry = { _id?: string; text: string; createdAt: string; createdBy: string };
 
+type BackupHistoryEntry = {
+  id: string;
+  at: string;
+  type: "manual" | "scheduled";
+  location: string;
+  sizeBytes: number;
+};
+
 function defaultWorkbenchMemberStatus(m: Member): string {
   const lp = (m.legacyProfile || {}) as Record<string, unknown>;
   const stored = lp.workbenchMemberStatus;
@@ -73,6 +81,28 @@ const PHONE_TYPE = ["HOME", "WORK", "CELL"] as const;
 const HOW_JOINED = ["PHO", "WEB", "REF", "MAIL"] as const;
 const REFERRAL_SOURCE = ["CCAG", "MEMBER", "OTHER"] as const;
 
+function csvCell(v: unknown): string {
+  const s = String(v ?? "");
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, "\"\"")}"` : s;
+}
+
+function fileNameStamp(now: Date = new Date()): string {
+  return now.toISOString().replace(/[:.]/g, "-");
+}
+
+function escHtml(v: unknown): string {
+  return String(v ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function nl2br(v: string): string {
+  return escHtml(v).replace(/\n/g, "<br>");
+}
+
 export default function AdminWorkbenchPage() {
   const { token } = useAuth();
   const [activeTab, setActiveTab] = useState<TabName>("Data Entry");
@@ -94,6 +124,8 @@ export default function AdminWorkbenchPage() {
 
   // Notes state
   const [newNote, setNewNote] = useState("");
+  const [actionMessage, setActionMessage] = useState("");
+  const [backupHistory, setBackupHistory] = useState<BackupHistoryEntry[]>([]);
 
   const [form, setForm] = useState({
     firstName: "",
@@ -138,6 +170,16 @@ export default function AdminWorkbenchPage() {
     void loadOilCompanies();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("workbench.backupHistory");
+      const parsed = raw ? (JSON.parse(raw) as BackupHistoryEntry[]) : [];
+      setBackupHistory(Array.isArray(parsed) ? parsed : []);
+    } catch {
+      setBackupHistory([]);
+    }
+  }, []);
 
   const current = members[index] || null;
 
@@ -187,6 +229,26 @@ export default function AdminWorkbenchPage() {
     return members.filter((m) => m.oilCompanyId?._id === oilCoWorksheetId);
   }, [members, oilCoWorksheetId]);
 
+  const filteredMembers = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return members.filter((m) => {
+      const ws = defaultWorkbenchMemberStatus(m);
+      const statusOk =
+        statusFilter === "all"
+          ? true
+          : statusFilter === "active"
+            ? m.status === "active"
+            : statusFilter === "inactive"
+              ? m.status !== "active"
+              : ws === "PROSPECTIVE";
+      if (!statusOk) return false;
+      if (!q) return true;
+      return [m.memberNumber, m.firstName, m.lastName, m.email, m.phone, m.city]
+        .filter(Boolean)
+        .some((x) => String(x).toLowerCase().includes(q));
+    });
+  }, [members, search, statusFilter]);
+
   function oilCoDisplayCode(oc: OilCompany) {
     const n = oc.name.trim();
     if (n.length <= 5) return n.toUpperCase();
@@ -199,6 +261,63 @@ export default function AdminWorkbenchPage() {
   }
 
   const recordCount = `${members.length ? index + 1 : 0}`;
+
+  const downloadText = (filename: string, content: string, mime = "text/plain;charset=utf-8") => {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadCsv = (filename: string, headers: string[], rows: Array<Array<unknown>>) => {
+    const body = [headers, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
+    downloadText(filename, body, "text/csv;charset=utf-8");
+  };
+
+  const openPrintPreview = (title: string, body: string, triggerPrint = false) => {
+    const w = window.open("", "_blank", "noopener,noreferrer,width=960,height=720");
+    if (!w) {
+      setActionMessage("Popup blocked. Please allow popups for print preview.");
+      return;
+    }
+    w.document.write(`<!doctype html><html><head><title>${title}</title><style>body{font-family:Arial,sans-serif;padding:24px;line-height:1.4}h1{margin-top:0;font-size:20px}table{border-collapse:collapse;width:100%;margin-top:12px}th,td{border:1px solid #ddd;padding:6px;font-size:12px;text-align:left}th{background:#f6f6f6}pre{white-space:pre-wrap;font-family:inherit}</style></head><body>${body}</body></html>`);
+    w.document.close();
+    if (triggerPrint) {
+      w.focus();
+      w.print();
+    }
+  };
+
+  const brandedShell = (title: string, content: string) => `
+    <div style="max-width:900px;margin:0 auto">
+      <header style="border-bottom:2px solid #c2410c;padding-bottom:10px;margin-bottom:18px">
+        <div style="font-size:22px;font-weight:700;color:#1f2937">Oil Co-op Administrative Office</div>
+        <div style="font-size:12px;color:#6b7280;margin-top:4px">Member Services Workbench</div>
+      </header>
+      <h1 style="margin:0 0 12px;font-size:20px;color:#111827">${escHtml(title)}</h1>
+      ${content}
+      <footer style="margin-top:22px;padding-top:10px;border-top:1px solid #e5e7eb;font-size:11px;color:#6b7280">
+        Generated ${new Date().toLocaleString()}
+      </footer>
+    </div>
+  `;
+
+  const brandedLetterHtml = (subject: string, recipientName: string, bodyText: string) =>
+    brandedShell(
+      subject,
+      `
+      <div style="font-size:13px;color:#111827">
+        <p style="margin:0 0 10px">${new Date().toLocaleDateString()}</p>
+        <p style="margin:0 0 12px">${escHtml(recipientName || "Member")}</p>
+        <p style="margin:0 0 14px;white-space:normal;line-height:1.55">${nl2br(bodyText)}</p>
+        <p style="margin:20px 0 0">Sincerely,</p>
+        <p style="margin:4px 0 0;font-weight:600">Oil Co-op Member Services</p>
+      </div>
+      `
+    );
 
   const nav = (kind: "first" | "prev" | "next" | "last") => {
     if (!members.length) return;
@@ -314,6 +433,122 @@ export default function AdminWorkbenchPage() {
     await loadMembers();
   };
 
+  const saveBackupHistory = (next: BackupHistoryEntry[]) => {
+    setBackupHistory(next);
+    localStorage.setItem("workbench.backupHistory", JSON.stringify(next));
+  };
+
+  const runBackupNow = () => {
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      members,
+      oilCompanies,
+      selectedMember: current,
+      selectedMemberBilling: billing,
+      selectedMemberCommunications: communications,
+    };
+    const text = JSON.stringify(payload, null, 2);
+    const file = `oilcoop-backup-${fileNameStamp()}.json`;
+    downloadText(file, text, "application/json;charset=utf-8");
+    const entry: BackupHistoryEntry = {
+      id: crypto.randomUUID(),
+      at: new Date().toISOString(),
+      type: "manual",
+      location: file,
+      sizeBytes: new Blob([text]).size,
+    };
+    saveBackupHistory([entry, ...backupHistory].slice(0, 20));
+    setLegacy("backupLastAt", new Date().toLocaleString());
+    setLegacy("backupPath", file);
+    setActionMessage(`Backup created: ${file}`);
+  };
+
+  const scheduleBackup = () => {
+    const when = legacyValue("backupLastAt") || new Date().toLocaleString();
+    const entry: BackupHistoryEntry = {
+      id: crypto.randomUUID(),
+      at: new Date().toISOString(),
+      type: "scheduled",
+      location: legacyValue("backupPath") || "scheduled-local-download",
+      sizeBytes: 0,
+    };
+    saveBackupHistory([entry, ...backupHistory].slice(0, 20));
+    setActionMessage(`Backup schedule updated (${when}).`);
+  };
+
+  const generateMembersCsv = (label: string, rows: Member[]) => {
+    downloadCsv(
+      `${label.toLowerCase().replace(/\s+/g, "-")}-${fileNameStamp()}.csv`,
+      ["Member #", "First Name", "Last Name", "Email", "Phone", "City", "Status", "Workbench Status", "Oil Company"],
+      rows.map((m) => [
+        m.memberNumber || "",
+        m.firstName,
+        m.lastName,
+        m.email,
+        m.phone || "",
+        m.city || "",
+        m.status,
+        defaultWorkbenchMemberStatus(m),
+        m.oilCompanyId?.name || "",
+      ])
+    );
+    setActionMessage(`${label} export generated (${rows.length} rows).`);
+  };
+
+  const mailingAudience = () => {
+    const includeActive = legacyBool("mailIncludeActive");
+    const includeProspective = legacyBool("mailIncludeProspective");
+    const includeInactive = legacyBool("mailIncludeInactive");
+    const noSelections = !includeActive && !includeProspective && !includeInactive;
+    return members.filter((m) => {
+      const ws = defaultWorkbenchMemberStatus(m);
+      if (noSelections) return true;
+      if (includeActive && m.status === "active" && ws !== "PROSPECTIVE") return true;
+      if (includeProspective && ws === "PROSPECTIVE") return true;
+      if (includeInactive && m.status !== "active" && ws !== "PROSPECTIVE") return true;
+      return false;
+    });
+  };
+
+  const memberRecordText = (m: Member) => {
+    const lp = (m.legacyProfile || {}) as Record<string, unknown>;
+    return [
+      `Member Record: ${m.firstName} ${m.lastName}`,
+      `Member #: ${m.memberNumber || "—"}`,
+      `Email: ${m.email}`,
+      `Phone: ${m.phone || "—"}`,
+      `Address: ${[m.addressLine1, m.addressLine2, m.city, m.state, m.postalCode].filter(Boolean).join(", ") || "—"}`,
+      `Status: ${m.status}`,
+      `Workbench Status: ${defaultWorkbenchMemberStatus(m)}`,
+      `Oil Company: ${m.oilCompanyId?.name || "—"}`,
+      "",
+      "Legacy Fields",
+      JSON.stringify(lp, null, 2),
+      "",
+      "Notes",
+      m.notes || "—",
+      "",
+      "Saved Notes History",
+      ...((m.notesHistory || []).map((n) => `${new Date(n.createdAt).toLocaleString()} (${n.createdBy}) ${n.text}`) || ["—"]),
+    ].join("\n");
+  };
+
+  const memberDisplayName = current ? `${current.firstName} ${current.lastName}` : "";
+
+  const refundLetterHtml = () =>
+    brandedLetterHtml(
+      "Refund Letter",
+      legacyValue("refundMemberName") || memberDisplayName,
+      `We are issuing a refund in the amount of $${legacyValue("refundAmount") || "0.00"}.\n\nReason:\n${legacyValue("refundReason") || "No reason provided."}`
+    );
+
+  const startDateLetterHtml = () =>
+    brandedLetterHtml(
+      "Start Date Letter",
+      legacyValue("startLetterMemberName") || memberDisplayName,
+      `Welcome to Oil Co-op.\n\nYour membership start date is: ${legacyValue("startLetterStartDate") || "TBD"}.\n\nPlease keep this letter for your records.`
+    );
+
 
   return (
     <div className="admin-workbench">
@@ -362,6 +597,7 @@ export default function AdminWorkbenchPage() {
         <button className="admin-wb-btn admin-wb-btn-danger" type="button" onClick={() => void deleteCurrent()}>Delete</button>
         <button className="admin-wb-btn admin-wb-btn-success" type="button" onClick={() => void saveCurrent()}>Save Changes</button>
       </div>
+      {actionMessage && <div className="admin-meta" style={{ padding: "0.35rem 0.9rem" }}>{actionMessage}</div>}
 
       <div className="admin-wb-body">
         {activeTab === "Data Entry" && current && (
@@ -554,7 +790,23 @@ export default function AdminWorkbenchPage() {
                   </select>
                 </label>
                 <label className="admin-form-span-2">Oil ID<input className="admin-input" value={legacyValue("oilId")} onChange={(e) => setLegacy("oilId", e.target.value)} /></label>
-                <label>Oil Co Info<button type="button" className="admin-btn" style={{fontSize: "0.6rem", padding: "0.2rem 0.5rem"}}>OIL CO INFO</button></label>
+                <label>
+                  Oil Co Info
+                  <button
+                    type="button"
+                    className="admin-btn"
+                    style={{fontSize: "0.6rem", padding: "0.2rem 0.5rem"}}
+                    onClick={() => {
+                      const oc = oilCompanies.find((x) => x._id === form.oilCompanyId);
+                      openPrintPreview(
+                        "Oil Company Info",
+                        `<h1>Oil Company Info</h1><pre>${JSON.stringify(oc || { message: "No company selected." }, null, 2)}</pre>`
+                      );
+                    }}
+                  >
+                    OIL CO INFO
+                  </button>
+                </label>
                 <label>Oil Start Date<input className="admin-input" value={legacyValue("oilStartDate")} onChange={(e) => setLegacy("oilStartDate", e.target.value)} /></label>
                 <label>
                   How Joined
@@ -661,7 +913,27 @@ export default function AdminWorkbenchPage() {
                   </select>
                 </label>
                 <label className="admin-form-span-2">Propane ID<input className="admin-input" value={legacyValue("propaneId")} onChange={(e) => setLegacy("propaneId", e.target.value)} /></label>
-                <label>Prop Co Info<button type="button" className="admin-btn" style={{fontSize: "0.6rem", padding: "0.2rem 0.5rem", background: "#ea580c", color: "#fff", borderColor: "#c2410c"}}>PROP CO INFO</button></label>
+                <label>
+                  Prop Co Info
+                  <button
+                    type="button"
+                    className="admin-btn"
+                    style={{fontSize: "0.6rem", padding: "0.2rem 0.5rem", background: "#ea580c", color: "#fff", borderColor: "#c2410c"}}
+                    onClick={() =>
+                      openPrintPreview(
+                        "Propane Company Info",
+                        `<h1>Propane Company Info</h1><p>Propane details are currently maintained in legacy profile fields.</p><pre>${JSON.stringify({
+                          propCoCode: legacyValue("propCoCode"),
+                          propaneId: legacyValue("propaneId"),
+                          propaneStatus: legacyValue("propaneStatus"),
+                          propaneStartDate: legacyValue("propaneStartDate"),
+                        }, null, 2)}</pre>`
+                      )
+                    }
+                  >
+                    PROP CO INFO
+                  </button>
+                </label>
                 <label className="admin-form-span-2">Propane Start Date<input className="admin-input" type="date" value={legacyValue("propaneStartDate")} onChange={(e) => setLegacy("propaneStartDate", e.target.value)} /></label>
                 <label className="admin-form-span-2">&nbsp;</label>
               </div>
@@ -683,7 +955,23 @@ export default function AdminWorkbenchPage() {
                   NRD-Prop
                 </label>
               </div>
-              <button type="button" className="admin-btn" style={{fontSize: "0.6rem", padding: "0.2rem 0.5rem", background: "#dc2626", color: "#fff", borderColor: "#b91c1c"}}>DELIVERY HISTORY</button>
+              <button
+                type="button"
+                className="admin-btn"
+                style={{fontSize: "0.6rem", padding: "0.2rem 0.5rem", background: "#dc2626", color: "#fff", borderColor: "#b91c1c"}}
+                onClick={() =>
+                  openPrintPreview(
+                    "Delivery History",
+                    `<h1>Delivery History</h1><p>No dedicated delivery ledger exists yet. Current flags:</p><pre>${JSON.stringify({
+                      deliveryHistory: legacyBool("deliveryHistory"),
+                      nrdOil: legacyBool("nrdOil"),
+                      nrdProp: legacyBool("nrdProp"),
+                    }, null, 2)}</pre>`
+                  )
+                }
+              >
+                DELIVERY HISTORY
+              </button>
             </div>
 
             <div className="admin-wb-panel">
@@ -855,9 +1143,9 @@ export default function AdminWorkbenchPage() {
               <h2>Mailings</h2>
               <h3>Mailing Options</h3>
               <div className="admin-actions-row">
-                <button type="button" className="admin-btn" disabled>Generate Renewal Mailing</button>
-                <button type="button" className="admin-btn" disabled>Generate Prospective Mailing</button>
-                <button type="button" className="admin-btn" disabled>Custom Mailing</button>
+                <button type="button" className="admin-btn" onClick={() => generateMembersCsv("Renewal Mailing", mailingAudience().filter((m) => m.status === "active"))}>Generate Renewal Mailing</button>
+                <button type="button" className="admin-btn" onClick={() => generateMembersCsv("Prospective Mailing", mailingAudience().filter((m) => defaultWorkbenchMemberStatus(m) === "PROSPECTIVE"))}>Generate Prospective Mailing</button>
+                <button type="button" className="admin-btn" onClick={() => generateMembersCsv("Custom Mailing", mailingAudience())}>Custom Mailing</button>
               </div>
               <div className="admin-form-grid" style={{ maxWidth: "32rem" }}>
                 <label>
@@ -976,8 +1264,25 @@ export default function AdminWorkbenchPage() {
                 <div className="admin-stat"><strong>{stats.total}</strong><span>Total Records</span></div>
               </div>
               <div className="admin-actions-row">
-                <button type="button" className="admin-btn" disabled>Print Report</button>
-                <button type="button" className="admin-btn" disabled>Export to Excel</button>
+                <button
+                  type="button"
+                  className="admin-btn"
+                  onClick={() =>
+                    openPrintPreview(
+                      "Member Status Report",
+                      brandedShell("Member Status Report", `<table><thead><tr><th>Member #</th><th>Name</th><th>Status</th><th>Workbench</th><th>City</th><th>Email</th></tr></thead><tbody>${filteredMembers
+                        .map(
+                          (m) =>
+                            `<tr><td>${m.memberNumber || "—"}</td><td>${m.firstName} ${m.lastName}</td><td>${m.status}</td><td>${defaultWorkbenchMemberStatus(m)}</td><td>${m.city || "—"}</td><td>${m.email}</td></tr>`
+                        )
+                        .join("")}</tbody></table>`),
+                      true
+                    )
+                  }
+                >
+                  Print Report
+                </button>
+                <button type="button" className="admin-btn" onClick={() => generateMembersCsv("Member Status Report", filteredMembers)}>Export to Excel</button>
               </div>
             </div>
           </div>
@@ -1004,8 +1309,25 @@ export default function AdminWorkbenchPage() {
                   <label>Status<input className="admin-input" readOnly value={legacyValue("workbenchMemberStatus") || current.status} /></label>
                 </div>
                 <div className="admin-actions-row">
-                  <button type="button" className="admin-btn" disabled>Print Worksheet</button>
-                  <button type="button" className="admin-btn" disabled>Export to PDF</button>
+                  <button
+                    type="button"
+                    className="admin-btn"
+                    onClick={() =>
+                      openPrintPreview("Member Worksheet", brandedShell("Member Worksheet", `<pre>${escHtml(memberRecordText(current))}</pre>`), true)
+                    }
+                  >
+                    Print Worksheet
+                  </button>
+                  <button
+                    type="button"
+                    className="admin-btn"
+                    onClick={() => {
+                      openPrintPreview("Worksheet PDF Export", brandedShell("Worksheet PDF Export", `<p>Use browser Print and select "Save as PDF".</p><pre>${escHtml(memberRecordText(current))}</pre>`));
+                      setActionMessage("Worksheet preview opened. Use Print -> Save as PDF.");
+                    }}
+                  >
+                    Export to PDF
+                  </button>
                 </div>
               </div>
             ) : (
@@ -1038,8 +1360,28 @@ export default function AdminWorkbenchPage() {
                 </label>
               </div>
               <div className="admin-actions-row">
-                <button type="button" className="admin-btn admin-btn-primary" disabled={!current}>Print Record</button>
-                <button type="button" className="admin-btn" disabled={!current}>Preview</button>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-primary"
+                  disabled={!current}
+                  onClick={() => {
+                    if (!current) return;
+                    openPrintPreview("Full Member Record", brandedShell("Full Member Record", `<pre>${escHtml(memberRecordText(current))}</pre>`), true);
+                  }}
+                >
+                  Print Record
+                </button>
+                <button
+                  type="button"
+                  className="admin-btn"
+                  disabled={!current}
+                  onClick={() => {
+                    if (!current) return;
+                    openPrintPreview("Full Member Record Preview", brandedShell("Full Member Record Preview", `<pre>${escHtml(memberRecordText(current))}</pre>`));
+                  }}
+                >
+                  Preview
+                </button>
               </div>
             </div>
           </div>
@@ -1056,14 +1398,26 @@ export default function AdminWorkbenchPage() {
                 <label className="admin-form-span-2">Backup Location<input className="admin-input" value={legacyValue("backupPath")} onChange={(e) => setLegacy("backupPath", e.target.value)} placeholder="/backups/…" /></label>
               </div>
               <div className="admin-actions-row">
-                <button type="button" className="admin-btn admin-btn-primary" disabled>Run Backup Now</button>
-                <button type="button" className="admin-btn" disabled>Schedule Backup</button>
+                <button type="button" className="admin-btn admin-btn-primary" onClick={runBackupNow}>Run Backup Now</button>
+                <button type="button" className="admin-btn" onClick={scheduleBackup}>Schedule Backup</button>
               </div>
               <h3>Backup History</h3>
               <div className="admin-table-wrap">
                 <table className="admin-table">
                   <thead><tr><th>Date</th><th>Size</th><th>Status</th></tr></thead>
-                  <tbody><tr><td colSpan={3}>No history stored in-app.</td></tr></tbody>
+                  <tbody>
+                    {backupHistory.length === 0 ? (
+                      <tr><td colSpan={3}>No backup events yet.</td></tr>
+                    ) : (
+                      backupHistory.map((b) => (
+                        <tr key={b.id}>
+                          <td>{new Date(b.at).toLocaleString()}</td>
+                          <td>{b.sizeBytes ? `${(b.sizeBytes / 1024).toFixed(1)} KB` : "scheduled"}</td>
+                          <td>{b.type === "manual" ? "Completed" : "Scheduled"}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
                 </table>
               </div>
             </div>
@@ -1231,8 +1585,30 @@ export default function AdminWorkbenchPage() {
                 </label>
               </div>
               <div className="admin-actions-row">
-                <button type="button" className="admin-btn admin-btn-primary" disabled={!current}>Generate Letter</button>
-                <button type="button" className="admin-btn" disabled={!current}>Preview</button>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-primary"
+                  disabled={!current}
+                  onClick={() => {
+                    if (!current) return;
+                    const html = refundLetterHtml();
+                    downloadText(`refund-letter-${current.memberNumber || current._id}-${fileNameStamp()}.html`, html, "text/html;charset=utf-8");
+                    setActionMessage("Refund letter HTML generated.");
+                  }}
+                >
+                  Generate Letter
+                </button>
+                <button
+                  type="button"
+                  className="admin-btn"
+                  disabled={!current}
+                  onClick={() => {
+                    if (!current) return;
+                    openPrintPreview("Refund Letter Preview", refundLetterHtml());
+                  }}
+                >
+                  Preview
+                </button>
               </div>
             </div>
           </div>
@@ -1248,8 +1624,30 @@ export default function AdminWorkbenchPage() {
                 <label>Start Date<input className="admin-input" value={legacyValue("startLetterStartDate")} onChange={(e) => setLegacy("startLetterStartDate", e.target.value)} disabled={!current} /></label>
               </div>
               <div className="admin-actions-row">
-                <button type="button" className="admin-btn admin-btn-primary" disabled={!current}>Generate Letter</button>
-                <button type="button" className="admin-btn" disabled={!current}>Preview</button>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-primary"
+                  disabled={!current}
+                  onClick={() => {
+                    if (!current) return;
+                    const html = startDateLetterHtml();
+                    downloadText(`start-date-letter-${current.memberNumber || current._id}-${fileNameStamp()}.html`, html, "text/html;charset=utf-8");
+                    setActionMessage("Start date letter HTML generated.");
+                  }}
+                >
+                  Generate Letter
+                </button>
+                <button
+                  type="button"
+                  className="admin-btn"
+                  disabled={!current}
+                  onClick={() => {
+                    if (!current) return;
+                    openPrintPreview("Start Date Letter Preview", startDateLetterHtml());
+                  }}
+                >
+                  Preview
+                </button>
               </div>
             </div>
           </div>
@@ -1266,7 +1664,27 @@ export default function AdminWorkbenchPage() {
                 <textarea className="admin-input admin-note-input" readOnly value={members.slice(0, 8).map((m) => `${m.firstName} ${m.lastName}`).join("\n")} />
               </label>
               <div className="admin-actions-row">
-                <button type="button" className="admin-btn admin-btn-primary" disabled>Generate Letters</button>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-primary"
+                  onClick={() => {
+                    const rows = filteredMembers.slice(0, 50);
+                    const letters = rows
+                      .map(
+                        (m) =>
+                          brandedLetterHtml(
+                            "Referral Thank-You Letter",
+                            `${m.firstName} ${m.lastName}`,
+                            `Thank you for your referrals to Oil Co-op.\n\nMember #: ${m.memberNumber || "—"}`
+                          )
+                      )
+                      .join("<div style='page-break-after:always'></div>");
+                    downloadText(`multiple-referral-letters-${fileNameStamp()}.html`, letters || brandedShell("Referral Letters", "<p>No members selected.</p>"), "text/html;charset=utf-8");
+                    setActionMessage(`Generated ${rows.length} referral letter draft(s).`);
+                  }}
+                >
+                  Generate Letters
+                </button>
               </div>
             </div>
           </div>
@@ -1298,8 +1716,31 @@ export default function AdminWorkbenchPage() {
                 </div>
               </div>
               <div className="admin-actions-row">
-                <button type="button" className="admin-btn admin-btn-primary" disabled>Generate Mailing</button>
-                <button type="button" className="admin-btn" disabled>Preview List</button>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-primary"
+                  onClick={() => {
+                    const rows = members.filter((m) => m.status === "active");
+                    generateMembersCsv("Renewal Mailing", rows);
+                  }}
+                >
+                  Generate Mailing
+                </button>
+                <button
+                  type="button"
+                  className="admin-btn"
+                  onClick={() =>
+                    openPrintPreview(
+                      "Renewal Mailing List Preview",
+                      brandedShell("Renewal Mailing List", `<p>Billing Year: ${escHtml(legacyValue("renewalBillingYear") || new Date().getFullYear())}</p><table><thead><tr><th>Member #</th><th>Name</th><th>Email</th><th>Status</th></tr></thead><tbody>${members
+                        .filter((m) => m.status === "active")
+                        .map((m) => `<tr><td>${m.memberNumber || "—"}</td><td>${m.firstName} ${m.lastName}</td><td>${m.email}</td><td>${m.status}</td></tr>`)
+                        .join("")}</tbody></table>`)
+                    )
+                  }
+                >
+                  Preview List
+                </button>
               </div>
             </div>
           </div>
@@ -1322,8 +1763,28 @@ export default function AdminWorkbenchPage() {
                 </label>
               </div>
               <div className="admin-actions-row">
-                <button type="button" className="admin-btn admin-btn-primary" disabled>Generate Mailing</button>
-                <button type="button" className="admin-btn" disabled>Preview List</button>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-primary"
+                  onClick={() => generateMembersCsv("Prospective Mailing", members.filter((m) => defaultWorkbenchMemberStatus(m) === "PROSPECTIVE"))}
+                >
+                  Generate Mailing
+                </button>
+                <button
+                  type="button"
+                  className="admin-btn"
+                  onClick={() =>
+                    openPrintPreview(
+                      "Prospective Mailing List Preview",
+                      brandedShell("Prospective Mailing List", `<table><thead><tr><th>Member #</th><th>Name</th><th>Email</th><th>City</th></tr></thead><tbody>${members
+                        .filter((m) => defaultWorkbenchMemberStatus(m) === "PROSPECTIVE")
+                        .map((m) => `<tr><td>${m.memberNumber || "—"}</td><td>${m.firstName} ${m.lastName}</td><td>${m.email}</td><td>${m.city || "—"}</td></tr>`)
+                        .join("")}</tbody></table>`)
+                    )
+                  }
+                >
+                  Preview List
+                </button>
               </div>
             </div>
           </div>

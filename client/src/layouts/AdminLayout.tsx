@@ -42,6 +42,9 @@ export default function AdminLayout() {
           <NavLink to="/admin/reports" className={linkClass} onClick={() => setSidebarOpen(false)}>
             Reports
           </NavLink>
+          <NavLink to="/admin/email-templates" className={linkClass} onClick={() => setSidebarOpen(false)}>
+            Email Templates
+          </NavLink>
         </nav>
         <div className="admin-sidebar-foot">
           <div style={{ marginBottom: "0.5rem" }}>

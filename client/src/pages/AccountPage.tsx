@@ -166,27 +166,88 @@ export default function AccountPage() {
       </p>
 
       <div className="mkt-card-form">
-        <h2 className="mkt-section-title" style={{ textAlign: "left", fontSize: "1.25rem", marginBottom: "0.35rem" }}>
-          Customer profile
+        <h2 className="mkt-section-title" style={{ textAlign: "left", fontSize: "1.25rem", marginBottom: "1.25rem" }}>
+          My Profile
         </h2>
-        <p className="mkt-lead" style={{ fontSize: "0.9rem", marginBottom: "1rem" }}>
-          Includes legacy profile/contact fields used by admin workbench.
-        </p>
-        <div className="mkt-grid two">
-          <label>First name<input className="mkt-input" value={profile.firstName} onChange={(e) => setProfile((p) => ({ ...p, firstName: e.target.value }))} /></label>
-          <label>Last name<input className="mkt-input" value={profile.lastName} onChange={(e) => setProfile((p) => ({ ...p, lastName: e.target.value }))} /></label>
-          <label>Phone 1<input className="mkt-input" value={profile.phone} onChange={(e) => setProfile((p) => ({ ...p, phone: e.target.value }))} /></label>
-          <label>Phone 2<input className="mkt-input" value={profile.phone2} onChange={(e) => setProfile((p) => ({ ...p, phone2: e.target.value }))} /></label>
-          <label>Phone 3<input className="mkt-input" value={profile.phone3} onChange={(e) => setProfile((p) => ({ ...p, phone3: e.target.value }))} /></label>
-          <label>Email 2<input className="mkt-input" value={profile.email2} onChange={(e) => setProfile((p) => ({ ...p, email2: e.target.value }))} /></label>
-          <label>Address line 1<input className="mkt-input" value={profile.addressLine1} onChange={(e) => setProfile((p) => ({ ...p, addressLine1: e.target.value }))} /></label>
-          <label>Address line 2<input className="mkt-input" value={profile.addressLine2} onChange={(e) => setProfile((p) => ({ ...p, addressLine2: e.target.value }))} /></label>
-          <label>City<input className="mkt-input" value={profile.city} onChange={(e) => setProfile((p) => ({ ...p, city: e.target.value }))} /></label>
-          <label>State<input className="mkt-input" value={profile.state} onChange={(e) => setProfile((p) => ({ ...p, state: e.target.value }))} /></label>
-          <label>ZIP<input className="mkt-input" value={profile.postalCode} onChange={(e) => setProfile((p) => ({ ...p, postalCode: e.target.value }))} /></label>
-          <label>Employer<input className="mkt-input" value={profile.employer} onChange={(e) => setProfile((p) => ({ ...p, employer: e.target.value }))} /></label>
+
+        {/* Personal Information */}
+        <div style={{ marginBottom: "1.5rem" }}>
+          <h3 style={{ fontSize: "0.75rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#78716c", marginBottom: "0.75rem" }}>
+            Personal Information
+          </h3>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+            <div className="mkt-field">
+              <label>First name</label>
+              <input className="mkt-input" value={profile.firstName} onChange={(e) => setProfile((p) => ({ ...p, firstName: e.target.value }))} />
+            </div>
+            <div className="mkt-field">
+              <label>Last name</label>
+              <input className="mkt-input" value={profile.lastName} onChange={(e) => setProfile((p) => ({ ...p, lastName: e.target.value }))} />
+            </div>
+            <div className="mkt-field" style={{ gridColumn: "1 / -1" }}>
+              <label>Employer</label>
+              <input className="mkt-input" value={profile.employer} onChange={(e) => setProfile((p) => ({ ...p, employer: e.target.value }))} />
+            </div>
+          </div>
         </div>
-        <button className="mkt-submit" type="button" onClick={() => void saveProfile()} disabled={profileSaving}>
+
+        {/* Contact Information */}
+        <div style={{ marginBottom: "1.5rem" }}>
+          <h3 style={{ fontSize: "0.75rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#78716c", marginBottom: "0.75rem" }}>
+            Contact Information
+          </h3>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+            <div className="mkt-field">
+              <label>Phone (primary)</label>
+              <input className="mkt-input" type="tel" value={profile.phone} onChange={(e) => setProfile((p) => ({ ...p, phone: e.target.value }))} />
+            </div>
+            <div className="mkt-field">
+              <label>Phone (secondary)</label>
+              <input className="mkt-input" type="tel" value={profile.phone2} onChange={(e) => setProfile((p) => ({ ...p, phone2: e.target.value }))} placeholder="Optional" />
+            </div>
+            <div className="mkt-field">
+              <label>Phone (other)</label>
+              <input className="mkt-input" type="tel" value={profile.phone3} onChange={(e) => setProfile((p) => ({ ...p, phone3: e.target.value }))} placeholder="Optional" />
+            </div>
+            <div className="mkt-field">
+              <label>Email (secondary)</label>
+              <input className="mkt-input" type="email" value={profile.email2} onChange={(e) => setProfile((p) => ({ ...p, email2: e.target.value }))} placeholder="Optional" />
+            </div>
+          </div>
+        </div>
+
+        {/* Address */}
+        <div style={{ marginBottom: "1.5rem" }}>
+          <h3 style={{ fontSize: "0.75rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#78716c", marginBottom: "0.75rem" }}>
+            Address
+          </h3>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+            <div className="mkt-field" style={{ gridColumn: "1 / -1" }}>
+              <label>Street address</label>
+              <input className="mkt-input" value={profile.addressLine1} onChange={(e) => setProfile((p) => ({ ...p, addressLine1: e.target.value }))} />
+            </div>
+            <div className="mkt-field" style={{ gridColumn: "1 / -1" }}>
+              <label>Apt, suite, unit (optional)</label>
+              <input className="mkt-input" value={profile.addressLine2} onChange={(e) => setProfile((p) => ({ ...p, addressLine2: e.target.value }))} placeholder="Optional" />
+            </div>
+            <div className="mkt-field">
+              <label>City</label>
+              <input className="mkt-input" value={profile.city} onChange={(e) => setProfile((p) => ({ ...p, city: e.target.value }))} />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+              <div className="mkt-field">
+                <label>State</label>
+                <input className="mkt-input" value={profile.state} onChange={(e) => setProfile((p) => ({ ...p, state: e.target.value }))} maxLength={2} style={{ textTransform: "uppercase" }} />
+              </div>
+              <div className="mkt-field">
+                <label>ZIP</label>
+                <input className="mkt-input" value={profile.postalCode} onChange={(e) => setProfile((p) => ({ ...p, postalCode: e.target.value }))} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button className="mkt-submit" type="button" onClick={() => void saveProfile()} disabled={profileSaving} style={{ marginTop: "0.5rem" }}>
           {profileSaving ? "Saving..." : "Save profile"}
         </button>
       </div>

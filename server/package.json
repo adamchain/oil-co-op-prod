@@ -8,6 +8,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "seed": "tsx src/scripts/seed.ts",
+    "set-admin": "tsx src/scripts/setAdminCredentials.ts",
     "import:ri-members": "tsx src/scripts/importRiMembers.ts"
   },
   "dependencies": {
