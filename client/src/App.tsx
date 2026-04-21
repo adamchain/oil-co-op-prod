@@ -42,7 +42,8 @@ export default function App() {
 
         <Route element={<RequireAuth admin />}>
           <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<AdminDashboardPage />} />
+            <Route index element={<Navigate to="/admin/workbench" replace />} />
+            <Route path="dashboard" element={<AdminDashboardPage />} />
             <Route path="workbench" element={<AdminWorkbenchPage />} />
             <Route path="members" element={<AdminMembersPage />} />
             <Route path="members/:id" element={<AdminMemberPage />} />

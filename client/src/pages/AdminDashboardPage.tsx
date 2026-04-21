@@ -14,82 +14,6 @@ type DashboardData = {
   recentSignups: number;
 };
 
-const quickAccessItems = [
-  {
-    title: "Members",
-    description: "Manage your member relationships",
-    href: "/admin/members",
-    icon: (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-        <circle cx="9" cy="7" r="4" />
-        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-      </svg>
-    ),
-  },
-  {
-    title: "Tasks",
-    description: "Track and complete work items",
-    href: "/admin/exceptions",
-    icon: (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <path d="M9 11l3 3L22 4" />
-        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-      </svg>
-    ),
-  },
-  {
-    title: "Renewals",
-    description: "View upcoming billing dates",
-    href: "/admin/renewals",
-    icon: (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-        <line x1="16" y1="2" x2="16" y2="6" />
-        <line x1="8" y1="2" x2="8" y2="6" />
-        <line x1="3" y1="10" x2="21" y2="10" />
-      </svg>
-    ),
-  },
-  {
-    title: "Communications",
-    description: "Email and notification history",
-    href: "/admin/communications",
-    icon: (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-        <polyline points="22,6 12,13 2,6" />
-      </svg>
-    ),
-  },
-  {
-    title: "Reports",
-    description: "Revenue, invoices, and analytics",
-    href: "/admin/reports",
-    icon: (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <line x1="18" y1="20" x2="18" y2="10" />
-        <line x1="12" y1="20" x2="12" y2="4" />
-        <line x1="6" y1="20" x2="6" y2="14" />
-      </svg>
-    ),
-  },
-  {
-    title: "Agents",
-    description: "AI assistant for quick insights",
-    href: "/admin/agents",
-    icon: (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-        <circle cx="12" cy="12" r="10" />
-        <path d="M8 14s1.5 2 4 2 4-2 4-2" />
-        <line x1="9" y1="9" x2="9.01" y2="9" strokeWidth="2" />
-        <line x1="15" y1="9" x2="15.01" y2="9" strokeWidth="2" />
-      </svg>
-    ),
-  },
-];
-
 export default function AdminDashboardPage() {
   const { token } = useAuth();
   const [data, setData] = useState<DashboardData | null>(null);
@@ -151,22 +75,6 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="admin-minimal">
-      {/* Quick Access */}
-      <section className="admin-minimal-section">
-        <h2 className="admin-minimal-heading">Quick access</h2>
-        <div className="admin-minimal-cards">
-          {quickAccessItems.map((item) => (
-            <Link key={item.href} to={item.href} className="admin-minimal-card">
-              <div className="admin-minimal-card-icon">{item.icon}</div>
-              <div className="admin-minimal-card-content">
-                <h3>{item.title}</h3>
-                <p>{item.description}</p>
-              </div>
-            </Link>
-          ))}
-        </div>
-      </section>
-
       {/* Organization Snapshot */}
       <section className="admin-minimal-section">
         <h2 className="admin-minimal-heading">Organization snapshot</h2>
@@ -240,7 +148,7 @@ export default function AdminDashboardPage() {
       {/* Advanced Tools Link */}
       <section className="admin-minimal-section">
         <Link to="/admin/workbench" className="admin-minimal-advanced-link">
-          Open Data Entry Workbench
+          Open Admin Workbench
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M5 12h14M12 5l7 7-7 7" />
           </svg>
