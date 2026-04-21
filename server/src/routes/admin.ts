@@ -10,8 +10,10 @@ import { ActivityLog } from "../models/ActivityLog.js";
 import { CommunicationLog } from "../models/CommunicationLog.js";
 import { Referral } from "../models/Referral.js";
 import { PaymentToken } from "../models/PaymentToken.js";
+import { EmailTemplate, EMAIL_TEMPLATE_KEYS } from "../models/EmailTemplate.js";
 import { logActivity } from "../services/activity.js";
 import { sendMemberEmail, sendPaymentLinkEmail, sendOilCompanyAssignedEmail } from "../services/mail.js";
+import { applyTemplateVariables, ensureEmailTemplates } from "../services/emailTemplateStore.js";
 import { nextJuneFirstAfterSignup } from "../utils/juneBilling.js";
 import { chargeCard, addPaymentProfile, createCustomerProfile } from "../services/authorizeNet.js";
 import { config, authorizeNetEnabled } from "../config.js";
@@ -20,6 +22,111 @@ import bcrypt from "bcryptjs";
 const router = Router();
 
 router.use(requireAuth, requireAdmin);
+
+router.get("/email-templates", async (_req, res) => {
+  await ensureEmailTemplates();
+  const templates = await EmailTemplate.find({ key: { $in: EMAIL_TEMPLATE_KEYS } })
+    .sort({ key: 1 })
+    .lean();
+  res.json({ templates });
+});
+
+const updateEmailTemplateSchema = z.object({
+  subject: z.string().min(1),
+  html: z.string().min(1),
+  text: z.string().optional().default(""),
+});
+
+router.put("/email-templates/:key", async (req: AuthedRequest, res) => {
+  const key = req.params.key;
+  if (!EMAIL_TEMPLATE_KEYS.includes(key as (typeof EMAIL_TEMPLATE_KEYS)[number])) {
+    res.status(400).json({ error: "Invalid template key" });
+    return;
+  }
+  const parsed = updateEmailTemplateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  await ensureEmailTemplates();
+  const template = await EmailTemplate.findOneAndUpdate(
+    { key },
+    {
+      $set: {
+        subject: parsed.data.subject,
+        html: parsed.data.html,
+        text: parsed.data.text,
+      },
+    },
+    { new: true }
+  ).lean();
+  if (!template) {
+    res.status(404).json({ error: "Template not found" });
+    return;
+  }
+
+  await logActivity(
+    new mongoose.Types.ObjectId(req.userId!),
+    "admin_email_template_updated",
+    { key, adminId: req.userId },
+    new mongoose.Types.ObjectId(req.userId!)
+  );
+
+  res.json({ template });
+});
+
+const sendTestTemplateSchema = z.object({
+  to: z.string().email(),
+  subject: z.string().min(1),
+  html: z.string().min(1),
+  text: z.string().optional().default(""),
+});
+
+const testTemplateSampleData: Record<string, unknown> = {
+  firstName: "John",
+  lastName: "Smith",
+  memberNumber: "M-2024-0042",
+  nextBillingDate: "June 1, 2025",
+  daysUntil: 7,
+  billingDate: "June 1, 2025",
+  amount: "$120.00",
+  isAutoRenew: true,
+  cardLast4: "4242",
+  transactionId: "TXN-123456789",
+  billingYear: 2025,
+  reason: "Card declined - insufficient funds",
+  paymentUrl: "https://oilcoop.example.com/pay/abc123xyz",
+  expiresAt: "May 15, 2025",
+  companyName: "ABC Heating Oil Co.",
+  companyPhone: "(555) 123-4567",
+};
+
+router.post("/email-templates/:key/test", async (req: AuthedRequest, res) => {
+  const key = req.params.key;
+  if (!EMAIL_TEMPLATE_KEYS.includes(key as (typeof EMAIL_TEMPLATE_KEYS)[number])) {
+    res.status(400).json({ error: "Invalid template key" });
+    return;
+  }
+  const parsed = sendTestTemplateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const subject = applyTemplateVariables(parsed.data.subject, testTemplateSampleData);
+  const text = applyTemplateVariables(parsed.data.text, testTemplateSampleData);
+  const html = applyTemplateVariables(parsed.data.html, testTemplateSampleData);
+
+  await sendMemberEmail(
+    new mongoose.Types.ObjectId(req.userId!),
+    parsed.data.to,
+    subject,
+    text || "This is a test email preview.",
+    html
+  );
+
+  res.json({ ok: true });
+});
 
 router.get("/members", async (req, res) => {
   const q = (req.query.q as string) || "";
@@ -937,6 +1044,205 @@ router.post("/members/:id/store-card", async (req: AuthedRequest, res) => {
     customerProfileId,
     paymentProfileId: paymentResult.paymentProfileId,
   });
+});
+
+/**
+ * Admin Assistant - Smart chatbot that answers questions with real data
+ */
+const assistantSchema = z.object({
+  message: z.string().min(1).max(500),
+});
+
+router.post("/assistant", async (req: AuthedRequest, res) => {
+  const parsed = assistantSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Invalid message" });
+    return;
+  }
+
+  const msg = parsed.data.message.toLowerCase();
+
+  // Gather real-time data for context
+  const [
+    totalMembers,
+    activeMembers,
+    expiredMembers,
+    failedCharges,
+    pendingManual,
+    unassignedOil,
+    recentSignups,
+    renewingNext7Days,
+    renewingNext30Days,
+    totalOilCompanies,
+    recentPayments,
+  ] = await Promise.all([
+    Member.countDocuments({ role: "member" }),
+    Member.countDocuments({ role: "member", status: "active" }),
+    Member.countDocuments({ role: "member", status: "expired" }),
+    BillingEvent.countDocuments({ kind: "annual", status: "failed" }),
+    BillingEvent.countDocuments({ kind: "annual", status: "pending" }),
+    Member.countDocuments({ role: "member", status: "active", oilCompanyId: null }),
+    Member.countDocuments({
+      role: "member",
+      createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+    }),
+    Member.countDocuments({
+      role: "member",
+      status: "active",
+      nextAnnualBillingDate: {
+        $gte: new Date(),
+        $lte: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
+    }),
+    Member.countDocuments({
+      role: "member",
+      status: "active",
+      nextAnnualBillingDate: {
+        $gte: new Date(),
+        $lte: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      },
+    }),
+    OilCompany.countDocuments({ active: { $ne: false } }),
+    BillingEvent.countDocuments({
+      status: "succeeded",
+      createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+    }),
+  ]);
+
+  // Get recent failed charges with details
+  const recentFailedCharges = await BillingEvent.find({ kind: "annual", status: "failed" })
+    .sort({ createdAt: -1 })
+    .limit(5)
+    .populate("memberId", "firstName lastName memberNumber email")
+    .lean();
+
+  // Get members needing oil company assignment
+  const needsOilAssignment = await Member.find({ role: "member", status: "active", oilCompanyId: null })
+    .sort({ createdAt: -1 })
+    .limit(5)
+    .select("firstName lastName memberNumber email createdAt")
+    .lean();
+
+  // Get upcoming renewals
+  const upcomingRenewals = await Member.find({
+    role: "member",
+    status: "active",
+    nextAnnualBillingDate: {
+      $gte: new Date(),
+      $lte: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    },
+  })
+    .sort({ nextAnnualBillingDate: 1 })
+    .limit(5)
+    .select("firstName lastName memberNumber nextAnnualBillingDate paymentMethod autoRenew")
+    .lean();
+
+  const totalTasks = failedCharges + pendingManual + unassignedOil;
+
+  // Smart response based on question intent
+  let response = "";
+  let data: Record<string, unknown> = {};
+
+  if (msg.includes("task") || msg.includes("attention") || msg.includes("todo") || msg.includes("action")) {
+    if (totalTasks === 0) {
+      response = "Great news! You have no pending tasks. All members have oil companies assigned, and there are no failed or pending payments.";
+    } else {
+      const items: string[] = [];
+      if (failedCharges > 0) items.push(`**${failedCharges} failed payment${failedCharges > 1 ? "s"  : ""}** need follow-up`);
+      if (pendingManual > 0) items.push(`**${pendingManual} pending manual payment${pendingManual > 1 ? "s" : ""}** awaiting processing`);
+      if (unassignedOil > 0) items.push(`**${unassignedOil} member${unassignedOil > 1 ? "s" : ""}** need oil company assignment`);
+
+      response = `You have **${totalTasks} task${totalTasks > 1 ? "s" : ""}** needing attention:\n\n` + items.map(i => `• ${i}`).join("\n");
+
+      if (failedCharges > 0 && recentFailedCharges.length > 0) {
+        response += "\n\n**Recent failed charges:**\n";
+        for (const fc of recentFailedCharges) {
+          const m = fc.memberId as { firstName?: string; lastName?: string; memberNumber?: string } | null;
+          if (m) {
+            response += `• ${m.firstName} ${m.lastName} (${m.memberNumber || "no #"})\n`;
+          }
+        }
+      }
+    }
+    data = { totalTasks, failedCharges, pendingManual, unassignedOil };
+  }
+  else if (msg.includes("renewal") || msg.includes("upcoming") || msg.includes("billing") || msg.includes("due")) {
+    response = `**Upcoming Renewals:**\n\n`;
+    response += `• **${renewingNext7Days}** members renewing in the next 7 days\n`;
+    response += `• **${renewingNext30Days}** members renewing in the next 30 days\n`;
+
+    if (upcomingRenewals.length > 0) {
+      response += "\n**Next 7 days:**\n";
+      upcomingRenewals.forEach((m) => {
+        const date = m.nextAnnualBillingDate ? new Date(m.nextAnnualBillingDate).toLocaleDateString() : "unknown";
+        const method = m.autoRenew ? "auto-charge" : m.paymentMethod || "manual";
+        response += `• ${m.firstName} ${m.lastName} (${m.memberNumber}) - ${date} (${method})\n`;
+      });
+    }
+    data = { renewingNext7Days, renewingNext30Days, upcomingRenewals };
+  }
+  else if (msg.includes("member") && (msg.includes("count") || msg.includes("how many") || msg.includes("total") || msg.includes("stat"))) {
+    response = `**Member Statistics:**\n\n`;
+    response += `• **${totalMembers}** total members\n`;
+    response += `• **${activeMembers}** active members\n`;
+    response += `• **${expiredMembers}** expired members\n`;
+    response += `• **${recentSignups}** new signups this week\n`;
+    data = { totalMembers, activeMembers, expiredMembers, recentSignups };
+  }
+  else if (msg.includes("oil company") || msg.includes("assign")) {
+    if (unassignedOil === 0) {
+      response = "All active members have an oil company assigned.";
+    } else {
+      response = `**${unassignedOil} member${unassignedOil > 1 ? "s" : ""}** need oil company assignment:\n\n`;
+      needsOilAssignment.forEach((m) => {
+        const joined = m.createdAt ? new Date(m.createdAt).toLocaleDateString() : "unknown";
+        response += `• ${m.firstName} ${m.lastName} (${m.memberNumber || "no #"}) - joined ${joined}\n`;
+      });
+      response += `\n→ Go to **Members** and filter by "Missing Oil Company" to assign.`;
+    }
+    data = { unassignedOil, needsOilAssignment, totalOilCompanies };
+  }
+  else if (msg.includes("payment") || msg.includes("revenue") || msg.includes("money")) {
+    response = `**Payment Overview (Last 30 Days):**\n\n`;
+    response += `• **${recentPayments}** successful payments\n`;
+    response += `• **${failedCharges}** failed charges needing follow-up\n`;
+    response += `• **${pendingManual}** pending manual payments\n`;
+    data = { recentPayments, failedCharges, pendingManual };
+  }
+  else if (msg.includes("help") || msg.includes("what can you")) {
+    response = `I can help you with:\n\n`;
+    response += `• **"What tasks need attention?"** - See pending tasks\n`;
+    response += `• **"Show upcoming renewals"** - View members renewing soon\n`;
+    response += `• **"How many members?"** - Member statistics\n`;
+    response += `• **"Who needs oil company?"** - Unassigned members\n`;
+    response += `• **"Payment overview"** - Recent payment stats\n`;
+    response += `• **"System status"** - Overall system health\n`;
+  }
+  else if (msg.includes("status") || msg.includes("overview") || msg.includes("summary") || msg.includes("dashboard")) {
+    const healthScore = totalTasks === 0 ? "Excellent" : totalTasks < 5 ? "Good" : totalTasks < 10 ? "Fair" : "Needs Attention";
+    response = `**System Overview:**\n\n`;
+    response += `**Health:** ${healthScore}\n\n`;
+    response += `**Members:** ${activeMembers} active / ${totalMembers} total\n`;
+    response += `**Pending Tasks:** ${totalTasks}\n`;
+    response += `**Renewals Next 7 Days:** ${renewingNext7Days}\n`;
+    response += `**Oil Companies:** ${totalOilCompanies} active\n`;
+    response += `**Recent Signups:** ${recentSignups} this week\n`;
+    data = { healthScore, activeMembers, totalMembers, totalTasks, renewingNext7Days, totalOilCompanies, recentSignups };
+  }
+  else {
+    // Default helpful response
+    response = `I'm your Oil Co-op admin assistant. Here's a quick overview:\n\n`;
+    response += `• **${totalTasks}** tasks need attention\n`;
+    response += `• **${activeMembers}** active members\n`;
+    response += `• **${renewingNext7Days}** renewals coming up\n\n`;
+    response += `Try asking:\n`;
+    response += `• "What tasks need my attention?"\n`;
+    response += `• "Show upcoming renewals"\n`;
+    response += `• "Who needs oil company assignment?"`;
+    data = { totalTasks, activeMembers, renewingNext7Days };
+  }
+
+  res.json({ response, data, timestamp: new Date().toISOString() });
 });
 
 export default router;

@@ -14,6 +14,8 @@ import AdminCommunicationsPage from "./pages/AdminCommunicationsPage";
 import AdminExceptionsPage from "./pages/AdminExceptionsPage";
 import AdminWorkbenchPage from "./pages/AdminWorkbenchPage";
 import AdminEmailTemplatesPage from "./pages/AdminEmailTemplatesPage";
+import AdminAgentsPage from "./pages/AdminAgentsPage";
+import AdminDashboardPage from "./pages/AdminDashboardPage";
 
 function RequireAuth({ admin }: { admin?: boolean }) {
   const { token, member } = useAuth();
@@ -40,7 +42,7 @@ export default function App() {
 
         <Route element={<RequireAuth admin />}>
           <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<Navigate to="workbench" replace />} />
+            <Route index element={<AdminDashboardPage />} />
             <Route path="workbench" element={<AdminWorkbenchPage />} />
             <Route path="members" element={<AdminMembersPage />} />
             <Route path="members/:id" element={<AdminMemberPage />} />
@@ -49,6 +51,7 @@ export default function App() {
             <Route path="exceptions" element={<AdminExceptionsPage />} />
             <Route path="reports" element={<AdminReportsPage />} />
             <Route path="email-templates" element={<AdminEmailTemplatesPage />} />
+            <Route path="agents" element={<AdminAgentsPage />} />
           </Route>
         </Route>
 

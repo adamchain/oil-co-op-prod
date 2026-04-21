@@ -506,11 +506,11 @@
   --wb-muted: #57534e;
   --wb-accent: #c2410c;
   --wb-accent-soft: rgba(194, 65, 12, 0.08);
-  --wb-radius: 12px;
-  --wb-radius-sm: 8px;
+  --wb-radius: 10px;
+  --wb-radius-sm: 7px;
   --wb-shadow: 0 1px 3px rgba(28, 25, 23, 0.06);
   font-family: "Outfit", system-ui, sans-serif;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--wb-text);
   background: var(--wb-bg);
   min-height: calc(100vh - 65px);
@@ -523,8 +523,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  padding: 0.75rem 1rem;
+  gap: 0.65rem;
+  padding: 0.45rem 0.7rem;
   background: var(--wb-surface);
   border-bottom: 1px solid var(--wb-border);
   flex-wrap: wrap;
@@ -533,7 +533,7 @@
 .admin-wb-header-left {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 0.5rem;
 }
 
 .admin-wb-header-right {
@@ -552,8 +552,8 @@
 }
 
 .admin-wb-nav button {
-  width: 32px;
-  height: 28px;
+  width: 28px;
+  height: 24px;
   border: none;
   background: var(--wb-surface);
   font-size: 0.75rem;
@@ -572,7 +572,7 @@
 }
 
 .admin-wb-count {
-  font-size: 0.8rem;
+  font-size: 0.72rem;
   color: var(--wb-muted);
   font-variant-numeric: tabular-nums;
 }
@@ -580,9 +580,9 @@
 .admin-wb-search {
   border: 1px solid var(--wb-border);
   border-radius: var(--wb-radius-sm);
-  padding: 0.4rem 0.75rem;
-  font-size: 0.85rem;
-  min-width: 180px;
+  padding: 0.3rem 0.55rem;
+  font-size: 0.78rem;
+  min-width: 160px;
   background: var(--wb-surface);
   font-family: inherit;
 }
@@ -595,8 +595,8 @@
 .admin-wb-select {
   border: 1px solid var(--wb-border);
   border-radius: var(--wb-radius-sm);
-  padding: 0.4rem 0.75rem;
-  font-size: 0.85rem;
+  padding: 0.3rem 0.55rem;
+  font-size: 0.78rem;
   background: var(--wb-surface);
   font-family: inherit;
   cursor: pointer;
@@ -605,15 +605,15 @@
 .admin-wb-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.35rem;
-  padding: 0.5rem 0.75rem;
+  gap: 0.25rem;
+  padding: 0.35rem 0.55rem;
   background: var(--wb-surface);
   border-bottom: 1px solid var(--wb-border);
 }
 
 .admin-wb-tab {
-  padding: 0.45rem 0.85rem;
-  font-size: 0.75rem;
+  padding: 0.3rem 0.6rem;
+  font-size: 0.68rem;
   font-weight: 500;
   background: transparent;
   border: none;
@@ -636,8 +636,8 @@
 
 .admin-wb-actions {
   display: flex;
-  gap: 0.5rem;
-  padding: 0.65rem 0.75rem;
+  gap: 0.35rem;
+  padding: 0.4rem 0.55rem;
   background: var(--wb-surface);
   border-bottom: 1px solid var(--wb-border);
   flex-wrap: wrap;
@@ -645,9 +645,9 @@
 
 .admin-wb-btn {
   border-radius: var(--wb-radius-sm);
-  font-size: 0.8rem;
+  font-size: 0.72rem;
   font-weight: 500;
-  padding: 0.45rem 1rem;
+  padding: 0.3rem 0.7rem;
   border: 1px solid var(--wb-border);
   background: var(--wb-surface);
   color: var(--wb-text);
@@ -700,20 +700,20 @@
 
 .admin-wb-body {
   flex: 1;
-  padding: 0.75rem;
+  padding: 0.5rem;
   background: var(--wb-bg);
 }
 
 .admin-wb-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
+  gap: 0.55rem;
 }
 
 .admin-wb-col {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.55rem;
   min-width: 0;
 }
 
@@ -721,46 +721,46 @@
   background: var(--wb-surface);
   border: 1px solid var(--wb-border);
   border-radius: var(--wb-radius);
-  padding: 0.75rem 1rem 1rem;
+  padding: 0.5rem 0.65rem 0.6rem;
   box-shadow: var(--wb-shadow);
 }
 
 .admin-wb-panel-title {
-  font-size: 0.7rem;
+  font-size: 0.62rem;
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--wb-accent);
-  margin: 0 0 0.5rem;
-  padding-bottom: 0.5rem;
+  margin: 0 0 0.35rem;
+  padding-bottom: 0.35rem;
   border-bottom: 1px solid var(--wb-border);
 }
 
 .admin-wb-panel.electric .admin-wb-panel-title {
   background: linear-gradient(135deg, #fef3c7, #fde68a);
-  padding: 0.5rem 0.75rem;
-  margin: -0.75rem -1rem 0.65rem;
+  padding: 0.35rem 0.55rem;
+  margin: -0.5rem -0.65rem 0.45rem;
   border-radius: var(--wb-radius) var(--wb-radius) 0 0;
   color: #92400e;
   border-bottom: 1px solid #fcd34d;
 }
 
 .admin-wb-panel .admin-form-grid {
-  gap: 0.5rem 0.65rem;
+  gap: 0.35rem 0.45rem;
 }
 
 .admin-wb-panel .admin-form-grid label {
-  font-size: 0.68rem;
+  font-size: 0.6rem;
   font-weight: 600;
   color: var(--wb-muted);
   letter-spacing: 0.03em;
 }
 
 .admin-wb-panel .admin-input {
-  padding: 0.35rem 0.5rem;
+  padding: 0.25rem 0.4rem;
   border: 1px solid var(--wb-border);
   border-radius: var(--wb-radius-sm);
-  font-size: 0.8rem;
+  font-size: 0.74rem;
   min-width: 0;
   background: var(--wb-surface);
   font-family: inherit;
@@ -776,11 +776,11 @@
 .admin-wb-panel .admin-form-grid-4 {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 0.5rem 0.65rem;
+  gap: 0.35rem 0.45rem;
 }
 
 .admin-wb-panel .admin-form-grid-4 label {
-  font-size: 0.68rem;
+  font-size: 0.6rem;
   font-weight: 600;
   color: var(--wb-muted);
   letter-spacing: 0.03em;
@@ -804,14 +804,14 @@
 
 .admin-wb-status-row {
   display: flex;
-  gap: 0.65rem 1rem;
+  gap: 0.35rem 0.6rem;
   flex-wrap: wrap;
-  padding: 0.25rem 0 0.65rem;
-  font-size: 0.7rem;
+  padding: 0.2rem 0 0.4rem;
+  font-size: 0.62rem;
   font-weight: 600;
   color: var(--wb-muted);
   border-bottom: 1px solid var(--wb-border);
-  margin-bottom: 0.65rem;
+  margin-bottom: 0.4rem;
 }
 
 .admin-wb-status-row label {
@@ -829,8 +829,8 @@
 
 .admin-wb-status-row input[type="radio"] {
   accent-color: var(--wb-accent);
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
 }
 
 .admin-wb-status-row .on-active   { color: #16a34a; }
@@ -851,6 +851,158 @@
   .admin-wb-header-left,
   .admin-wb-header-right {
     justify-content: center;
+  }
+}
+
+/* ---------- Minimalist Admin Styles ---------- */
+
+.admin-minimal {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0;
+}
+
+.admin-minimal-section {
+  margin-bottom: 2.5rem;
+}
+
+.admin-minimal-heading {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #78716c;
+  margin: 0 0 1rem;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.admin-minimal-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+}
+
+.admin-minimal-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.875rem;
+  padding: 1rem 1.125rem;
+  background: #fff;
+  border: 1px solid #e7e5e4;
+  border-radius: 12px;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.admin-minimal-card:hover {
+  border-color: #d6d3d1;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+
+.admin-minimal-card-icon {
+  color: #78716c;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.admin-minimal-card:hover .admin-minimal-card-icon {
+  color: #c2410c;
+}
+
+.admin-minimal-card-content h3 {
+  margin: 0 0 0.25rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: #1c1917;
+}
+
+.admin-minimal-card-content p {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: #78716c;
+  line-height: 1.4;
+}
+
+.admin-minimal-table-wrap {
+  background: #fff;
+  border: 1px solid #e7e5e4;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.admin-minimal-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.admin-minimal-table th {
+  text-align: left;
+  padding: 0.75rem 1rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #78716c;
+  background: #fafaf9;
+  border-bottom: 1px solid #e7e5e4;
+}
+
+.admin-minimal-table td {
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid #f5f5f4;
+  color: #1c1917;
+}
+
+.admin-minimal-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.admin-minimal-table tbody tr:hover td {
+  background: #fafaf9;
+}
+
+.admin-minimal-table-count {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-minimal-status {
+  display: inline-block;
+  padding: 0.25rem 0.625rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.admin-minimal-advanced-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 1rem;
+  background: #fafaf9;
+  border: 1px solid #e7e5e4;
+  border-radius: 8px;
+  color: #57534e;
+  text-decoration: none;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+
+.admin-minimal-advanced-link:hover {
+  background: #f5f5f4;
+  color: #1c1917;
+  border-color: #d6d3d1;
+}
+
+@media (max-width: 768px) {
+  .admin-minimal-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 500px) {
+  .admin-minimal-cards {
+    grid-template-columns: 1fr;
   }
 }
 

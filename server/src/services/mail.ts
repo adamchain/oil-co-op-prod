@@ -11,8 +11,28 @@ import {
   paymentLinkHtml,
   oilCompanyAssignedHtml,
 } from "./emailTemplates.js";
+import { EmailTemplate, type EmailTemplateKey } from "../models/EmailTemplate.js";
+import { applyTemplateVariables } from "./emailTemplateStore.js";
 
 let transporter: nodemailer.Transporter | null = null;
+
+async function resolveTemplate(
+  key: EmailTemplateKey,
+  fallback: { subject: string; text: string; html: string },
+  variables: Record<string, unknown>
+) {
+  const dbTemplate = (await EmailTemplate.findOne({ key })
+    .select("subject html text")
+    .lean()) as { subject?: string; html?: string; text?: string } | null;
+  if (!dbTemplate || !dbTemplate.subject || !dbTemplate.html) {
+    return fallback;
+  }
+  return {
+    subject: applyTemplateVariables(dbTemplate.subject, variables),
+    text: dbTemplate.text ? applyTemplateVariables(dbTemplate.text, variables) : fallback.text,
+    html: applyTemplateVariables(dbTemplate.html, variables),
+  };
+}
 
 function getTransporter() {
   if (!config.smtp.host) return null;
@@ -107,13 +127,21 @@ export async function sendWelcomeEmail(member: MemberDoc) {
     nextBilling
   );
 
-  await sendMemberEmail(
-    member._id,
-    member.email,
-    "Welcome to Citizen's Oil Co-op",
-    text,
-    html
+  const resolved = await resolveTemplate(
+    "welcome",
+    {
+      subject: "Welcome to Citizen's Oil Co-op",
+      text,
+      html,
+    },
+    {
+      firstName: member.firstName,
+      memberNumber: member.memberNumber || "pending",
+      nextBillingDate: nextBilling,
+    }
   );
+
+  await sendMemberEmail(member._id, member.email, resolved.subject, resolved.text, resolved.html);
 }
 
 export async function sendRenewalReminderEmail(
@@ -152,13 +180,24 @@ export async function sendRenewalReminderEmail(
     cardLast4
   );
 
-  await sendMemberEmail(
-    member._id,
-    member.email,
-    `Annual membership renewal - ${daysUntil === 1 ? "Tomorrow" : `${daysUntil} days`}`,
-    text,
-    html
+  const resolved = await resolveTemplate(
+    "renewalReminder",
+    {
+      subject: `Annual membership renewal - ${daysUntil === 1 ? "Tomorrow" : `${daysUntil} days`}`,
+      text,
+      html,
+    },
+    {
+      firstName: member.firstName,
+      daysUntil,
+      billingDate,
+      amount: amountStr,
+      isAutoRenew,
+      cardLast4: cardLast4 || "",
+    }
   );
+
+  await sendMemberEmail(member._id, member.email, resolved.subject, resolved.text, resolved.html);
 }
 
 export async function sendPaymentSuccessEmail(
@@ -189,13 +228,23 @@ export async function sendPaymentSuccessEmail(
     billingYear
   );
 
-  await sendMemberEmail(
-    member._id,
-    member.email,
-    "Payment received - Oil Co-op membership",
-    text,
-    html
+  const resolved = await resolveTemplate(
+    "paymentSuccess",
+    {
+      subject: "Payment received - Oil Co-op membership",
+      text,
+      html,
+    },
+    {
+      firstName: member.firstName,
+      amount: amountStr,
+      transactionId,
+      cardLast4,
+      billingYear,
+    }
   );
+
+  await sendMemberEmail(member._id, member.email, resolved.subject, resolved.text, resolved.html);
 }
 
 export async function sendPaymentFailedEmail(
@@ -216,13 +265,21 @@ export async function sendPaymentFailedEmail(
 
   const html = paymentFailedHtml(member.firstName, amountStr, reason);
 
-  await sendMemberEmail(
-    member._id,
-    member.email,
-    "Payment failed - Action required",
-    text,
-    html
+  const resolved = await resolveTemplate(
+    "paymentFailed",
+    {
+      subject: "Payment failed - Action required",
+      text,
+      html,
+    },
+    {
+      firstName: member.firstName,
+      amount: amountStr,
+      reason: reason || "",
+    }
   );
+
+  await sendMemberEmail(member._id, member.email, resolved.subject, resolved.text, resolved.html);
 }
 
 export async function sendPaymentLinkEmail(
@@ -248,13 +305,22 @@ export async function sendPaymentLinkEmail(
 
   const html = paymentLinkHtml(member.firstName, amountStr, paymentUrl, expiresStr);
 
-  await sendMemberEmail(
-    member._id,
-    member.email,
-    `Pay your Oil Co-op membership - ${amountStr}`,
-    text,
-    html
+  const resolved = await resolveTemplate(
+    "paymentLink",
+    {
+      subject: `Pay your Oil Co-op membership - ${amountStr}`,
+      text,
+      html,
+    },
+    {
+      firstName: member.firstName,
+      amount: amountStr,
+      paymentUrl,
+      expiresAt: expiresStr,
+    }
   );
+
+  await sendMemberEmail(member._id, member.email, resolved.subject, resolved.text, resolved.html);
 }
 
 export async function sendOilCompanyAssignedEmail(
@@ -273,11 +339,19 @@ export async function sendOilCompanyAssignedEmail(
 
   const html = oilCompanyAssignedHtml(member.firstName, companyName, companyPhone);
 
-  await sendMemberEmail(
-    member._id,
-    member.email,
-    "Your oil company has been assigned",
-    text,
-    html
+  const resolved = await resolveTemplate(
+    "oilCompanyAssigned",
+    {
+      subject: "Your oil company has been assigned",
+      text,
+      html,
+    },
+    {
+      firstName: member.firstName,
+      companyName,
+      companyPhone: companyPhone || "",
+    }
   );
+
+  await sendMemberEmail(member._id, member.email, resolved.subject, resolved.text, resolved.html);
 }
