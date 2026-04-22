@@ -1345,49 +1345,55 @@ export default function AdminWorkbenchPage() {
 
         {activeTab === "Worksheet" && (
           <div className="admin-workbench-data-entry">
-            {current ? (
-              <div className="admin-card admin-workbench-section">
-                <h2>Worksheet</h2>
-                <h3>Member Worksheet</h3>
-                <div className="admin-form-grid">
-                  <label className="admin-form-span-2">Member Name<input className="admin-input" readOnly value={`${current.firstName} ${current.lastName}`} /></label>
-                  <label className="admin-form-span-2">
-                    Address
-                    <input
-                      className="admin-input"
-                      readOnly
-                      value={[current.addressLine1, current.addressLine2, current.city, current.state, current.postalCode].filter(Boolean).join(", ")}
-                    />
-                  </label>
-                  <label>Oil Company<input className="admin-input" readOnly value={current.oilCompanyId?.name || "—"} /></label>
-                  <label>Oil ID<input className="admin-input" readOnly value={legacyValue("oilId") || "—"} /></label>
-                  <label>Status<input className="admin-input" readOnly value={legacyValue("workbenchMemberStatus") || current.status} /></label>
-                </div>
-                <div className="admin-actions-row">
-                  <button
-                    type="button"
-                    className="admin-btn"
-                    onClick={() =>
-                      openPrintPreview("Member Worksheet", brandedShell("Member Worksheet", `<pre>${escHtml(memberRecordText(current))}</pre>`), true)
-                    }
-                  >
-                    Print Worksheet
-                  </button>
-                  <button
-                    type="button"
-                    className="admin-btn"
-                    onClick={() => {
-                      openPrintPreview("Worksheet PDF Export", brandedShell("Worksheet PDF Export", `<p>Use browser Print and select "Save as PDF".</p><pre>${escHtml(memberRecordText(current))}</pre>`));
-                      setActionMessage("Worksheet preview opened. Use Print -> Save as PDF.");
-                    }}
-                  >
-                    Export to PDF
-                  </button>
-                </div>
+            <div className="admin-card admin-workbench-section">
+              <h2>Worksheet</h2>
+              <h3>Search Results Spreadsheet View</h3>
+              <p className="admin-readonly-hint">
+                Displays the same row-style data as search results. Click any row to load that member in Data Entry.
+              </p>
+              <div className="admin-table-wrap">
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Name</th>
+                      <th>Address</th>
+                      <th>City</th>
+                      <th>Phone</th>
+                      <th>Oil Co</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredMembers.map((m) => {
+                      const rowActive = current?._id === m._id;
+                      return (
+                        <tr
+                          key={m._id}
+                          onClick={() => {
+                            const gi = members.findIndex((x) => x._id === m._id);
+                            if (gi >= 0) setIndex(gi);
+                            setActiveTab("Data Entry");
+                          }}
+                          style={{ cursor: "pointer", background: rowActive ? "rgba(194, 65, 12, 0.06)" : undefined }}
+                        >
+                          <td>{m.memberNumber || "—"}</td>
+                          <td>{m.firstName} {m.lastName}</td>
+                          <td>{[m.addressLine1, m.addressLine2].filter(Boolean).join(", ") || "—"}</td>
+                          <td>{m.city || "—"}</td>
+                          <td>{m.phone || "—"}</td>
+                          <td>{m.oilCompanyId?.name || "—"}</td>
+                          <td><span className={`admin-pill${m.status === "active" ? " ok" : ""}`}>{m.status}</span></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
-            ) : (
-              <p className="admin-meta">Select a member to view the worksheet.</p>
-            )}
+              {filteredMembers.length === 0 && (
+                <p className="admin-meta" style={{ marginTop: "0.75rem" }}>No members match the current search/filter.</p>
+              )}
+            </div>
           </div>
         )}
 

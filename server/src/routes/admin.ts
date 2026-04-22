@@ -281,54 +281,6 @@ router.patch("/members/:id", async (req: AuthedRequest, res) => {
   const newOil = member.oilCompanyId?.toString();
   if (body.oilCompanyId !== undefined && newOil && newOil !== prevOil) {
     const oc = await OilCompany.findById(member.oilCompanyId);
-    if (oc?.contactEmail && oc.contactEmail.includes("@")) {
-      const text =
-        `New co-op member assigned to your company:\n\n` +
-        `Name: ${member.firstName} ${member.lastName}\n` +
-        `Email: ${member.email}\n` +
-        `Phone: ${member.phone || "—"}\n` +
-        `Address: ${member.addressLine1}, ${member.city}, ${member.state} ${member.postalCode}\n` +
-        `Member #: ${member.memberNumber}\n`;
-      try {
-        const nodemailer = await import("nodemailer");
-        const { config } = await import("../config.js");
-        if (config.smtp.host) {
-          const t = nodemailer.createTransport({
-            host: config.smtp.host,
-            port: config.smtp.port,
-            secure: config.smtp.port === 465,
-            auth:
-              config.smtp.user && config.smtp.pass
-                ? { user: config.smtp.user, pass: config.smtp.pass }
-                : undefined,
-          });
-          await t.sendMail({
-            from: config.emailFrom,
-            to: oc.contactEmail,
-            subject: `Co-op member assignment: ${member.memberNumber}`,
-            text,
-          });
-        } else {
-          console.info(`[oil company email dev]\nTo: ${oc.contactEmail}\n${text}`);
-        }
-        await CommunicationLog.create({
-          memberId: member._id,
-          channel: "oil_company_email",
-          subject: `Assigned to ${oc.name}`,
-          bodyPreview: text.slice(0, 500),
-          status: "sent",
-          meta: { oilCompanyId: oc._id.toString() },
-        });
-      } catch (e) {
-        await CommunicationLog.create({
-          memberId: member._id,
-          channel: "oil_company_email",
-          subject: `Assigned to ${oc.name}`,
-          status: "failed",
-          meta: { error: String(e) },
-        });
-      }
-    }
     if (member.notificationSettings?.emailEnabled && member.notificationSettings?.oilCompanyUpdates) {
       await sendMemberEmail(
         member._id,

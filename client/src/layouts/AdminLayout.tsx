@@ -27,6 +27,12 @@ export default function AdminLayout() {
           <NavLink to="/admin" end className={linkClass} onClick={() => setSidebarOpen(false)}>
             Dashboard
           </NavLink>
+          <NavLink to="/admin/workbench" className={linkClass} onClick={() => setSidebarOpen(false)}>
+            Data Entry
+          </NavLink>
+          <NavLink to="/admin/oil-companies" className={linkClass} onClick={() => setSidebarOpen(false)}>
+            Oil Companies
+          </NavLink>
           <NavLink to="/admin/members" className={linkClass} onClick={() => setSidebarOpen(false)}>
             Members
           </NavLink>
@@ -44,9 +50,6 @@ export default function AdminLayout() {
           </NavLink>
           <NavLink to="/admin/agents" className={linkClass} onClick={() => setSidebarOpen(false)}>
             Agents
-          </NavLink>
-          <NavLink to="/admin/workbench" className={linkClass} onClick={() => setSidebarOpen(false)}>
-            Data Entry
           </NavLink>
           <NavLink to="/admin/email-templates" className={linkClass} onClick={() => setSidebarOpen(false)}>
             Email Templates
