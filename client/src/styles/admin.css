@@ -107,7 +107,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 1rem 1.75rem;
+  padding: 0.65rem 1.1rem;
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--admin-border);
@@ -115,8 +115,13 @@
 
 .admin-topbar h1 {
   margin: 0;
-  font-size: 1.15rem;
+  font-size: 1rem;
   font-weight: 600;
+}
+
+/* Workbench pages have an internal header, so keep the shell topbar extra tight. */
+.admin-main:has(.admin-workbench) .admin-topbar {
+  padding: 0.45rem 0.75rem;
 }
 
 .admin-topbar-actions {
@@ -764,6 +769,8 @@
   min-width: 0;
   background: var(--wb-surface);
   font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .admin-wb-panel .admin-input:focus {
@@ -775,7 +782,7 @@
 /* 4-column form grid for compact panels */
 .admin-wb-panel .admin-form-grid-4 {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.35rem 0.45rem;
 }
 
@@ -787,6 +794,12 @@
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.admin-wb-panel .admin-form-grid-4 > * {
+  min-width: 0;
 }
 
 .admin-form-span-4 {
