@@ -789,6 +789,10 @@
   gap: 0.25rem;
 }
 
+.admin-form-span-4 {
+  grid-column: span 4;
+}
+
 .admin-form-span-3 {
   grid-column: span 3;
 }
@@ -796,6 +800,9 @@
 @media (max-width: 850px) {
   .admin-wb-panel .admin-form-grid-4 {
     grid-template-columns: repeat(2, 1fr);
+  }
+  .admin-form-span-4 {
+    grid-column: span 2;
   }
   .admin-form-span-3 {
     grid-column: span 2;

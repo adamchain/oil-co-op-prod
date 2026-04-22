@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../authContext";
@@ -16,6 +16,7 @@ type MemberRow = {
 
 export default function AdminMembersPage() {
   const { token } = useAuth();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [q, setQ] = useState(searchParams.get("q") || "");
   const [rows, setRows] = useState<MemberRow[]>([]);
@@ -30,6 +31,13 @@ export default function AdminMembersPage() {
     if (q.trim()) u.set("q", q.trim());
     api<{ members: MemberRow[] }>(`/api/admin/members?${u}`, { token }).then((r) => setRows(r.members));
   }, [token, q]);
+
+  const workbenchHref = (memberId: string) => {
+    const p = new URLSearchParams();
+    if (q.trim()) p.set("q", q.trim());
+    p.set("member", memberId);
+    return `/admin/workbench?${p.toString()}`;
+  };
 
   return (
     <>
@@ -65,9 +73,17 @@ export default function AdminMembersPage() {
             </thead>
             <tbody>
               {rows.map((m) => (
-                <tr key={m._id}>
+                <tr
+                  key={m._id}
+                  style={{ cursor: "pointer" }}
+                  onClick={() => {
+                    navigate(workbenchHref(m._id));
+                  }}
+                >
                   <td>
-                    <Link to={`/admin/members/${m._id}`}>{m.memberNumber || "—"}</Link>
+                    <Link to={workbenchHref(m._id)} onClick={(e) => e.stopPropagation()}>
+                      {m.memberNumber || "—"}
+                    </Link>
                   </td>
                   <td>
                     {m.firstName} {m.lastName}

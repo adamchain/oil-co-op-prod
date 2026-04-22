@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../authContext";
 
@@ -105,9 +106,12 @@ function nl2br(v: string): string {
 
 export default function AdminWorkbenchPage() {
   const { token } = useAuth();
+  const [searchParams] = useSearchParams();
+  const memberParam = searchParams.get("member") ?? "";
+  const missingMemberFetchAttempt = useRef<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabName>("Data Entry");
   const [members, setMembers] = useState<Member[]>([]);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(() => searchParams.get("q") || "");
   const [statusFilter, setStatusFilter] = useState("all");
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -166,10 +170,52 @@ export default function AdminWorkbenchPage() {
   }
 
   useEffect(() => {
-    void loadMembers();
+    const qq = searchParams.get("q") || "";
+    setSearch(qq);
+  }, [searchParams]);
+
+  useEffect(() => {
     void loadOilCompanies();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
+
+  /** Reload list when URL query changes (global search) or status filter changes — not on every local keystroke. */
+  useEffect(() => {
+    void loadMembers();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, statusFilter, searchParams]);
+
+  useEffect(() => {
+    missingMemberFetchAttempt.current = null;
+  }, [memberParam]);
+
+  /** Select member from `?member=` or load that record if it is outside the current result set. */
+  useEffect(() => {
+    if (!token || !memberParam || loading) return;
+    if (members.some((m) => m._id === memberParam)) {
+      const i = members.findIndex((m) => m._id === memberParam);
+      if (i >= 0) setIndex(i);
+      missingMemberFetchAttempt.current = null;
+      return;
+    }
+    if (missingMemberFetchAttempt.current === memberParam) return;
+    missingMemberFetchAttempt.current = memberParam;
+    let cancelled = false;
+    api<{ member: Member }>(`/api/admin/members/${memberParam}`, { token })
+      .then((r) => {
+        if (cancelled || !r?.member) return;
+        missingMemberFetchAttempt.current = null;
+        setMembers((prev) => {
+          if (prev.some((m) => m._id === r.member._id)) return prev;
+          return [r.member, ...prev];
+        });
+        setIndex(0);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [token, memberParam, loading, members]);
 
   useEffect(() => {
     try {
@@ -631,11 +677,11 @@ export default function AdminWorkbenchPage() {
                     ))}
                   </select>
                 </label>
-                <label className="admin-form-span-2">
+                <label>
                   New Member Dt
                   <input className="admin-input" value={legacyValue("newMemberDt")} onChange={(e) => setLegacy("newMemberDt", e.target.value)} placeholder={current.createdAt ? new Date(current.createdAt).toLocaleDateString() : ""} />
                 </label>
-                <label className="admin-form-span-2">
+                <label>
                   Original Start Date
                   <input className="admin-input" value={legacyValue("originalStartDate")} onChange={(e) => setLegacy("originalStartDate", e.target.value)} />
                 </label>
@@ -665,12 +711,10 @@ export default function AdminWorkbenchPage() {
                 <label className="admin-form-span-2">Street Nm<input className="admin-input" value={form.addressLine1} onChange={(e) => setForm((f) => ({ ...f, addressLine1: e.target.value }))} /></label>
                 <label>Apt No<input className="admin-input" value={legacyValue("aptNo1")} onChange={(e) => setLegacy("aptNo1", e.target.value)} /></label>
                 <label className="admin-form-span-2">Address Line2<input className="admin-input" value={form.addressLine2} onChange={(e) => setForm((f) => ({ ...f, addressLine2: e.target.value }))} /></label>
-                <label className="admin-form-span-2">&nbsp;</label>
                 <label className="admin-form-span-2">City<input className="admin-input" value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} /></label>
                 <label>State<input className="admin-input" value={form.state} onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))} /></label>
                 <label>Zip<input className="admin-input" value={form.postalCode} onChange={(e) => setForm((f) => ({ ...f, postalCode: e.target.value }))} /></label>
                 <label className="admin-form-span-2">Company<input className="admin-input" value={legacyValue("company")} onChange={(e) => setLegacy("company", e.target.value)} /></label>
-                <label className="admin-form-span-2">&nbsp;</label>
                 <label className="admin-form-span-4 admin-note-field">
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.25rem" }}>
                     <span>Internal Notes</span>
@@ -721,10 +765,9 @@ export default function AdminWorkbenchPage() {
                   </div>
                 </label>
                 <label>Employer<input className="admin-input" value={legacyValue("employer")} onChange={(e) => setLegacy("employer", e.target.value)} /></label>
-                <label className="admin-form-span-3">&nbsp;</label>
                 <label>The Next Step?<input className="admin-input" value={legacyValue("nextStep")} onChange={(e) => setLegacy("nextStep", e.target.value)} /></label>
                 <label>Referred By ID<input className="admin-input" value={legacyValue("referredById")} onChange={(e) => setLegacy("referredById", e.target.value)} /></label>
-                <label className="admin-form-span-2">Date Referred<input className="admin-input" value={legacyValue("dateReferred")} onChange={(e) => setLegacy("dateReferred", e.target.value)} /></label>
+                <label>Date Referred<input className="admin-input" value={legacyValue("dateReferred")} onChange={(e) => setLegacy("dateReferred", e.target.value)} /></label>
               </div>
             </div>
 
@@ -864,15 +907,13 @@ export default function AdminWorkbenchPage() {
                   E Mail
                   <input className="admin-input" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
                 </label>
-                <label className="admin-form-span-2">
-                  <span style={{ display: "flex", alignItems: "center", gap: "0.3rem", marginTop: "1rem" }}>
-                    <span style={{ fontSize: "0.65rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", color: "#dc2626" }}>
-                      Opted Out
-                    </span>
+                <label className="admin-form-span-2">E Mail 2<input className="admin-input" value={legacyValue("email2")} onChange={(e) => setLegacy("email2", e.target.value)} /></label>
+                <label>
+                  <span style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
+                    <input type="checkbox" checked={legacyBool("emailOptOut")} onChange={(e) => setLegacy("emailOptOut", e.target.checked)} />
+                    <span style={{ fontSize: "0.62rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", color: "#dc2626" }}>Opted out</span>
                   </span>
                 </label>
-                <label className="admin-form-span-2">E Mail 2<input className="admin-input" value={legacyValue("email2")} onChange={(e) => setLegacy("email2", e.target.value)} /></label>
-                <label className="admin-form-span-2">&nbsp;</label>
                 <label>
                   <span style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
                     <input type="checkbox" checked={legacyBool("callBack")} onChange={(e) => setLegacy("callBack", e.target.checked)} />
@@ -880,12 +921,10 @@ export default function AdminWorkbenchPage() {
                   </span>
                 </label>
                 <label className="admin-form-span-2">Call Back Date<input className="admin-input" type="date" value={legacyValue("callBackDate")} onChange={(e) => setLegacy("callBackDate", e.target.value)} /></label>
-                <label>&nbsp;</label>
-                <label className="admin-form-span-2 admin-note-field">
+                <label className="admin-form-span-4 admin-note-field">
                   Note
                   <textarea className="admin-input admin-note-input" value={legacyValue("contactNote")} onChange={(e) => setLegacy("contactNote", e.target.value)} />
                 </label>
-                <label className="admin-form-span-2">&nbsp;</label>
               </div>
             </div>
 
@@ -935,7 +974,6 @@ export default function AdminWorkbenchPage() {
                   </button>
                 </label>
                 <label className="admin-form-span-2">Propane Start Date<input className="admin-input" type="date" value={legacyValue("propaneStartDate")} onChange={(e) => setLegacy("propaneStartDate", e.target.value)} /></label>
-                <label className="admin-form-span-2">&nbsp;</label>
               </div>
             </div>
 

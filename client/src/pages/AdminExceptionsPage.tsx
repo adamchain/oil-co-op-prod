@@ -153,7 +153,7 @@ export default function AdminExceptionsPage() {
                     <td style={{ fontWeight: 500 }}>{getTypeLabel(t.type)}</td>
                     <td>
                       {t.member?._id ? (
-                        <Link to={`/admin/members/${t.member._id}`} style={{ color: "#c2410c", textDecoration: "none", fontWeight: 500 }}>
+                        <Link to={`/admin/workbench?member=${t.member._id}`} style={{ color: "#c2410c", textDecoration: "none", fontWeight: 500 }}>
                           {t.member.firstName} {t.member.lastName}
                         </Link>
                       ) : t.member ? (

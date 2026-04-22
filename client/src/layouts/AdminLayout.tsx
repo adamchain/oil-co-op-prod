@@ -13,7 +13,7 @@ export default function AdminLayout() {
 
   const runGlobalSearch = () => {
     const q = globalSearch.trim();
-    navigate(q ? `/admin/members?q=${encodeURIComponent(q)}` : "/admin/members");
+    navigate(q ? `/admin/workbench?q=${encodeURIComponent(q)}` : "/admin/workbench");
   };
 
   return (
