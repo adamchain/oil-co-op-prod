@@ -289,7 +289,24 @@ export default function AdminWorkbenchPage() {
               : ws === "PROSPECTIVE";
       if (!statusOk) return false;
       if (!q) return true;
-      return [m.memberNumber, m.firstName, m.lastName, m.email, m.phone, m.city]
+      const legacyValues =
+        m.legacyProfile && typeof m.legacyProfile === "object"
+          ? Object.values(m.legacyProfile as Record<string, unknown>)
+          : [];
+      return [
+        m.memberNumber,
+        m.firstName,
+        m.lastName,
+        m.email,
+        m.phone,
+        m.addressLine1,
+        m.addressLine2,
+        m.city,
+        m.state,
+        m.postalCode,
+        m.notes,
+        ...legacyValues,
+      ]
         .filter(Boolean)
         .some((x) => String(x).toLowerCase().includes(q));
     });
