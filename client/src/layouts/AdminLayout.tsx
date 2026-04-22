@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Link, NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../authContext";
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
@@ -8,13 +8,6 @@ const linkClass = ({ isActive }: { isActive: boolean }) =>
 export default function AdminLayout() {
   const { member, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [globalSearch, setGlobalSearch] = useState("");
-  const navigate = useNavigate();
-
-  const runGlobalSearch = () => {
-    const q = globalSearch.trim();
-    navigate(q ? `/admin/workbench?q=${encodeURIComponent(q)}` : "/admin/workbench");
-  };
 
   return (
     <div className="admin-app">
@@ -81,37 +74,6 @@ export default function AdminLayout() {
         </div>
       </aside>
       <div className="admin-main">
-        <header className="admin-topbar">
-          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-            <button
-              type="button"
-              className="admin-sidebar-toggle"
-              aria-label="Toggle menu"
-              onClick={() => setSidebarOpen((o) => !o)}
-            >
-              <span />
-              <span />
-              <span />
-            </button>
-            <h1>Operations</h1>
-          </div>
-          <div className="admin-topbar-actions">
-            <input
-              type="search"
-              className="admin-input"
-              placeholder="Global search members..."
-              value={globalSearch}
-              onChange={(e) => setGlobalSearch(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") runGlobalSearch();
-              }}
-              style={{ minWidth: "240px" }}
-            />
-            <button type="button" className="admin-btn" onClick={runGlobalSearch}>
-              Search
-            </button>
-          </div>
-        </header>
         <div className="admin-body">
           <Outlet />
         </div>

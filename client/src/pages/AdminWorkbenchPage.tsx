@@ -81,6 +81,25 @@ const REC_TYPE = ["IND", "BUS"] as const;
 const PHONE_TYPE = ["HOME", "WORK", "CELL"] as const;
 const HOW_JOINED = ["PHO", "WEB", "REF", "MAIL"] as const;
 const REFERRAL_SOURCE = ["CCAG", "MEMBER", "OTHER"] as const;
+const MAILING_TEMPLATES = {
+  renewal: {
+    label: "Renewal Reminder Letter",
+    subject: "Annual Membership Renewal Reminder",
+    body:
+      "Dear {memberName},\n\nThis is a reminder that your annual membership is due soon.\n\nMember ID: {memberNumber}\nAddress: {address}\nCity/State/Zip: {cityStateZip}\n\nPlease contact the office if you have questions.\n\nSincerely,\nOil Co-op Member Services",
+  },
+  prospective: {
+    label: "Prospective Follow-up Letter",
+    subject: "Welcome to Oil Co-op",
+    body:
+      "Dear {memberName},\n\nThank you for your interest in Oil Co-op.\n\nWe have your address as:\n{address}\n{cityStateZip}\n\nPlease call us if you would like assistance completing enrollment.\n\nSincerely,\nOil Co-op Member Services",
+  },
+  custom: {
+    label: "Custom Letter",
+    subject: "Member Notice",
+    body: "Dear {memberName},\n\n{customMessage}\n\nSincerely,\nOil Co-op Member Services",
+  },
+} as const;
 
 function csvCell(v: unknown): string {
   const s = String(v ?? "");
@@ -130,6 +149,9 @@ export default function AdminWorkbenchPage() {
   const [newNote, setNewNote] = useState("");
   const [actionMessage, setActionMessage] = useState("");
   const [backupHistory, setBackupHistory] = useState<BackupHistoryEntry[]>([]);
+  const [mailTemplateKey, setMailTemplateKey] = useState<keyof typeof MAILING_TEMPLATES>("renewal");
+  const [mailSubject, setMailSubject] = useState<string>(MAILING_TEMPLATES.renewal.subject);
+  const [mailBody, setMailBody] = useState<string>(MAILING_TEMPLATES.renewal.body);
 
   const [form, setForm] = useState({
     firstName: "",
@@ -274,6 +296,12 @@ export default function AdminWorkbenchPage() {
     if (!oilCoWorksheetId) return members;
     return members.filter((m) => m.oilCompanyId?._id === oilCoWorksheetId);
   }, [members, oilCoWorksheetId]);
+
+  useEffect(() => {
+    const tpl = MAILING_TEMPLATES[mailTemplateKey];
+    setMailSubject(tpl.subject);
+    setMailBody(tpl.body);
+  }, [mailTemplateKey]);
 
   const filteredMembers = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -597,6 +625,26 @@ export default function AdminWorkbenchPage() {
   };
 
   const memberDisplayName = current ? `${current.firstName} ${current.lastName}` : "";
+  const mailingMergeData = {
+    memberName: memberDisplayName || "Member",
+    memberNumber: current?.memberNumber || "—",
+    address: [current?.addressLine1, current?.addressLine2].filter(Boolean).join(", ") || "—",
+    cityStateZip: [current?.city, current?.state, current?.postalCode].filter(Boolean).join(" ").trim() || "—",
+    email: current?.email || "—",
+    phone: current?.phone || "—",
+    customMessage: "Please update this message before printing.",
+  };
+
+  const applyMailMerge = (template: string) =>
+    template.replace(/\{([a-zA-Z0-9_]+)\}/g, (_m, key: string) =>
+      String((mailingMergeData as Record<string, string>)[key] ?? "")
+    );
+
+  const mailingPreviewHtml = brandedLetterHtml(
+    applyMailMerge(mailSubject),
+    mailingMergeData.memberName,
+    applyMailMerge(mailBody)
+  );
 
   const refundLetterHtml = () =>
     brandedLetterHtml(
@@ -724,7 +772,6 @@ export default function AdminWorkbenchPage() {
                 <label>Mid Name 2<input className="admin-input" value={legacyValue("midName2")} onChange={(e) => setLegacy("midName2", e.target.value)} /></label>
                 <label>Last Name 2<input className="admin-input" value={legacyValue("lastName2")} onChange={(e) => setLegacy("lastName2", e.target.value)} /></label>
                 <label>Suffix 2<input className="admin-input" value={legacyValue("suffix2")} onChange={(e) => setLegacy("suffix2", e.target.value)} /></label>
-                <label>Street No<input className="admin-input" value={legacyValue("streetNo")} onChange={(e) => setLegacy("streetNo", e.target.value)} /></label>
                 <label>Street Nm<input className="admin-input" value={form.addressLine1} onChange={(e) => setForm((f) => ({ ...f, addressLine1: e.target.value }))} /></label>
                 <label>Apt No<input className="admin-input" value={legacyValue("aptNo1")} onChange={(e) => setLegacy("aptNo1", e.target.value)} /></label>
                 <label>Address Line2<input className="admin-input" value={form.addressLine2} onChange={(e) => setForm((f) => ({ ...f, addressLine2: e.target.value }))} /></label>
@@ -732,6 +779,52 @@ export default function AdminWorkbenchPage() {
                 <label>State<input className="admin-input" value={form.state} onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))} /></label>
                 <label>Zip<input className="admin-input" value={form.postalCode} onChange={(e) => setForm((f) => ({ ...f, postalCode: e.target.value }))} /></label>
                 <label>Company<input className="admin-input" value={legacyValue("company")} onChange={(e) => setLegacy("company", e.target.value)} /></label>
+                <label>Phone 1<input className="admin-input" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} /></label>
+                <label>
+                  Type Phone 1
+                  <select className="admin-input" value={legacyValue("typePhone1") || "HOME"} onChange={(e) => setLegacy("typePhone1", e.target.value)}>
+                    {PHONE_TYPE.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>P1 Ext<input className="admin-input" value={legacyValue("p1Ext")} onChange={(e) => setLegacy("p1Ext", e.target.value)} /></label>
+                <label>Phone 2<input className="admin-input" value={legacyValue("phone2")} onChange={(e) => setLegacy("phone2", e.target.value)} /></label>
+                <label>
+                  Type Phone 2
+                  <select className="admin-input" value={legacyValue("typePhone2") || "HOME"} onChange={(e) => setLegacy("typePhone2", e.target.value)}>
+                    {PHONE_TYPE.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>P2 Ext<input className="admin-input" value={legacyValue("p2Ext")} onChange={(e) => setLegacy("p2Ext", e.target.value)} /></label>
+                <label>Phone 3<input className="admin-input" value={legacyValue("phone3")} onChange={(e) => setLegacy("phone3", e.target.value)} /></label>
+                <label>
+                  Type Phone 3
+                  <select className="admin-input" value={legacyValue("typePhone3") || "HOME"} onChange={(e) => setLegacy("typePhone3", e.target.value)}>
+                    {PHONE_TYPE.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>P3 Ext<input className="admin-input" value={legacyValue("p3Ext")} onChange={(e) => setLegacy("p3Ext", e.target.value)} /></label>
+                <label>E Mail<input className="admin-input" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} /></label>
+                <label>E Mail 2<input className="admin-input" value={legacyValue("email2")} onChange={(e) => setLegacy("email2", e.target.value)} /></label>
+                <label>
+                  <span style={{ display: "flex", alignItems: "center", gap: "0.3rem", marginTop: "0.3rem" }}>
+                    <input type="checkbox" checked={legacyBool("emailOptOut")} onChange={(e) => setLegacy("emailOptOut", e.target.checked)} />
+                    <span style={{ fontSize: "0.62rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", color: "#dc2626" }}>Opted out</span>
+                  </span>
+                </label>
+                <label>
+                  <span style={{ display: "flex", alignItems: "center", gap: "0.3rem", marginTop: "0.3rem" }}>
+                    <input type="checkbox" checked={legacyBool("callBack")} onChange={(e) => setLegacy("callBack", e.target.checked)} />
+                    Call Back
+                  </span>
+                </label>
+                <label>Call Back Date<input className="admin-input" type="date" value={legacyValue("callBackDate")} onChange={(e) => setLegacy("callBackDate", e.target.value)} /></label>
+                <label>Contact Note<input className="admin-input" value={legacyValue("contactNote")} onChange={(e) => setLegacy("contactNote", e.target.value)} /></label>
                 <label className="admin-form-span-4 admin-note-field">
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.25rem" }}>
                     <span>Internal Notes</span>
@@ -849,7 +942,7 @@ export default function AdminWorkbenchPage() {
                     ))}
                   </select>
                 </label>
-                <label className="admin-form-span-2">Oil ID<input className="admin-input" value={legacyValue("oilId")} onChange={(e) => setLegacy("oilId", e.target.value)} /></label>
+                <label>Oil ID<input className="admin-input" value={legacyValue("oilId")} onChange={(e) => setLegacy("oilId", e.target.value)} /></label>
                 <label>
                   Oil Co Info
                   <button
@@ -876,71 +969,13 @@ export default function AdminWorkbenchPage() {
                     ))}
                   </select>
                 </label>
-                <label className="admin-form-span-2">
+                <label>
                   Referral
                   <select className="admin-input" value={legacyValue("referralSource") || "OTHER"} onChange={(e) => setLegacy("referralSource", e.target.value)}>
                     {REFERRAL_SOURCE.map((s) => (
                       <option key={s} value={s}>{s}</option>
                     ))}
                   </select>
-                </label>
-              </div>
-            </div>
-
-            <div className="admin-wb-panel">
-              <div className="admin-wb-panel-title">Contact Information</div>
-              <div className="admin-form-grid-4">
-                <label>Phone 1<input className="admin-input" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} /></label>
-                <label className="admin-form-span-2">
-                  Type of Phone 1
-                  <select className="admin-input" value={legacyValue("typePhone1") || "HOME"} onChange={(e) => setLegacy("typePhone1", e.target.value)}>
-                    {PHONE_TYPE.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>P1 Ext<input className="admin-input" value={legacyValue("p1Ext")} onChange={(e) => setLegacy("p1Ext", e.target.value)} /></label>
-                <label>Phone 2<input className="admin-input" value={legacyValue("phone2")} onChange={(e) => setLegacy("phone2", e.target.value)} /></label>
-                <label className="admin-form-span-2">
-                  Type of Phone 2
-                  <select className="admin-input" value={legacyValue("typePhone2") || "HOME"} onChange={(e) => setLegacy("typePhone2", e.target.value)}>
-                    {PHONE_TYPE.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>P2 Ext<input className="admin-input" value={legacyValue("p2Ext")} onChange={(e) => setLegacy("p2Ext", e.target.value)} /></label>
-                <label>Phone 3<input className="admin-input" value={legacyValue("phone3")} onChange={(e) => setLegacy("phone3", e.target.value)} /></label>
-                <label className="admin-form-span-2">
-                  Type of Phone 3
-                  <select className="admin-input" value={legacyValue("typePhone3") || "HOME"} onChange={(e) => setLegacy("typePhone3", e.target.value)}>
-                    {PHONE_TYPE.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>P3 Ext<input className="admin-input" value={legacyValue("p3Ext")} onChange={(e) => setLegacy("p3Ext", e.target.value)} /></label>
-                <label className="admin-form-span-2">
-                  E Mail
-                  <input className="admin-input" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} />
-                </label>
-                <label className="admin-form-span-2">E Mail 2<input className="admin-input" value={legacyValue("email2")} onChange={(e) => setLegacy("email2", e.target.value)} /></label>
-                <label>
-                  <span style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
-                    <input type="checkbox" checked={legacyBool("emailOptOut")} onChange={(e) => setLegacy("emailOptOut", e.target.checked)} />
-                    <span style={{ fontSize: "0.62rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", color: "#dc2626" }}>Opted out</span>
-                  </span>
-                </label>
-                <label>
-                  <span style={{ display: "flex", alignItems: "center", gap: "0.3rem" }}>
-                    <input type="checkbox" checked={legacyBool("callBack")} onChange={(e) => setLegacy("callBack", e.target.checked)} />
-                    Call Back
-                  </span>
-                </label>
-                <label className="admin-form-span-2">Call Back Date<input className="admin-input" type="date" value={legacyValue("callBackDate")} onChange={(e) => setLegacy("callBackDate", e.target.value)} /></label>
-                <label className="admin-form-span-4 admin-note-field">
-                  Note
-                  <textarea className="admin-input admin-note-input" value={legacyValue("contactNote")} onChange={(e) => setLegacy("contactNote", e.target.value)} />
                 </label>
               </div>
             </div>
@@ -968,7 +1003,7 @@ export default function AdminWorkbenchPage() {
                     <option value="THOM">THOM</option>
                   </select>
                 </label>
-                <label className="admin-form-span-2">Propane ID<input className="admin-input" value={legacyValue("propaneId")} onChange={(e) => setLegacy("propaneId", e.target.value)} /></label>
+                <label>Propane ID<input className="admin-input" value={legacyValue("propaneId")} onChange={(e) => setLegacy("propaneId", e.target.value)} /></label>
                 <label>
                   Prop Co Info
                   <button
@@ -990,7 +1025,7 @@ export default function AdminWorkbenchPage() {
                     PROP CO INFO
                   </button>
                 </label>
-                <label className="admin-form-span-2">Propane Start Date<input className="admin-input" type="date" value={legacyValue("propaneStartDate")} onChange={(e) => setLegacy("propaneStartDate", e.target.value)} /></label>
+                <label>Propane Start Date<input className="admin-input" type="date" value={legacyValue("propaneStartDate")} onChange={(e) => setLegacy("propaneStartDate", e.target.value)} /></label>
               </div>
             </div>
 
@@ -1196,38 +1231,43 @@ export default function AdminWorkbenchPage() {
           <div className="admin-workbench-data-entry">
             <div className="admin-card admin-workbench-section">
               <h2>Mailings</h2>
-              <h3>Mailing Options</h3>
+              <h3>Editable Letter View</h3>
+              <p className="admin-readonly-hint">
+                Template fields auto-fill from the currently selected member in active search results.
+              </p>
+              <div className="admin-form-grid">
+                <label>
+                  Letter Template
+                  <select className="admin-input" value={mailTemplateKey} onChange={(e) => setMailTemplateKey(e.target.value as keyof typeof MAILING_TEMPLATES)}>
+                    {Object.entries(MAILING_TEMPLATES).map(([key, tpl]) => (
+                      <option key={key} value={key}>{tpl.label}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Recipient (selected member)
+                  <input className="admin-input" readOnly value={mailingMergeData.memberName} />
+                </label>
+                <label className="admin-form-span-2">
+                  Subject
+                  <input className="admin-input" value={mailSubject} onChange={(e) => setMailSubject(e.target.value)} />
+                </label>
+                <label className="admin-form-span-2 admin-note-field">
+                  Body
+                  <textarea className="admin-input admin-note-input" style={{ minHeight: "180px" }} value={mailBody} onChange={(e) => setMailBody(e.target.value)} />
+                </label>
+              </div>
               <div className="admin-actions-row">
-                <button type="button" className="admin-btn" onClick={() => generateMembersCsv("Renewal Mailing", mailingAudience().filter((m) => m.status === "active"))}>Generate Renewal Mailing</button>
-                <button type="button" className="admin-btn" onClick={() => generateMembersCsv("Prospective Mailing", mailingAudience().filter((m) => defaultWorkbenchMemberStatus(m) === "PROSPECTIVE"))}>Generate Prospective Mailing</button>
-                <button type="button" className="admin-btn" onClick={() => generateMembersCsv("Custom Mailing", mailingAudience())}>Custom Mailing</button>
+                <button type="button" className="admin-btn" onClick={() => openPrintPreview("Mailing Letter Preview", mailingPreviewHtml)}>
+                  Preview Letter
+                </button>
+                <button type="button" className="admin-btn" onClick={() => openPrintPreview("Mailing Letter", mailingPreviewHtml, true)}>
+                  Print Letter
+                </button>
+                <button type="button" className="admin-btn" onClick={() => generateMembersCsv("Mailing Audience", mailingAudience())}>
+                  Export Audience CSV
+                </button>
               </div>
-              <div className="admin-form-grid" style={{ maxWidth: "32rem" }}>
-                <label>
-                  Mailing Date
-                  <input
-                    className="admin-input"
-                    value={legacyValue("mailingDraftDate")}
-                    onChange={(e) => setLegacy("mailingDraftDate", e.target.value)}
-                    disabled={!current}
-                  />
-                </label>
-              </div>
-              <div className="admin-checkbox-grid">
-                <label>
-                  <input type="checkbox" checked={legacyBool("mailIncludeActive")} onChange={(e) => setLegacy("mailIncludeActive", e.target.checked)} disabled={!current} />
-                  Include Active Members
-                </label>
-                <label>
-                  <input type="checkbox" checked={legacyBool("mailIncludeProspective")} onChange={(e) => setLegacy("mailIncludeProspective", e.target.checked)} disabled={!current} />
-                  Include Prospective Members
-                </label>
-                <label>
-                  <input type="checkbox" checked={legacyBool("mailIncludeInactive")} onChange={(e) => setLegacy("mailIncludeInactive", e.target.checked)} disabled={!current} />
-                  Include Inactive Members
-                </label>
-              </div>
-              <p className="admin-readonly-hint">Member-specific mailing options are saved with the record when you click Save Changes.</p>
             </div>
             <div className="admin-card admin-workbench-section">
               <h3>Recent Mailings</h3>
@@ -1361,6 +1401,7 @@ export default function AdminWorkbenchPage() {
                       <th>City</th>
                       <th>Phone</th>
                       <th>Oil Co</th>
+                      <th>Notes</th>
                       <th>Status</th>
                     </tr>
                   </thead>
@@ -1377,12 +1418,13 @@ export default function AdminWorkbenchPage() {
                           }}
                           style={{ cursor: "pointer", background: rowActive ? "rgba(194, 65, 12, 0.06)" : undefined }}
                         >
-                          <td>{m.memberNumber || "—"}</td>
-                          <td>{m.firstName} {m.lastName}</td>
-                          <td>{[m.addressLine1, m.addressLine2].filter(Boolean).join(", ") || "—"}</td>
-                          <td>{m.city || "—"}</td>
-                          <td>{m.phone || "—"}</td>
-                          <td>{m.oilCompanyId?.name || "—"}</td>
+                          <td style={{ fontWeight: 600 }}>{m.memberNumber || "—"}</td>
+                          <td style={{ fontWeight: 600 }}>{m.firstName} {m.lastName}</td>
+                          <td style={{ fontWeight: 600 }}>{[m.addressLine1, m.addressLine2].filter(Boolean).join(", ") || "—"}</td>
+                          <td style={{ fontWeight: 600 }}>{m.city || "—"}</td>
+                          <td style={{ fontWeight: 600 }}>{m.phone || "—"}</td>
+                          <td style={{ fontWeight: 600 }}>{m.oilCompanyId?.name || "—"}</td>
+                          <td style={{ fontWeight: 600 }}>{m.notes || "—"}</td>
                           <td><span className={`admin-pill${m.status === "active" ? " ok" : ""}`}>{m.status}</span></td>
                         </tr>
                       );

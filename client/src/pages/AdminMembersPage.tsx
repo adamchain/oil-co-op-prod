@@ -82,14 +82,14 @@ export default function AdminMembersPage() {
                 >
                   <td>
                     <Link to={workbenchHref(m._id)} onClick={(e) => e.stopPropagation()}>
-                      {m.memberNumber || "—"}
+                      <span style={{ fontWeight: 600 }}>{m.memberNumber || "—"}</span>
                     </Link>
                   </td>
                   <td>
-                    {m.firstName} {m.lastName}
+                    <span style={{ fontWeight: 600 }}>{m.firstName} {m.lastName}</span>
                   </td>
-                  <td>{m.email}</td>
-                  <td>{m.oilCompanyId && typeof m.oilCompanyId === "object" ? m.oilCompanyId.name : "—"}</td>
+                  <td style={{ fontWeight: 600 }}>{m.email}</td>
+                  <td style={{ fontWeight: 600 }}>{m.oilCompanyId && typeof m.oilCompanyId === "object" ? m.oilCompanyId.name : "—"}</td>
                   <td>
                     <span className={`admin-pill${m.status === "active" ? " ok" : ""}`}>{m.status}</span>
                   </td>
