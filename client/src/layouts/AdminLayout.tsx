@@ -32,17 +32,8 @@ export default function AdminLayout() {
           <NavLink to="/admin/renewals" className={linkClass} onClick={() => setSidebarOpen(false)}>
             Renewals
           </NavLink>
-          <NavLink to="/admin/exceptions" className={linkClass} onClick={() => setSidebarOpen(false)}>
-            Tasks
-          </NavLink>
           <NavLink to="/admin/communications" className={linkClass} onClick={() => setSidebarOpen(false)}>
             Communications
-          </NavLink>
-          <NavLink to="/admin/reports" className={linkClass} onClick={() => setSidebarOpen(false)}>
-            Reports
-          </NavLink>
-          <NavLink to="/admin/agents" className={linkClass} onClick={() => setSidebarOpen(false)}>
-            Agents
           </NavLink>
           <NavLink to="/admin/email-templates" className={linkClass} onClick={() => setSidebarOpen(false)}>
             Email Templates
