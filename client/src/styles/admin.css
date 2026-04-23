@@ -503,11 +503,11 @@
 /* ---------- Modern Workbench Styles ---------- */
 
 .admin-workbench {
-  --wb-bg: #fafafa;
-  --wb-surface: #ffffff;
-  --wb-border: #e7e5e4;
-  --wb-text: #1c1917;
-  --wb-muted: #57534e;
+  --wb-bg: #dbe3ee;
+  --wb-surface: #eef2f7;
+  --wb-border: #b9c4d5;
+  --wb-text: #0f172a;
+  --wb-muted: #64748b;
   --wb-accent: #c2410c;
   --wb-accent-soft: rgba(194, 65, 12, 0.08);
   --wb-radius: 10px;
@@ -754,7 +754,7 @@
 }
 
 .admin-wb-panel .admin-form-grid label {
-  font-size: 0.6rem;
+  font-size: 0.56rem;
   font-weight: 600;
   color: var(--wb-muted);
   letter-spacing: 0.03em;
@@ -762,14 +762,22 @@
 
 .admin-wb-panel .admin-input {
   padding: 0.25rem 0.4rem;
-  border: 1px solid var(--wb-border);
+  border: 1px solid #94a3b8;
   border-radius: var(--wb-radius-sm);
-  font-size: 0.74rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: #0f172a;
   min-width: 0;
-  background: var(--wb-surface);
+  background: #ffffff;
   font-family: inherit;
   width: 100%;
   box-sizing: border-box;
+}
+
+.admin-wb-panel .admin-input::placeholder {
+  color: #94a3b8;
+  font-weight: 500;
 }
 
 .admin-wb-panel .admin-input:focus {
@@ -786,7 +794,7 @@
 }
 
 .admin-wb-panel .admin-form-grid-4 label {
-  font-size: 0.6rem;
+  font-size: 0.56rem;
   font-weight: 600;
   color: var(--wb-muted);
   letter-spacing: 0.03em;
