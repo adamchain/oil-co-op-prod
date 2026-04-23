@@ -4,6 +4,7 @@ const oilCompanySchema = new Schema(
   {
     name: { type: String, required: true, trim: true },
     contactEmail: { type: String, trim: true, default: "" },
+    contactEmails: { type: [String], default: [] },
     contactPhone: { type: String, trim: true, default: "" },
     notes: { type: String, default: "" },
     active: { type: Boolean, default: true },

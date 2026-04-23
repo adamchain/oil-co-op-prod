@@ -449,6 +449,7 @@ router.get("/oil-companies", async (_req, res) => {
 const oilCoSchema = z.object({
   name: z.string().min(1),
   contactEmail: z.string().optional().default(""),
+  contactEmails: z.array(z.string().email()).optional().default([]),
   contactPhone: z.string().optional().default(""),
   notes: z.string().optional().default(""),
 });
@@ -459,7 +460,22 @@ router.post("/oil-companies", async (req, res) => {
     res.status(400).json({ error: parsed.error.flatten() });
     return;
   }
-  const oc = await OilCompany.create(parsed.data);
+  const body = parsed.data;
+  const normalizedEmails = (body.contactEmails || [])
+    .map((e) => e.trim().toLowerCase())
+    .filter((e, i, arr) => e && arr.indexOf(e) === i);
+  const fallbackSingle = body.contactEmail?.trim().toLowerCase() || "";
+  const contactEmails =
+    normalizedEmails.length > 0
+      ? normalizedEmails
+      : fallbackSingle
+        ? [fallbackSingle]
+        : [];
+  const oc = await OilCompany.create({
+    ...body,
+    contactEmails,
+    contactEmail: contactEmails[0] || "",
+  });
   res.status(201).json({ oilCompany: oc });
 });
 
@@ -480,7 +496,23 @@ router.patch("/oil-companies/:id", async (req, res) => {
   }
   const body = parsed.data;
   if (body.name !== undefined) oc.name = body.name;
-  if (body.contactEmail !== undefined) oc.contactEmail = body.contactEmail;
+  if (body.contactEmail !== undefined || body.contactEmails !== undefined) {
+    const normalizedEmails = (body.contactEmails || [])
+      .map((e) => e.trim().toLowerCase())
+      .filter((e, i, arr) => e && arr.indexOf(e) === i);
+    const fallbackSingle =
+      body.contactEmail !== undefined
+        ? body.contactEmail.trim().toLowerCase()
+        : (oc.contactEmail || "").trim().toLowerCase();
+    const nextEmails =
+      normalizedEmails.length > 0
+        ? normalizedEmails
+        : fallbackSingle
+          ? [fallbackSingle]
+          : [];
+    oc.contactEmails = nextEmails;
+    oc.contactEmail = nextEmails[0] || "";
+  }
   if (body.contactPhone !== undefined) oc.contactPhone = body.contactPhone;
   if (body.notes !== undefined) oc.notes = body.notes;
   await oc.save();

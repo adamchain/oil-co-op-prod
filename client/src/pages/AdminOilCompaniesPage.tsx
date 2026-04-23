@@ -6,6 +6,7 @@ type OilCompany = {
   _id: string;
   name: string;
   contactEmail?: string;
+  contactEmails?: string[];
   contactPhone?: string;
   notes?: string;
   active?: boolean;
@@ -13,15 +14,38 @@ type OilCompany = {
 
 type EditState = {
   name: string;
-  contactEmail: string;
+  contactEmails: string;
   contactPhone: string;
   notes: string;
 };
 
+function emailsToInput(oc: OilCompany): string {
+  if (Array.isArray(oc.contactEmails) && oc.contactEmails.length > 0) {
+    return oc.contactEmails.join(", ");
+  }
+  return oc.contactEmail || "";
+}
+
+function parseEmails(raw: string): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  raw
+    .split(/[\n,;]+/)
+    .map((v) => v.trim().toLowerCase())
+    .filter(Boolean)
+    .forEach((email) => {
+      if (!seen.has(email)) {
+        seen.add(email);
+        out.push(email);
+      }
+    });
+  return out;
+}
+
 function toEditState(oc: OilCompany): EditState {
   return {
     name: oc.name || "",
-    contactEmail: oc.contactEmail || "",
+    contactEmails: emailsToInput(oc),
     contactPhone: oc.contactPhone || "",
     notes: oc.notes || "",
   };
@@ -31,8 +55,8 @@ export default function AdminOilCompaniesPage() {
   const { token } = useAuth();
   const [rows, setRows] = useState<OilCompany[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [edit, setEdit] = useState<EditState>({ name: "", contactEmail: "", contactPhone: "", notes: "" });
-  const [newRow, setNewRow] = useState<EditState>({ name: "", contactEmail: "", contactPhone: "", notes: "" });
+  const [edit, setEdit] = useState<EditState>({ name: "", contactEmails: "", contactPhone: "", notes: "" });
+  const [newRow, setNewRow] = useState<EditState>({ name: "", contactEmails: "", contactPhone: "", notes: "" });
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
 
@@ -57,13 +81,38 @@ export default function AdminOilCompaniesPage() {
       await api(`/api/admin/oil-companies/${id}`, {
         method: "PATCH",
         token,
-        body: JSON.stringify(edit),
+        body: JSON.stringify({
+          ...edit,
+          contactEmails: parseEmails(edit.contactEmails),
+          contactEmail: parseEmails(edit.contactEmails)[0] || "",
+        }),
       });
       setEditingId(null);
       await load();
       setMsg("Oil company updated.");
     } catch (e) {
       setMsg(e instanceof Error ? e.message : "Update failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteRow(id: string) {
+    if (!token) return;
+    const ok = window.confirm("Delete this oil company? If members are assigned, it will be set inactive.");
+    if (!ok) return;
+    setSaving(true);
+    setMsg("");
+    try {
+      const res = await api<{ softDeleted?: boolean; message?: string }>(`/api/admin/oil-companies/${id}`, {
+        method: "DELETE",
+        token,
+      });
+      setEditingId(null);
+      await load();
+      setMsg(res.message || (res.softDeleted ? "Oil company deactivated." : "Oil company deleted."));
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : "Delete failed");
     } finally {
       setSaving(false);
     }
@@ -77,9 +126,13 @@ export default function AdminOilCompaniesPage() {
       await api("/api/admin/oil-companies", {
         method: "POST",
         token,
-        body: JSON.stringify(newRow),
+        body: JSON.stringify({
+          ...newRow,
+          contactEmails: parseEmails(newRow.contactEmails),
+          contactEmail: parseEmails(newRow.contactEmails)[0] || "",
+        }),
       });
-      setNewRow({ name: "", contactEmail: "", contactPhone: "", notes: "" });
+      setNewRow({ name: "", contactEmails: "", contactPhone: "", notes: "" });
       await load();
       setMsg("Oil company added.");
     } catch (e) {
@@ -92,7 +145,7 @@ export default function AdminOilCompaniesPage() {
   return (
     <>
       <p style={{ color: "var(--admin-muted)", fontSize: "0.875rem", margin: "0 0 1rem" }}>
-        Manage oil company records. The contact email is used for automatic assignment notifications.
+        Manage oil company records. Add multiple emails separated by commas.
       </p>
 
       <div className="admin-stats">
@@ -109,6 +162,28 @@ export default function AdminOilCompaniesPage() {
       <div className="admin-card">
         <h2>Oil Companies</h2>
         {msg && <p className="admin-meta" style={{ margin: "0 0 0.75rem" }}>{msg}</p>}
+        <div
+          style={{
+            position: "sticky",
+            top: 0,
+            zIndex: 2,
+            background: "var(--admin-surface)",
+            border: "0.5px solid var(--admin-border)",
+            borderRadius: "12px",
+            padding: "0.75rem",
+            marginBottom: "0.75rem",
+          }}
+        >
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(180px, 1.1fr) minmax(260px, 1.8fr) minmax(160px, 1fr) minmax(220px, 1.6fr) auto", gap: "0.5rem", alignItems: "center" }}>
+            <input className="admin-input" style={{ minWidth: 0 }} value={newRow.name} onChange={(e) => setNewRow((s) => ({ ...s, name: e.target.value }))} placeholder="New company name" />
+            <input className="admin-input" style={{ minWidth: 0 }} value={newRow.contactEmails} onChange={(e) => setNewRow((s) => ({ ...s, contactEmails: e.target.value }))} placeholder="contact@co.com, ops@co.com" />
+            <input className="admin-input" style={{ minWidth: 0 }} value={newRow.contactPhone} onChange={(e) => setNewRow((s) => ({ ...s, contactPhone: e.target.value }))} placeholder="(555) 555-5555" />
+            <input className="admin-input" style={{ minWidth: 0 }} value={newRow.notes} onChange={(e) => setNewRow((s) => ({ ...s, notes: e.target.value }))} placeholder="Optional notes" />
+            <button type="button" className="admin-btn" onClick={createRow} disabled={saving || !newRow.name.trim()}>
+              Add Oil Company
+            </button>
+          </div>
+        </div>
         <div className="admin-table-wrap">
           <table className="admin-table">
             <thead>
@@ -122,32 +197,12 @@ export default function AdminOilCompaniesPage() {
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td>
-                  <input className="admin-input" style={{ minWidth: "160px" }} value={newRow.name} onChange={(e) => setNewRow((s) => ({ ...s, name: e.target.value }))} placeholder="New company name" />
-                </td>
-                <td>
-                  <input className="admin-input" style={{ minWidth: "200px" }} value={newRow.contactEmail} onChange={(e) => setNewRow((s) => ({ ...s, contactEmail: e.target.value }))} placeholder="contact@company.com" />
-                </td>
-                <td>
-                  <input className="admin-input" value={newRow.contactPhone} onChange={(e) => setNewRow((s) => ({ ...s, contactPhone: e.target.value }))} placeholder="(555) 555-5555" />
-                </td>
-                <td>
-                  <input className="admin-input" style={{ minWidth: "220px" }} value={newRow.notes} onChange={(e) => setNewRow((s) => ({ ...s, notes: e.target.value }))} placeholder="Optional notes" />
-                </td>
-                <td>—</td>
-                <td>
-                  <button type="button" className="admin-btn" onClick={createRow} disabled={saving || !newRow.name.trim()}>
-                    Add
-                  </button>
-                </td>
-              </tr>
               {rows.map((r) => {
                 const isEditing = editingId === r._id;
                 return (
                   <tr key={r._id}>
                     <td>{isEditing ? <input className="admin-input" style={{ minWidth: "160px" }} value={edit.name} onChange={(e) => setEdit((s) => ({ ...s, name: e.target.value }))} /> : r.name}</td>
-                    <td>{isEditing ? <input className="admin-input" style={{ minWidth: "200px" }} value={edit.contactEmail} onChange={(e) => setEdit((s) => ({ ...s, contactEmail: e.target.value }))} /> : (r.contactEmail || "—")}</td>
+                    <td>{isEditing ? <input className="admin-input" style={{ minWidth: "240px" }} value={edit.contactEmails} onChange={(e) => setEdit((s) => ({ ...s, contactEmails: e.target.value }))} placeholder="a@co.com, b@co.com" /> : (emailsToInput(r) || "—")}</td>
                     <td>{isEditing ? <input className="admin-input" value={edit.contactPhone} onChange={(e) => setEdit((s) => ({ ...s, contactPhone: e.target.value }))} /> : (r.contactPhone || "—")}</td>
                     <td>{isEditing ? <input className="admin-input" style={{ minWidth: "220px" }} value={edit.notes} onChange={(e) => setEdit((s) => ({ ...s, notes: e.target.value }))} /> : (r.notes || "—")}</td>
                     <td>{r.active === false ? "inactive" : "active"}</td>
@@ -156,6 +211,15 @@ export default function AdminOilCompaniesPage() {
                         <>
                           <button type="button" className="admin-btn" onClick={() => void saveEdit(r._id)} disabled={saving || !edit.name.trim()}>
                             Save
+                          </button>
+                          <button
+                            type="button"
+                            className="admin-btn admin-btn-ghost"
+                            onClick={() => void deleteRow(r._id)}
+                            disabled={saving}
+                            style={{ marginLeft: "0.4rem", color: "#b42318" }}
+                          >
+                            Delete
                           </button>
                           <button type="button" className="admin-btn admin-btn-ghost" onClick={() => setEditingId(null)} style={{ marginLeft: "0.4rem" }}>
                             Cancel
