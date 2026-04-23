@@ -13,10 +13,18 @@ type OilCompany = {
 };
 
 type EditState = {
+  oilCoCode: string;
   name: string;
+  oilCoAddress: string;
+  oilCoCity: string;
+  oilCoState: string;
+  oilCoZip: string;
+  oilCoFax: string;
   contactEmails: string;
+  oilCoContact: string;
+  oilCoContact2: string;
+  oilCoContact2Phone: string;
   contactPhone: string;
-  notes: string;
 };
 
 function emailsToInput(oc: OilCompany): string {
@@ -42,12 +50,84 @@ function parseEmails(raw: string): string[] {
   return out;
 }
 
+type ParsedOilCompanyDetails = {
+  oilCoCode: string;
+  oilCoAddress: string;
+  oilCoCity: string;
+  oilCoState: string;
+  oilCoZip: string;
+  oilCoFax: string;
+  oilCoContact: string;
+  oilCoContact2: string;
+  oilCoContact2Phone: string;
+};
+
+function parseNotes(notes?: string): ParsedOilCompanyDetails {
+  const out: ParsedOilCompanyDetails = {
+    oilCoCode: "",
+    oilCoAddress: "",
+    oilCoCity: "",
+    oilCoState: "",
+    oilCoZip: "",
+    oilCoFax: "",
+    oilCoContact: "",
+    oilCoContact2: "",
+    oilCoContact2Phone: "",
+  };
+  if (!notes) return out;
+
+  const parts = notes.split("|").map((p) => p.trim()).filter(Boolean);
+  for (const part of parts) {
+    if (part.startsWith("Code: ")) out.oilCoCode = part.slice(6).trim();
+    if (part.startsWith("Fax: ")) out.oilCoFax = part.slice(5).trim();
+    if (part.startsWith("Primary contact: ")) out.oilCoContact = part.slice(17).trim();
+    if (part.startsWith("Secondary contact: ")) out.oilCoContact2 = part.slice(19).trim();
+    if (part.startsWith("Secondary contact phone: ")) out.oilCoContact2Phone = part.slice(25).trim();
+    if (part.startsWith("Address: ")) {
+      const rawAddress = part.slice(9).trim();
+      const segments = rawAddress.split(",").map((s) => s.trim()).filter(Boolean);
+      if (segments.length >= 4) {
+        out.oilCoZip = segments.pop() || "";
+        out.oilCoState = segments.pop() || "";
+        out.oilCoCity = segments.pop() || "";
+        out.oilCoAddress = segments.join(", ");
+      } else {
+        out.oilCoAddress = rawAddress;
+      }
+    }
+  }
+  return out;
+}
+
+function buildNotes(edit: EditState): string {
+  const parts: string[] = [];
+  if (edit.oilCoCode.trim()) parts.push(`Code: ${edit.oilCoCode.trim()}`);
+  const addressBits = [edit.oilCoAddress, edit.oilCoCity, edit.oilCoState, edit.oilCoZip]
+    .map((v) => v.trim())
+    .filter(Boolean);
+  if (addressBits.length) parts.push(`Address: ${addressBits.join(", ")}`);
+  if (edit.oilCoFax.trim()) parts.push(`Fax: ${edit.oilCoFax.trim()}`);
+  if (edit.oilCoContact.trim()) parts.push(`Primary contact: ${edit.oilCoContact.trim()}`);
+  if (edit.oilCoContact2.trim()) parts.push(`Secondary contact: ${edit.oilCoContact2.trim()}`);
+  if (edit.oilCoContact2Phone.trim()) parts.push(`Secondary contact phone: ${edit.oilCoContact2Phone.trim()}`);
+  return parts.join(" | ");
+}
+
 function toEditState(oc: OilCompany): EditState {
+  const parsed = parseNotes(oc.notes);
   return {
+    oilCoCode: parsed.oilCoCode,
     name: oc.name || "",
+    oilCoAddress: parsed.oilCoAddress,
+    oilCoCity: parsed.oilCoCity,
+    oilCoState: parsed.oilCoState,
+    oilCoZip: parsed.oilCoZip,
+    oilCoFax: parsed.oilCoFax,
     contactEmails: emailsToInput(oc),
+    oilCoContact: parsed.oilCoContact,
+    oilCoContact2: parsed.oilCoContact2,
+    oilCoContact2Phone: parsed.oilCoContact2Phone,
     contactPhone: oc.contactPhone || "",
-    notes: oc.notes || "",
   };
 }
 
@@ -55,8 +135,34 @@ export default function AdminOilCompaniesPage() {
   const { token } = useAuth();
   const [rows, setRows] = useState<OilCompany[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [edit, setEdit] = useState<EditState>({ name: "", contactEmails: "", contactPhone: "", notes: "" });
-  const [newRow, setNewRow] = useState<EditState>({ name: "", contactEmails: "", contactPhone: "", notes: "" });
+  const [edit, setEdit] = useState<EditState>({
+    oilCoCode: "",
+    name: "",
+    oilCoAddress: "",
+    oilCoCity: "",
+    oilCoState: "",
+    oilCoZip: "",
+    oilCoFax: "",
+    contactEmails: "",
+    oilCoContact: "",
+    oilCoContact2: "",
+    oilCoContact2Phone: "",
+    contactPhone: "",
+  });
+  const [newRow, setNewRow] = useState<EditState>({
+    oilCoCode: "",
+    name: "",
+    oilCoAddress: "",
+    oilCoCity: "",
+    oilCoState: "",
+    oilCoZip: "",
+    oilCoFax: "",
+    contactEmails: "",
+    oilCoContact: "",
+    oilCoContact2: "",
+    oilCoContact2Phone: "",
+    contactPhone: "",
+  });
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
 
@@ -82,7 +188,9 @@ export default function AdminOilCompaniesPage() {
         method: "PATCH",
         token,
         body: JSON.stringify({
-          ...edit,
+          name: edit.name,
+          contactPhone: edit.contactPhone,
+          notes: buildNotes(edit),
           contactEmails: parseEmails(edit.contactEmails),
           contactEmail: parseEmails(edit.contactEmails)[0] || "",
         }),
@@ -127,12 +235,27 @@ export default function AdminOilCompaniesPage() {
         method: "POST",
         token,
         body: JSON.stringify({
-          ...newRow,
+          name: newRow.name,
+          contactPhone: newRow.contactPhone,
+          notes: buildNotes(newRow),
           contactEmails: parseEmails(newRow.contactEmails),
           contactEmail: parseEmails(newRow.contactEmails)[0] || "",
         }),
       });
-      setNewRow({ name: "", contactEmails: "", contactPhone: "", notes: "" });
+      setNewRow({
+        oilCoCode: "",
+        name: "",
+        oilCoAddress: "",
+        oilCoCity: "",
+        oilCoState: "",
+        oilCoZip: "",
+        oilCoFax: "",
+        contactEmails: "",
+        oilCoContact: "",
+        oilCoContact2: "",
+        oilCoContact2Phone: "",
+        contactPhone: "",
+      });
       await load();
       setMsg("Oil company added.");
     } catch (e) {
@@ -145,7 +268,7 @@ export default function AdminOilCompaniesPage() {
   return (
     <>
       <p style={{ color: "var(--admin-muted)", fontSize: "0.875rem", margin: "0 0 1rem" }}>
-        Manage oil company records. Add multiple emails separated by commas.
+        Manage oil company records. All 12 import fields are shown below.
       </p>
 
       <div className="admin-stats">
@@ -174,11 +297,19 @@ export default function AdminOilCompaniesPage() {
             marginBottom: "0.75rem",
           }}
         >
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(180px, 1.1fr) minmax(260px, 1.8fr) minmax(160px, 1fr) minmax(220px, 1.6fr) auto", gap: "0.5rem", alignItems: "center" }}>
-            <input className="admin-input" style={{ minWidth: 0 }} value={newRow.name} onChange={(e) => setNewRow((s) => ({ ...s, name: e.target.value }))} placeholder="New company name" />
-            <input className="admin-input" style={{ minWidth: 0 }} value={newRow.contactEmails} onChange={(e) => setNewRow((s) => ({ ...s, contactEmails: e.target.value }))} placeholder="contact@co.com, ops@co.com" />
-            <input className="admin-input" style={{ minWidth: 0 }} value={newRow.contactPhone} onChange={(e) => setNewRow((s) => ({ ...s, contactPhone: e.target.value }))} placeholder="(555) 555-5555" />
-            <input className="admin-input" style={{ minWidth: 0 }} value={newRow.notes} onChange={(e) => setNewRow((s) => ({ ...s, notes: e.target.value }))} placeholder="Optional notes" />
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(140px, 1fr)) auto", gap: "0.5rem", alignItems: "center" }}>
+            <input className="admin-input" style={{ minWidth: 0 }} value={newRow.oilCoCode} onChange={(e) => setNewRow((s) => ({ ...s, oilCoCode: e.target.value }))} placeholder="Code" />
+            <input className="admin-input" style={{ minWidth: 0 }} value={newRow.name} onChange={(e) => setNewRow((s) => ({ ...s, name: e.target.value }))} placeholder="Name" />
+            <input className="admin-input" style={{ minWidth: 0 }} value={newRow.oilCoAddress} onChange={(e) => setNewRow((s) => ({ ...s, oilCoAddress: e.target.value }))} placeholder="Address" />
+            <input className="admin-input" style={{ minWidth: 0 }} value={newRow.oilCoCity} onChange={(e) => setNewRow((s) => ({ ...s, oilCoCity: e.target.value }))} placeholder="City" />
+            <input className="admin-input" style={{ minWidth: 0 }} value={newRow.oilCoState} onChange={(e) => setNewRow((s) => ({ ...s, oilCoState: e.target.value }))} placeholder="State" />
+            <input className="admin-input" style={{ minWidth: 0 }} value={newRow.oilCoZip} onChange={(e) => setNewRow((s) => ({ ...s, oilCoZip: e.target.value }))} placeholder="Zip" />
+            <input className="admin-input" style={{ minWidth: 0 }} value={newRow.contactPhone} onChange={(e) => setNewRow((s) => ({ ...s, contactPhone: e.target.value }))} placeholder="Phone" />
+            <input className="admin-input" style={{ minWidth: 0 }} value={newRow.oilCoFax} onChange={(e) => setNewRow((s) => ({ ...s, oilCoFax: e.target.value }))} placeholder="Fax" />
+            <input className="admin-input" style={{ minWidth: 0 }} value={newRow.contactEmails} onChange={(e) => setNewRow((s) => ({ ...s, contactEmails: e.target.value }))} placeholder="Contact Email(s)" />
+            <input className="admin-input" style={{ minWidth: 0 }} value={newRow.oilCoContact} onChange={(e) => setNewRow((s) => ({ ...s, oilCoContact: e.target.value }))} placeholder="Contact 1" />
+            <input className="admin-input" style={{ minWidth: 0 }} value={newRow.oilCoContact2} onChange={(e) => setNewRow((s) => ({ ...s, oilCoContact2: e.target.value }))} placeholder="Contact 2" />
+            <input className="admin-input" style={{ minWidth: 0 }} value={newRow.oilCoContact2Phone} onChange={(e) => setNewRow((s) => ({ ...s, oilCoContact2Phone: e.target.value }))} placeholder="Contact 2 Phone" />
             <button type="button" className="admin-btn" onClick={createRow} disabled={saving || !newRow.name.trim()}>
               Add Oil Company
             </button>
@@ -188,10 +319,18 @@ export default function AdminOilCompaniesPage() {
           <table className="admin-table">
             <thead>
               <tr>
+                <th>Code</th>
                 <th>Name</th>
-                <th>Contact Email</th>
+                <th>Address</th>
+                <th>City</th>
+                <th>State</th>
+                <th>Zip</th>
                 <th>Phone</th>
-                <th>Notes</th>
+                <th>Fax</th>
+                <th>Contact Email</th>
+                <th>Contact 1</th>
+                <th>Contact 2</th>
+                <th>Contact 2 Phone</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
@@ -199,12 +338,21 @@ export default function AdminOilCompaniesPage() {
             <tbody>
               {rows.map((r) => {
                 const isEditing = editingId === r._id;
+                const parsed = parseNotes(r.notes);
                 return (
                   <tr key={r._id}>
-                    <td>{isEditing ? <input className="admin-input" style={{ minWidth: "160px" }} value={edit.name} onChange={(e) => setEdit((s) => ({ ...s, name: e.target.value }))} /> : r.name}</td>
-                    <td>{isEditing ? <input className="admin-input" style={{ minWidth: "240px" }} value={edit.contactEmails} onChange={(e) => setEdit((s) => ({ ...s, contactEmails: e.target.value }))} placeholder="a@co.com, b@co.com" /> : (emailsToInput(r) || "—")}</td>
-                    <td>{isEditing ? <input className="admin-input" value={edit.contactPhone} onChange={(e) => setEdit((s) => ({ ...s, contactPhone: e.target.value }))} /> : (r.contactPhone || "—")}</td>
-                    <td>{isEditing ? <input className="admin-input" style={{ minWidth: "220px" }} value={edit.notes} onChange={(e) => setEdit((s) => ({ ...s, notes: e.target.value }))} /> : (r.notes || "—")}</td>
+                    <td>{isEditing ? <input className="admin-input" style={{ minWidth: "80px" }} value={edit.oilCoCode} onChange={(e) => setEdit((s) => ({ ...s, oilCoCode: e.target.value }))} /> : (parsed.oilCoCode || "—")}</td>
+                    <td>{isEditing ? <input className="admin-input" style={{ minWidth: "180px" }} value={edit.name} onChange={(e) => setEdit((s) => ({ ...s, name: e.target.value }))} /> : r.name}</td>
+                    <td>{isEditing ? <input className="admin-input" style={{ minWidth: "220px" }} value={edit.oilCoAddress} onChange={(e) => setEdit((s) => ({ ...s, oilCoAddress: e.target.value }))} /> : (parsed.oilCoAddress || "—")}</td>
+                    <td>{isEditing ? <input className="admin-input" style={{ minWidth: "140px" }} value={edit.oilCoCity} onChange={(e) => setEdit((s) => ({ ...s, oilCoCity: e.target.value }))} /> : (parsed.oilCoCity || "—")}</td>
+                    <td>{isEditing ? <input className="admin-input" style={{ minWidth: "80px" }} value={edit.oilCoState} onChange={(e) => setEdit((s) => ({ ...s, oilCoState: e.target.value }))} /> : (parsed.oilCoState || "—")}</td>
+                    <td>{isEditing ? <input className="admin-input" style={{ minWidth: "100px" }} value={edit.oilCoZip} onChange={(e) => setEdit((s) => ({ ...s, oilCoZip: e.target.value }))} /> : (parsed.oilCoZip || "—")}</td>
+                    <td>{isEditing ? <input className="admin-input" style={{ minWidth: "140px" }} value={edit.contactPhone} onChange={(e) => setEdit((s) => ({ ...s, contactPhone: e.target.value }))} /> : (r.contactPhone || "—")}</td>
+                    <td>{isEditing ? <input className="admin-input" style={{ minWidth: "140px" }} value={edit.oilCoFax} onChange={(e) => setEdit((s) => ({ ...s, oilCoFax: e.target.value }))} /> : (parsed.oilCoFax || "—")}</td>
+                    <td>{isEditing ? <input className="admin-input" style={{ minWidth: "220px" }} value={edit.contactEmails} onChange={(e) => setEdit((s) => ({ ...s, contactEmails: e.target.value }))} placeholder="a@co.com, b@co.com" /> : (emailsToInput(r) || "—")}</td>
+                    <td>{isEditing ? <input className="admin-input" style={{ minWidth: "180px" }} value={edit.oilCoContact} onChange={(e) => setEdit((s) => ({ ...s, oilCoContact: e.target.value }))} /> : (parsed.oilCoContact || "—")}</td>
+                    <td>{isEditing ? <input className="admin-input" style={{ minWidth: "180px" }} value={edit.oilCoContact2} onChange={(e) => setEdit((s) => ({ ...s, oilCoContact2: e.target.value }))} /> : (parsed.oilCoContact2 || "—")}</td>
+                    <td>{isEditing ? <input className="admin-input" style={{ minWidth: "160px" }} value={edit.oilCoContact2Phone} onChange={(e) => setEdit((s) => ({ ...s, oilCoContact2Phone: e.target.value }))} /> : (parsed.oilCoContact2Phone || "—")}</td>
                     <td>{r.active === false ? "inactive" : "active"}</td>
                     <td style={{ whiteSpace: "nowrap" }}>
                       {isEditing ? (
