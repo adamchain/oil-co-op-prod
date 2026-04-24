@@ -146,6 +146,7 @@ export default function AdminWorkbenchPage() {
   const [communications, setCommunications] = useState<Comm[]>([]);
   const [referral, setReferral] = useState<Referral | null>(null);
   const [oilCoWorksheetId, setOilCoWorksheetId] = useState("");
+  const [oilCoWorksheetPage, setOilCoWorksheetPage] = useState(1);
 
   // Oil Company editing state
   const [editingOilCo, setEditingOilCo] = useState<OilCompany | null>(null);
@@ -303,6 +304,18 @@ export default function AdminWorkbenchPage() {
     if (!oilCoWorksheetId) return members;
     return members.filter((m) => m.oilCompanyId?._id === oilCoWorksheetId);
   }, [members, oilCoWorksheetId]);
+
+  const oilCoWorksheetPageSize = 25;
+  const oilCoWorksheetTotalPages = Math.max(1, Math.ceil(membersForOilWorksheet.length / oilCoWorksheetPageSize));
+  const oilCoWorksheetRows = useMemo(() => {
+    const safePage = Math.min(Math.max(1, oilCoWorksheetPage), oilCoWorksheetTotalPages);
+    const start = (safePage - 1) * oilCoWorksheetPageSize;
+    return membersForOilWorksheet.slice(start, start + oilCoWorksheetPageSize);
+  }, [membersForOilWorksheet, oilCoWorksheetPage, oilCoWorksheetTotalPages]);
+
+  useEffect(() => {
+    setOilCoWorksheetPage(1);
+  }, [oilCoWorksheetId, membersForOilWorksheet.length]);
 
   useEffect(() => {
     const tpl = MAILING_TEMPLATES[mailTemplateKey];
@@ -811,54 +824,57 @@ export default function AdminWorkbenchPage() {
                 <label>Zip<input className="admin-input" value={form.postalCode} onChange={(e) => setForm((f) => ({ ...f, postalCode: e.target.value }))} /></label>
                 <label>Company<input className="admin-input" value={legacyValue("company")} onChange={(e) => setLegacy("company", e.target.value)} /></label>
                 <label>
-                  Phone 1 ({legacyValue("typePhone1") || "HOME"})
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: "0.35rem" }}>
-                    <input
-                      className="admin-input"
-                      value={form.phone}
-                      onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                      onBlur={(e) => setForm((f) => ({ ...f, phone: formatPhoneValue(e.target.value) }))}
-                    />
-                    <select className="admin-input" value={legacyValue("typePhone1") || "HOME"} onChange={(e) => setLegacy("typePhone1", e.target.value)}>
-                      {PHONE_TYPE.map((s) => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
-                  </div>
+                  Phone 1
+                  <input
+                    className="admin-input"
+                    value={form.phone}
+                    onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                    onBlur={(e) => setForm((f) => ({ ...f, phone: formatPhoneValue(e.target.value) }))}
+                  />
+                </label>
+                <label>
+                  Type Phone 1
+                  <select className="admin-input" value={legacyValue("typePhone1") || "HOME"} onChange={(e) => setLegacy("typePhone1", e.target.value)}>
+                    {PHONE_TYPE.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
                 </label>
                 <label>P1 Ext<input className="admin-input" value={legacyValue("p1Ext")} onChange={(e) => setLegacy("p1Ext", e.target.value)} /></label>
                 <label>
-                  Phone 2 ({legacyValue("typePhone2") || "HOME"})
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: "0.35rem" }}>
-                    <input
-                      className="admin-input"
-                      value={legacyValue("phone2")}
-                      onChange={(e) => setLegacy("phone2", e.target.value)}
-                      onBlur={(e) => setLegacy("phone2", formatPhoneValue(e.target.value))}
-                    />
-                    <select className="admin-input" value={legacyValue("typePhone2") || "HOME"} onChange={(e) => setLegacy("typePhone2", e.target.value)}>
-                      {PHONE_TYPE.map((s) => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
-                  </div>
+                  Phone 2
+                  <input
+                    className="admin-input"
+                    value={legacyValue("phone2")}
+                    onChange={(e) => setLegacy("phone2", e.target.value)}
+                    onBlur={(e) => setLegacy("phone2", formatPhoneValue(e.target.value))}
+                  />
+                </label>
+                <label>
+                  Type Phone 2
+                  <select className="admin-input" value={legacyValue("typePhone2") || "HOME"} onChange={(e) => setLegacy("typePhone2", e.target.value)}>
+                    {PHONE_TYPE.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
                 </label>
                 <label>P2 Ext<input className="admin-input" value={legacyValue("p2Ext")} onChange={(e) => setLegacy("p2Ext", e.target.value)} /></label>
                 <label>
-                  Phone 3 ({legacyValue("typePhone3") || "HOME"})
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: "0.35rem" }}>
-                    <input
-                      className="admin-input"
-                      value={legacyValue("phone3")}
-                      onChange={(e) => setLegacy("phone3", e.target.value)}
-                      onBlur={(e) => setLegacy("phone3", formatPhoneValue(e.target.value))}
-                    />
-                    <select className="admin-input" value={legacyValue("typePhone3") || "HOME"} onChange={(e) => setLegacy("typePhone3", e.target.value)}>
-                      {PHONE_TYPE.map((s) => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
-                  </div>
+                  Phone 3
+                  <input
+                    className="admin-input"
+                    value={legacyValue("phone3")}
+                    onChange={(e) => setLegacy("phone3", e.target.value)}
+                    onBlur={(e) => setLegacy("phone3", formatPhoneValue(e.target.value))}
+                  />
+                </label>
+                <label>
+                  Type Phone 3
+                  <select className="admin-input" value={legacyValue("typePhone3") || "HOME"} onChange={(e) => setLegacy("typePhone3", e.target.value)}>
+                    {PHONE_TYPE.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
                 </label>
                 <label>P3 Ext<input className="admin-input" value={legacyValue("p3Ext")} onChange={(e) => setLegacy("p3Ext", e.target.value)} /></label>
                 <label>E Mail<input className="admin-input" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} /></label>
@@ -1714,17 +1730,58 @@ export default function AdminWorkbenchPage() {
                   ))}
                 </select>
               </label>
+              <div className="admin-toolbar" style={{ marginBottom: "0.6rem", justifyContent: "space-between" }}>
+                <span className="admin-meta">
+                  {membersForOilWorksheet.length} member(s) • Page {Math.min(oilCoWorksheetPage, oilCoWorksheetTotalPages)} of {oilCoWorksheetTotalPages}
+                </span>
+                <div style={{ display: "flex", gap: "0.35rem", alignItems: "center" }}>
+                  <button
+                    type="button"
+                    className="admin-btn admin-btn-ghost"
+                    onClick={() => setOilCoWorksheetPage(1)}
+                    disabled={oilCoWorksheetPage <= 1}
+                  >
+                    First
+                  </button>
+                  <button
+                    type="button"
+                    className="admin-btn admin-btn-ghost"
+                    onClick={() => setOilCoWorksheetPage((p) => Math.max(1, p - 1))}
+                    disabled={oilCoWorksheetPage <= 1}
+                  >
+                    Prev
+                  </button>
+                  <button
+                    type="button"
+                    className="admin-btn admin-btn-ghost"
+                    onClick={() => setOilCoWorksheetPage((p) => Math.min(oilCoWorksheetTotalPages, p + 1))}
+                    disabled={oilCoWorksheetPage >= oilCoWorksheetTotalPages}
+                  >
+                    Next
+                  </button>
+                  <button
+                    type="button"
+                    className="admin-btn admin-btn-ghost"
+                    onClick={() => setOilCoWorksheetPage(oilCoWorksheetTotalPages)}
+                    disabled={oilCoWorksheetPage >= oilCoWorksheetTotalPages}
+                  >
+                    Last
+                  </button>
+                </div>
+              </div>
               <div className="admin-table-wrap">
                 <table className="admin-table">
                   <thead><tr><th>ID</th><th>Name</th><th>Oil ID</th><th>Status</th></tr></thead>
                   <tbody>
-                    {membersForOilWorksheet.map((m) => (
+                    {oilCoWorksheetRows.map((m) => (
                       <tr
                         key={m._id}
                         onClick={() => {
                           const gi = members.findIndex((x) => x._id === m._id);
                           if (gi >= 0) setIndex(gi);
+                          setActiveTab("Data Entry");
                         }}
+                        style={{ cursor: "pointer" }}
                       >
                         <td>{m.memberNumber || "—"}</td>
                         <td>{m.firstName} {m.lastName}</td>
@@ -1732,6 +1789,9 @@ export default function AdminWorkbenchPage() {
                         <td><span className={`admin-pill${m.status === "active" ? " ok" : ""}`}>{m.status}</span></td>
                       </tr>
                     ))}
+                    {oilCoWorksheetRows.length === 0 && (
+                      <tr><td colSpan={4}>No members for this selection.</td></tr>
+                    )}
                   </tbody>
                 </table>
               </div>
