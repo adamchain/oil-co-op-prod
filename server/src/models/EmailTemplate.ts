@@ -7,6 +7,13 @@ export const EMAIL_TEMPLATE_KEYS = [
   "paymentFailed",
   "paymentLink",
   "oilCompanyAssigned",
+  "auditRequest",
+  "insuranceReferral",
+  "solarReferral",
+  "referralThankYou",
+  "referralMilestone",
+  "referralPromo",
+  "prospectiveInfo",
 ] as const;
 
 export type EmailTemplateKey = (typeof EMAIL_TEMPLATE_KEYS)[number];

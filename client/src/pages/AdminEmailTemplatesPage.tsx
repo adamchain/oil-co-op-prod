@@ -2,13 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../authContext";
 
-type TemplateKey =
-  | "welcome"
-  | "renewalReminder"
-  | "paymentSuccess"
-  | "paymentFailed"
-  | "paymentLink"
-  | "oilCompanyAssigned";
+type TemplateKey = string;
 
 interface TemplateInfo {
   _id: string;
@@ -24,6 +18,11 @@ interface TemplateInfo {
 const sampleData = {
   firstName: "John",
   lastName: "Smith",
+  referredMemberName: "Jim Carter",
+  referredMemberNames: "Carrie Grummons and Kymberly Webb",
+  referralCount: 3,
+  membershipSeason: "2026/2027",
+  promoName: "January Referral",
   memberNumber: "M-2024-0042",
   nextBillingDate: "June 1, 2025",
   daysUntil: 7,
@@ -38,6 +37,15 @@ const sampleData = {
   expiresAt: "May 15, 2025",
   companyName: "ABC Heating Oil Co.",
   companyPhone: "(555) 123-4567",
+  companyAddress: "123 Main St, Hartford, CT 06103",
+  contactName: "Jody Gallagher",
+  contactEmail: "jody@example.com",
+  contactPhone: "(860) 561-6011",
+  partnerName: "New England Smart Energy (NESE)",
+  partnerPhone: "203-292-8088",
+  websitePricingUrl: "https://oilco-op.com/services/heating-prices/",
+  websiteJoinUrl: "https://oilco-op.com/join/",
+  officePhone: "860-561-6011",
 };
 
 const templateOrder: TemplateKey[] = [
@@ -47,6 +55,13 @@ const templateOrder: TemplateKey[] = [
   "paymentFailed",
   "paymentLink",
   "oilCompanyAssigned",
+  "auditRequest",
+  "insuranceReferral",
+  "solarReferral",
+  "referralThankYou",
+  "referralMilestone",
+  "referralPromo",
+  "prospectiveInfo",
 ];
 
 function applyVariables(template: string): string {
@@ -77,6 +92,10 @@ export default function AdminEmailTemplatesPage() {
           return acc;
         }, {} as Record<TemplateKey, TemplateInfo>);
         setTemplates(byKey);
+        if (!byKey[selectedTemplate]) {
+          const firstKey = res.templates[0]?.key;
+          if (firstKey) setSelectedTemplate(firstKey);
+        }
       })
       .catch((e: unknown) => setStatus(e instanceof Error ? e.message : "Failed to load templates"));
   }, [token]);
@@ -96,6 +115,12 @@ export default function AdminEmailTemplatesPage() {
   }, [member?.email]);
 
   const previewHtml = useMemo(() => applyVariables(html || ""), [html]);
+  const orderedKeys = useMemo(() => {
+    if (!templates) return templateOrder;
+    const known = templateOrder.filter((k) => templates[k]);
+    const extras = Object.keys(templates).filter((k) => !templateOrder.includes(k));
+    return [...known, ...extras];
+  }, [templates]);
 
   async function saveTemplate() {
     if (!token || !currentTemplate) return;
@@ -150,7 +175,7 @@ export default function AdminEmailTemplatesPage() {
             <strong>Templates</strong>
           </div>
           <div style={{ display: "flex", flexDirection: "column" }}>
-            {templateOrder.map((key) => (
+            {orderedKeys.map((key) => (
               <button
                 key={key}
                 type="button"
