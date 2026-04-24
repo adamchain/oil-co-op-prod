@@ -35,7 +35,7 @@ export default function LoginPage() {
       if (next && res.member.role === "admin" && next.startsWith("/admin")) {
         nav(next);
       } else {
-        nav(res.member.role === "admin" ? "/admin/members" : "/account");
+        nav(res.member.role === "admin" ? "/admin/workbench" : "/account");
       }
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Login failed");

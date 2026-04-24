@@ -130,6 +130,7 @@ router.post("/email-templates/:key/test", async (req: AuthedRequest, res) => {
 
 router.get("/members", async (req, res) => {
   const q = (req.query.q as string) || "";
+  const qTrimmed = q.trim();
   const status = req.query.status as string | undefined;
   const signedUpVia = req.query.signedUpVia as string | undefined;
   const filter: Record<string, unknown> = { role: "member" };
@@ -139,7 +140,7 @@ router.get("/members", async (req, res) => {
   if (signedUpVia && ["web", "phone", "admin"].includes(signedUpVia)) {
     filter.signedUpVia = signedUpVia;
   }
-  if (q.trim()) {
+  if (qTrimmed) {
     const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
     filter.$or = [
       { firstName: rx },
@@ -171,11 +172,41 @@ router.get("/members", async (req, res) => {
       { "legacyProfile.contactNote": rx },
     ];
   }
-  const members = await Member.find(filter)
+  let members = await Member.find(filter)
     .sort({ createdAt: -1 })
-    .limit(200)
+    .limit(qTrimmed ? 1200 : 200)
     .populate("oilCompanyId", "name")
     .lean();
+
+  if (qTrimmed) {
+    const qLower = qTrimmed.toLowerCase();
+    const score = (m: any) => {
+      const first = String(m.firstName || "").toLowerCase();
+      const last = String(m.lastName || "").toLowerCase();
+      const full = `${first} ${last}`.trim();
+      const memberNo = String(m.memberNumber || "").toLowerCase();
+      const email = String(m.email || "").toLowerCase();
+      const stateText = String(m.state || "").toLowerCase();
+      const city = String(m.city || "").toLowerCase();
+      const address = `${String(m.addressLine1 || "")} ${String(m.addressLine2 || "")}`.toLowerCase();
+      const phone = String(m.phone || "").toLowerCase();
+      const notes = String(m.notes || "").toLowerCase();
+
+      if (first.startsWith(qLower) || last.startsWith(qLower)) return 0;
+      if (full.includes(qLower)) return 1;
+      if (memberNo.includes(qLower)) return 2;
+      if (email.includes(qLower)) return 3;
+      // Keep state/city/address searchable, but rank below direct name hits for short state-like queries (e.g. "ri").
+      if (stateText.includes(qLower)) return 4;
+      if (city.includes(qLower) || address.includes(qLower)) return 5;
+      if (phone.includes(qLower) || notes.includes(qLower)) return 6;
+      return 7;
+    };
+
+    members = members
+      .sort((a, b) => score(a) - score(b))
+      .slice(0, 300);
+  }
   res.json({ members });
 });
 

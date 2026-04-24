@@ -811,57 +811,54 @@ export default function AdminWorkbenchPage() {
                 <label>Zip<input className="admin-input" value={form.postalCode} onChange={(e) => setForm((f) => ({ ...f, postalCode: e.target.value }))} /></label>
                 <label>Company<input className="admin-input" value={legacyValue("company")} onChange={(e) => setLegacy("company", e.target.value)} /></label>
                 <label>
-                  Phone 1
-                  <input
-                    className="admin-input"
-                    value={form.phone}
-                    onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                    onBlur={(e) => setForm((f) => ({ ...f, phone: formatPhoneValue(e.target.value) }))}
-                  />
-                </label>
-                <label>
-                  Type Phone 1
-                  <select className="admin-input" value={legacyValue("typePhone1") || "HOME"} onChange={(e) => setLegacy("typePhone1", e.target.value)}>
-                    {PHONE_TYPE.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
+                  Phone 1 ({legacyValue("typePhone1") || "HOME"})
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: "0.35rem" }}>
+                    <input
+                      className="admin-input"
+                      value={form.phone}
+                      onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                      onBlur={(e) => setForm((f) => ({ ...f, phone: formatPhoneValue(e.target.value) }))}
+                    />
+                    <select className="admin-input" value={legacyValue("typePhone1") || "HOME"} onChange={(e) => setLegacy("typePhone1", e.target.value)}>
+                      {PHONE_TYPE.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </div>
                 </label>
                 <label>P1 Ext<input className="admin-input" value={legacyValue("p1Ext")} onChange={(e) => setLegacy("p1Ext", e.target.value)} /></label>
                 <label>
-                  Phone 2
-                  <input
-                    className="admin-input"
-                    value={legacyValue("phone2")}
-                    onChange={(e) => setLegacy("phone2", e.target.value)}
-                    onBlur={(e) => setLegacy("phone2", formatPhoneValue(e.target.value))}
-                  />
-                </label>
-                <label>
-                  Type Phone 2
-                  <select className="admin-input" value={legacyValue("typePhone2") || "HOME"} onChange={(e) => setLegacy("typePhone2", e.target.value)}>
-                    {PHONE_TYPE.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
+                  Phone 2 ({legacyValue("typePhone2") || "HOME"})
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: "0.35rem" }}>
+                    <input
+                      className="admin-input"
+                      value={legacyValue("phone2")}
+                      onChange={(e) => setLegacy("phone2", e.target.value)}
+                      onBlur={(e) => setLegacy("phone2", formatPhoneValue(e.target.value))}
+                    />
+                    <select className="admin-input" value={legacyValue("typePhone2") || "HOME"} onChange={(e) => setLegacy("typePhone2", e.target.value)}>
+                      {PHONE_TYPE.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </div>
                 </label>
                 <label>P2 Ext<input className="admin-input" value={legacyValue("p2Ext")} onChange={(e) => setLegacy("p2Ext", e.target.value)} /></label>
                 <label>
-                  Phone 3
-                  <input
-                    className="admin-input"
-                    value={legacyValue("phone3")}
-                    onChange={(e) => setLegacy("phone3", e.target.value)}
-                    onBlur={(e) => setLegacy("phone3", formatPhoneValue(e.target.value))}
-                  />
-                </label>
-                <label>
-                  Type Phone 3
-                  <select className="admin-input" value={legacyValue("typePhone3") || "HOME"} onChange={(e) => setLegacy("typePhone3", e.target.value)}>
-                    {PHONE_TYPE.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
+                  Phone 3 ({legacyValue("typePhone3") || "HOME"})
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 120px", gap: "0.35rem" }}>
+                    <input
+                      className="admin-input"
+                      value={legacyValue("phone3")}
+                      onChange={(e) => setLegacy("phone3", e.target.value)}
+                      onBlur={(e) => setLegacy("phone3", formatPhoneValue(e.target.value))}
+                    />
+                    <select className="admin-input" value={legacyValue("typePhone3") || "HOME"} onChange={(e) => setLegacy("typePhone3", e.target.value)}>
+                      {PHONE_TYPE.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </div>
                 </label>
                 <label>P3 Ext<input className="admin-input" value={legacyValue("p3Ext")} onChange={(e) => setLegacy("p3Ext", e.target.value)} /></label>
                 <label>E Mail<input className="admin-input" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} /></label>
