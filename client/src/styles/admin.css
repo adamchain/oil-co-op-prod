@@ -793,6 +793,12 @@
   gap: 0.35rem 0.45rem;
 }
 
+.admin-wb-panel .admin-form-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem 0.45rem;
+}
+
 .admin-wb-panel .admin-form-grid-4 label {
   font-size: 0.56rem;
   font-weight: 600;
@@ -809,6 +815,10 @@
   min-width: 0;
 }
 
+.admin-wb-panel .admin-form-grid-3 > * {
+  min-width: 0;
+}
+
 .admin-form-span-4 {
   grid-column: span 4;
 }
@@ -821,12 +831,29 @@
   .admin-wb-panel .admin-form-grid-4 {
     grid-template-columns: repeat(2, 1fr);
   }
+  .admin-wb-panel .admin-form-grid-3 {
+    grid-template-columns: repeat(2, 1fr);
+  }
   .admin-form-span-4 {
     grid-column: span 2;
   }
   .admin-form-span-3 {
     grid-column: span 2;
   }
+}
+
+.admin-payment-compact .admin-card {
+  padding: 0.7rem 0.85rem;
+}
+
+.admin-payment-compact .admin-workbench-section h3 {
+  margin: 0.45rem 0 0.35rem;
+}
+
+.admin-payment-compact .admin-table th,
+.admin-payment-compact .admin-table td {
+  padding: 0.32rem 0.42rem;
+  font-size: 0.74rem;
 }
 
 .admin-wb-status-row {

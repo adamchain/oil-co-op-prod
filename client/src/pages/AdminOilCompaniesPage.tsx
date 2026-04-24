@@ -135,6 +135,9 @@ export default function AdminOilCompaniesPage() {
   const { token } = useAuth();
   const [rows, setRows] = useState<OilCompany[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [companyFilter, setCompanyFilter] = useState("");
+  const [sortKey, setSortKey] = useState<"code" | "name" | "address" | "city" | "state" | "zip" | "phone" | "fax" | "email" | "contact1" | "contact2" | "contact2Phone">("name");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [edit, setEdit] = useState<EditState>({
     oilCoCode: "",
     name: "",
@@ -165,6 +168,42 @@ export default function AdminOilCompaniesPage() {
   });
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
+
+  const filteredSortedRows = useMemo(() => {
+    const base = companyFilter
+      ? rows.filter((r) => r._id === companyFilter)
+      : rows.slice();
+    const readValue = (r: OilCompany): string => {
+      const parsed = parseNotes(r.notes);
+      if (sortKey === "code") return parsed.oilCoCode;
+      if (sortKey === "name") return r.name;
+      if (sortKey === "address") return parsed.oilCoAddress;
+      if (sortKey === "city") return parsed.oilCoCity;
+      if (sortKey === "state") return parsed.oilCoState;
+      if (sortKey === "zip") return parsed.oilCoZip;
+      if (sortKey === "phone") return r.contactPhone || "";
+      if (sortKey === "fax") return parsed.oilCoFax;
+      if (sortKey === "email") return emailsToInput(r);
+      if (sortKey === "contact1") return parsed.oilCoContact;
+      if (sortKey === "contact2") return parsed.oilCoContact2;
+      return parsed.oilCoContact2Phone;
+    };
+    return base.sort((a, b) => {
+      const av = readValue(a).toLowerCase();
+      const bv = readValue(b).toLowerCase();
+      const cmp = av.localeCompare(bv, undefined, { numeric: true, sensitivity: "base" });
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }, [rows, companyFilter, sortKey, sortDir]);
+
+  function toggleSort(nextKey: typeof sortKey) {
+    if (sortKey === nextKey) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+      return;
+    }
+    setSortKey(nextKey);
+    setSortDir("asc");
+  }
 
   async function load() {
     if (!token) return;
@@ -285,6 +324,20 @@ export default function AdminOilCompaniesPage() {
       <div className="admin-card">
         <h2>Oil Companies</h2>
         {msg && <p className="admin-meta" style={{ margin: "0 0 0.75rem" }}>{msg}</p>}
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap" }}>
+          <select className="admin-input" value={companyFilter} onChange={(e) => setCompanyFilter(e.target.value)} style={{ maxWidth: "360px" }}>
+            <option value="">All Oil Companies</option>
+            {rows
+              .slice()
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map((oc) => (
+                <option key={oc._id} value={oc._id}>
+                  {oc.name}
+                </option>
+              ))}
+          </select>
+          <span className="admin-meta">{filteredSortedRows.length} row(s)</span>
+        </div>
         <div
           style={{
             position: "sticky",
@@ -319,24 +372,24 @@ export default function AdminOilCompaniesPage() {
           <table className="admin-table">
             <thead>
               <tr>
-                <th>Code</th>
-                <th>Name</th>
-                <th>Address</th>
-                <th>City</th>
-                <th>State</th>
-                <th>Zip</th>
-                <th>Phone</th>
-                <th>Fax</th>
-                <th>Contact Email</th>
-                <th>Contact 1</th>
-                <th>Contact 2</th>
-                <th>Contact 2 Phone</th>
+                <th><button type="button" className="admin-btn admin-btn-ghost" onClick={() => toggleSort("code")}>Code</button></th>
+                <th><button type="button" className="admin-btn admin-btn-ghost" onClick={() => toggleSort("name")}>Name</button></th>
+                <th><button type="button" className="admin-btn admin-btn-ghost" onClick={() => toggleSort("address")}>Address</button></th>
+                <th><button type="button" className="admin-btn admin-btn-ghost" onClick={() => toggleSort("city")}>City</button></th>
+                <th><button type="button" className="admin-btn admin-btn-ghost" onClick={() => toggleSort("state")}>State</button></th>
+                <th><button type="button" className="admin-btn admin-btn-ghost" onClick={() => toggleSort("zip")}>Zip</button></th>
+                <th><button type="button" className="admin-btn admin-btn-ghost" onClick={() => toggleSort("phone")}>Phone</button></th>
+                <th><button type="button" className="admin-btn admin-btn-ghost" onClick={() => toggleSort("fax")}>Fax</button></th>
+                <th><button type="button" className="admin-btn admin-btn-ghost" onClick={() => toggleSort("email")}>Contact Email</button></th>
+                <th><button type="button" className="admin-btn admin-btn-ghost" onClick={() => toggleSort("contact1")}>Contact 1</button></th>
+                <th><button type="button" className="admin-btn admin-btn-ghost" onClick={() => toggleSort("contact2")}>Contact 2</button></th>
+                <th><button type="button" className="admin-btn admin-btn-ghost" onClick={() => toggleSort("contact2Phone")}>Contact 2 Phone</button></th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => {
+              {filteredSortedRows.map((r) => {
                 const isEditing = editingId === r._id;
                 const parsed = parseNotes(r.notes);
                 return (
