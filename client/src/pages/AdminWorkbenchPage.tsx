@@ -14,7 +14,6 @@ const tabs = [
   "REFERRALS BY MEMBER",
   "MEMBERS LIST",
   "MEMBER STATUS RPT",
-  "Oil Co Worksheet",
   "REFUND LETTER",
   "START DATE LETTER",
   "Multiple Referral Letter",
@@ -82,20 +81,56 @@ const PHONE_TYPE = ["HOME", "WORK", "CELL"] as const;
 const HOW_JOINED = ["PHO", "WEB", "REF", "MAIL"] as const;
 const REFERRAL_SOURCE = ["CCAG", "MEMBER", "OTHER"] as const;
 const MAILING_TEMPLATES = {
-  renewal: {
-    label: "Renewal Reminder Letter",
+  newMember: {
+    label: "NEW MEMBER LETTER",
+    subject: "Welcome to Citizen's Oil Co-op",
+    body:
+      "Dear {memberName},\n\nThank you for joining the Citizen's Oil Co-op.\n\n" +
+      "We have forwarded your name and address to the oil company servicing your area.\n" +
+      "You will be entered in as an Oil Co-op member and receive discounted pricing.\n\n" +
+      "The oil company working with Citizen's Oil Co-op in your area is:\n{companyName}\n\n" +
+      "Address on file:\n{address}\n{cityStateZip}\n\n" +
+      "Please let us know if we can be of additional assistance.",
+  },
+  renewalReminder: {
+    label: "RENEWAL REMINDER",
     subject: "Annual Membership Renewal Reminder",
     body:
-      "Dear {memberName},\n\nThis is a reminder that your annual membership is due soon.\n\nMember ID: {memberNumber}\nAddress: {address}\nCity/State/Zip: {cityStateZip}\n\nPlease contact the office if you have questions.\n\nSincerely,\nOil Co-op Member Services",
+      "Dear {memberName},\n\nThis is a reminder that your annual membership is due soon.\n\n" +
+      "Member ID: {memberNumber}\nAddress: {address}\nCity/State/Zip: {cityStateZip}\n\n" +
+      "Please contact the office if you have questions.\n\nSincerely,\nOil Co-op Member Services",
   },
   prospective: {
-    label: "Prospective Follow-up Letter",
-    subject: "Welcome to Oil Co-op",
+    label: "PROSPECTIVE LETTER",
+    subject: "Thank you for your interest in Citizen's Oil Co-op",
     body:
-      "Dear {memberName},\n\nThank you for your interest in Oil Co-op.\n\nWe have your address as:\n{address}\n{cityStateZip}\n\nPlease call us if you would like assistance completing enrollment.\n\nSincerely,\nOil Co-op Member Services",
+      "Dear {memberName},\n\nThank you for your interest in the Citizen's Oil Co-op.\n\n" +
+      "We would be happy to assist you with enrollment and answer any questions.\n\n" +
+      "Address on file:\n{address}\n{cityStateZip}\n\nSincerely,\nOil Co-op Member Services",
+  },
+  pastDue: {
+    label: "PAST DUE REMINDER",
+    subject: "Past Due Membership Reminder",
+    body:
+      "Dear {memberName},\n\nOur records indicate your membership payment may be past due.\n\n" +
+      "Member ID: {memberNumber}\nPlease contact us to keep your membership active.\n\nSincerely,\nOil Co-op Member Services",
+  },
+  startupBill: {
+    label: "STARTUP BILL",
+    subject: "Startup Membership Bill",
+    body:
+      "Dear {memberName},\n\nThis letter confirms your startup membership billing details.\n\n" +
+      "Member ID: {memberNumber}\nAddress:\n{address}\n{cityStateZip}\n\nSincerely,\nOil Co-op Member Services",
+  },
+  registrationReminder: {
+    label: "REGISTRATION REMINDER",
+    subject: "Registration Reminder",
+    body:
+      "Dear {memberName},\n\nThis is a reminder to complete your registration details for Citizen's Oil Co-op.\n\n" +
+      "Please contact us if you need assistance.\n\nSincerely,\nOil Co-op Member Services",
   },
   custom: {
-    label: "Custom Letter",
+    label: "Letter Template",
     subject: "Member Notice",
     body: "Dear {memberName},\n\n{customMessage}\n\nSincerely,\nOil Co-op Member Services",
   },
@@ -139,14 +174,17 @@ export default function AdminWorkbenchPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [search, setSearch] = useState(() => searchParams.get("q") || "");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [oilCoFilterId, setOilCoFilterId] = useState("");
+  const [worksheetSort, setWorksheetSort] = useState<{ key: "memberNumber" | "name" | "address" | "city" | "phone" | "oilCompany" | "notes" | "status"; dir: "asc" | "desc" }>({
+    key: "name",
+    dir: "asc",
+  });
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   const [oilCompanies, setOilCompanies] = useState<OilCompany[]>([]);
   const [billing, setBilling] = useState<BillingEvent[]>([]);
   const [communications, setCommunications] = useState<Comm[]>([]);
   const [referral, setReferral] = useState<Referral | null>(null);
-  const [oilCoWorksheetId, setOilCoWorksheetId] = useState("");
-  const [oilCoWorksheetPage, setOilCoWorksheetPage] = useState(1);
 
   // Oil Company editing state
   const [editingOilCo, setEditingOilCo] = useState<OilCompany | null>(null);
@@ -157,9 +195,9 @@ export default function AdminWorkbenchPage() {
   const [newNote, setNewNote] = useState("");
   const [actionMessage, setActionMessage] = useState("");
   const [backupHistory, setBackupHistory] = useState<BackupHistoryEntry[]>([]);
-  const [mailTemplateKey, setMailTemplateKey] = useState<keyof typeof MAILING_TEMPLATES>("renewal");
-  const [mailSubject, setMailSubject] = useState<string>(MAILING_TEMPLATES.renewal.subject);
-  const [mailBody, setMailBody] = useState<string>(MAILING_TEMPLATES.renewal.body);
+  const [mailTemplateKey, setMailTemplateKey] = useState<keyof typeof MAILING_TEMPLATES>("newMember");
+  const [mailSubject, setMailSubject] = useState<string>(MAILING_TEMPLATES.newMember.subject);
+  const [mailBody, setMailBody] = useState<string>(MAILING_TEMPLATES.newMember.body);
 
   const [form, setForm] = useState({
     firstName: "",
@@ -184,6 +222,7 @@ export default function AdminWorkbenchPage() {
       if (search.trim()) params.set("q", search.trim());
       if (statusFilter === "active") params.set("status", "active");
       if (statusFilter === "inactive") params.set("status", "expired");
+      if (oilCoFilterId) params.set("oilCompanyId", oilCoFilterId);
       const path = `/api/admin/members${params.size ? `?${params.toString()}` : ""}`;
       const { members: rows } = await api<{ members: Member[] }>(path, { token });
       setMembers(rows);
@@ -213,7 +252,7 @@ export default function AdminWorkbenchPage() {
   useEffect(() => {
     void loadMembers();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, statusFilter, searchParams]);
+  }, [token, statusFilter, searchParams, oilCoFilterId]);
 
   useEffect(() => {
     missingMemberFetchAttempt.current = null;
@@ -300,23 +339,6 @@ export default function AdminWorkbenchPage() {
     return { active, inactive, total: members.length };
   }, [members]);
 
-  const membersForOilWorksheet = useMemo(() => {
-    if (!oilCoWorksheetId) return members;
-    return members.filter((m) => m.oilCompanyId?._id === oilCoWorksheetId);
-  }, [members, oilCoWorksheetId]);
-
-  const oilCoWorksheetPageSize = 25;
-  const oilCoWorksheetTotalPages = Math.max(1, Math.ceil(membersForOilWorksheet.length / oilCoWorksheetPageSize));
-  const oilCoWorksheetRows = useMemo(() => {
-    const safePage = Math.min(Math.max(1, oilCoWorksheetPage), oilCoWorksheetTotalPages);
-    const start = (safePage - 1) * oilCoWorksheetPageSize;
-    return membersForOilWorksheet.slice(start, start + oilCoWorksheetPageSize);
-  }, [membersForOilWorksheet, oilCoWorksheetPage, oilCoWorksheetTotalPages]);
-
-  useEffect(() => {
-    setOilCoWorksheetPage(1);
-  }, [oilCoWorksheetId, membersForOilWorksheet.length]);
-
   useEffect(() => {
     const tpl = MAILING_TEMPLATES[mailTemplateKey];
     setMailSubject(tpl.subject);
@@ -336,6 +358,7 @@ export default function AdminWorkbenchPage() {
               ? m.status !== "active"
               : ws === "PROSPECTIVE";
       if (!statusOk) return false;
+      if (oilCoFilterId && m.oilCompanyId?._id !== oilCoFilterId) return false;
       if (!q) return true;
       const legacyValues =
         m.legacyProfile && typeof m.legacyProfile === "object"
@@ -358,7 +381,44 @@ export default function AdminWorkbenchPage() {
         .filter(Boolean)
         .some((x) => String(x).toLowerCase().includes(q));
     });
-  }, [members, search, statusFilter]);
+  }, [members, search, statusFilter, oilCoFilterId]);
+
+  const worksheetMembers = useMemo(() => {
+    const getValue = (m: Member, key: "memberNumber" | "name" | "address" | "city" | "phone" | "oilCompany" | "notes" | "status") => {
+      switch (key) {
+        case "memberNumber":
+          return m.memberNumber || "";
+        case "name":
+          return `${m.firstName || ""} ${m.lastName || ""}`.trim();
+        case "address":
+          return [m.addressLine1, m.addressLine2].filter(Boolean).join(", ");
+        case "city":
+          return m.city || "";
+        case "phone":
+          return m.phone || "";
+        case "oilCompany":
+          return m.oilCompanyId?.name || "";
+        case "notes":
+          return m.notes || "";
+        case "status":
+          return m.status || "";
+        default:
+          return "";
+      }
+    };
+    const out = [...filteredMembers];
+    out.sort((a, b) => {
+      const av = getValue(a, worksheetSort.key).toLowerCase();
+      const bv = getValue(b, worksheetSort.key).toLowerCase();
+      const cmp = av.localeCompare(bv, undefined, { numeric: true, sensitivity: "base" });
+      return worksheetSort.dir === "asc" ? cmp : -cmp;
+    });
+    return out;
+  }, [filteredMembers, worksheetSort]);
+
+  function toggleWorksheetSort(key: "memberNumber" | "name" | "address" | "city" | "phone" | "oilCompany" | "notes" | "status") {
+    setWorksheetSort((prev) => (prev.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
+  }
 
   function oilCoDisplayCode(oc: OilCompany) {
     const n = oc.name.trim();
@@ -620,6 +680,26 @@ export default function AdminWorkbenchPage() {
     setActionMessage(`${label} export generated (${rows.length} rows).`);
   };
 
+  const generateWorksheetCsv = (rows: Member[]) => {
+    downloadCsv(
+      `worksheet-${fileNameStamp()}.csv`,
+      ["Member #", "Name", "Address", "City", "State", "Zip", "Phone", "Oil Company", "Notes", "Status"],
+      rows.map((m) => [
+        m.memberNumber || "",
+        `${m.firstName || ""} ${m.lastName || ""}`.trim(),
+        [m.addressLine1, m.addressLine2].filter(Boolean).join(", "),
+        m.city || "",
+        m.state || "",
+        m.postalCode || "",
+        m.phone || "",
+        m.oilCompanyId?.name || "",
+        m.notes || "",
+        m.status || "",
+      ])
+    );
+    setActionMessage(`Worksheet export generated (${rows.length} rows).`);
+  };
+
   const mailingAudience = () => {
     const includeActive = legacyBool("mailIncludeActive");
     const includeProspective = legacyBool("mailIncludeProspective");
@@ -664,6 +744,7 @@ export default function AdminWorkbenchPage() {
     memberNumber: current?.memberNumber || "—",
     address: [current?.addressLine1, current?.addressLine2].filter(Boolean).join(", ") || "—",
     cityStateZip: [current?.city, current?.state, current?.postalCode].filter(Boolean).join(" ").trim() || "—",
+    companyName: current?.oilCompanyId?.name || "Assigned Oil Company",
     email: current?.email || "—",
     phone: current?.phone || "—",
     customMessage: "Please update this message before printing.",
@@ -720,6 +801,12 @@ export default function AdminWorkbenchPage() {
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
             <option value="prospective">Prospective</option>
+          </select>
+          <select className="admin-wb-select" value={oilCoFilterId} onChange={(e) => setOilCoFilterId(e.target.value)}>
+            <option value="">All Oil Companies</option>
+            {oilCompanies.map((oc) => (
+              <option key={oc._id} value={oc._id}>{oc.name}</option>
+            ))}
           </select>
         </div>
       </header>
@@ -792,6 +879,10 @@ export default function AdminWorkbenchPage() {
                 </label>
                 <div className="admin-checkbox-grid">
                   <label>
+                    <input type="checkbox" checked={legacyBool("waiveFeeLifetime")} onChange={(e) => setLegacy("waiveFeeLifetime", e.target.checked)} />
+                    Lifetime Member
+                  </label>
+                  <label>
                     <input type="checkbox" checked={legacyBool("seniorMember")} onChange={(e) => setLegacy("seniorMember", e.target.checked)} />
                     Senior
                   </label>
@@ -804,8 +895,18 @@ export default function AdminWorkbenchPage() {
                     Use Both Names
                   </label>
                   <label>
-                    <input type="checkbox" checked={legacyBool("mailAddr")} onChange={(e) => setLegacy("mailAddr", e.target.checked)} />
-                    Mail Addr
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
+                      <input type="checkbox" checked={legacyBool("mailAddr")} onChange={(e) => setLegacy("mailAddr", e.target.checked)} />
+                      Mail Addr
+                    </span>
+                    <button
+                      type="button"
+                      className="admin-wb-btn admin-wb-btn-secondary"
+                      style={{ marginLeft: "0.4rem", fontSize: "0.6rem", padding: "0.15rem 0.35rem" }}
+                      onClick={() => setActiveTab("MAILINGS")}
+                    >
+                      Mail Address
+                    </button>
                   </label>
                 </div>
                 <label>First Name 1<input className="admin-input" value={form.firstName} onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))} /></label>
@@ -834,13 +935,23 @@ export default function AdminWorkbenchPage() {
                 </label>
                 <label>
                   Type Phone 1
-                  <select className="admin-input" value={legacyValue("typePhone1") || "HOME"} onChange={(e) => setLegacy("typePhone1", e.target.value)}>
+                  <select className="admin-input" style={{ maxWidth: "92px" }} value={legacyValue("typePhone1") || "HOME"} onChange={(e) => setLegacy("typePhone1", e.target.value)}>
                     {PHONE_TYPE.map((s) => (
                       <option key={s} value={s}>{s}</option>
                     ))}
                   </select>
                 </label>
-                <label>P1 Ext<input className="admin-input" value={legacyValue("p1Ext")} onChange={(e) => setLegacy("p1Ext", e.target.value)} /></label>
+                <label>
+                  P1 Ext
+                  <input
+                    className="admin-input"
+                    style={{ maxWidth: "72px" }}
+                    inputMode="numeric"
+                    maxLength={3}
+                    value={legacyValue("p1Ext")}
+                    onChange={(e) => setLegacy("p1Ext", e.target.value.replace(/\D/g, "").slice(0, 3))}
+                  />
+                </label>
                 <label>
                   Phone 2
                   <input
@@ -852,13 +963,23 @@ export default function AdminWorkbenchPage() {
                 </label>
                 <label>
                   Type Phone 2
-                  <select className="admin-input" value={legacyValue("typePhone2") || "HOME"} onChange={(e) => setLegacy("typePhone2", e.target.value)}>
+                  <select className="admin-input" style={{ maxWidth: "92px" }} value={legacyValue("typePhone2") || "HOME"} onChange={(e) => setLegacy("typePhone2", e.target.value)}>
                     {PHONE_TYPE.map((s) => (
                       <option key={s} value={s}>{s}</option>
                     ))}
                   </select>
                 </label>
-                <label>P2 Ext<input className="admin-input" value={legacyValue("p2Ext")} onChange={(e) => setLegacy("p2Ext", e.target.value)} /></label>
+                <label>
+                  P2 Ext
+                  <input
+                    className="admin-input"
+                    style={{ maxWidth: "72px" }}
+                    inputMode="numeric"
+                    maxLength={3}
+                    value={legacyValue("p2Ext")}
+                    onChange={(e) => setLegacy("p2Ext", e.target.value.replace(/\D/g, "").slice(0, 3))}
+                  />
+                </label>
                 <label>
                   Phone 3
                   <input
@@ -870,13 +991,23 @@ export default function AdminWorkbenchPage() {
                 </label>
                 <label>
                   Type Phone 3
-                  <select className="admin-input" value={legacyValue("typePhone3") || "HOME"} onChange={(e) => setLegacy("typePhone3", e.target.value)}>
+                  <select className="admin-input" style={{ maxWidth: "92px" }} value={legacyValue("typePhone3") || "HOME"} onChange={(e) => setLegacy("typePhone3", e.target.value)}>
                     {PHONE_TYPE.map((s) => (
                       <option key={s} value={s}>{s}</option>
                     ))}
                   </select>
                 </label>
-                <label>P3 Ext<input className="admin-input" value={legacyValue("p3Ext")} onChange={(e) => setLegacy("p3Ext", e.target.value)} /></label>
+                <label>
+                  P3 Ext
+                  <input
+                    className="admin-input"
+                    style={{ maxWidth: "72px" }}
+                    inputMode="numeric"
+                    maxLength={3}
+                    value={legacyValue("p3Ext")}
+                    onChange={(e) => setLegacy("p3Ext", e.target.value.replace(/\D/g, "").slice(0, 3))}
+                  />
+                </label>
                 <label>E Mail<input className="admin-input" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} /></label>
                 <label>E Mail 2<input className="admin-input" value={legacyValue("email2")} onChange={(e) => setLegacy("email2", e.target.value)} /></label>
                 <label>
@@ -1311,11 +1442,21 @@ export default function AdminWorkbenchPage() {
         {activeTab === "MAILINGS" && (
           <div className="admin-workbench-data-entry">
             <div className="admin-card admin-workbench-section">
-              <h2>Mailings</h2>
-              <h3>Editable Letter View</h3>
-              <p className="admin-readonly-hint">
-                Template fields auto-fill from the currently selected member in active search results.
-              </p>
+              <h2>Mail Manager</h2>
+              <h3>Template Buttons</h3>
+              <div className="admin-form-grid-3" style={{ marginBottom: "0.65rem" }}>
+                {(Object.keys(MAILING_TEMPLATES) as Array<keyof typeof MAILING_TEMPLATES>).map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    className={`admin-wb-btn ${mailTemplateKey === key ? "admin-wb-btn-primary" : "admin-wb-btn-secondary"}`}
+                    style={{ width: "100%", justifyContent: "center", minHeight: "2rem" }}
+                    onClick={() => setMailTemplateKey(key)}
+                  >
+                    {MAILING_TEMPLATES[key].label}
+                  </button>
+                ))}
+              </div>
               <div className="admin-form-grid">
                 <label>
                   Letter Template
@@ -1328,6 +1469,10 @@ export default function AdminWorkbenchPage() {
                 <label>
                   Recipient (selected member)
                   <input className="admin-input" readOnly value={mailingMergeData.memberName} />
+                </label>
+                <label className="admin-form-span-2">
+                  Recipient Address
+                  <input className="admin-input" readOnly value={`${mailingMergeData.address} ${mailingMergeData.cityStateZip}`.trim()} />
                 </label>
                 <label className="admin-form-span-2">
                   Subject
@@ -1472,22 +1617,27 @@ export default function AdminWorkbenchPage() {
               <p className="admin-readonly-hint">
                 Displays the same row-style data as search results. Click any row to load that member in Data Entry.
               </p>
+              <div className="admin-actions-row" style={{ marginBottom: "0.6rem" }}>
+                <button type="button" className="admin-btn" onClick={() => generateWorksheetCsv(worksheetMembers)}>
+                  Export Worksheet to Excel
+                </button>
+              </div>
               <div className="admin-table-wrap">
                 <table className="admin-table">
                   <thead>
                     <tr>
-                      <th>ID</th>
-                      <th>Name</th>
-                      <th>Address</th>
-                      <th>City</th>
-                      <th>Phone</th>
-                      <th>Oil Co</th>
-                      <th>Notes</th>
-                      <th>Status</th>
+                      <th><button type="button" className="admin-btn admin-btn-ghost" onClick={() => toggleWorksheetSort("memberNumber")}>ID</button></th>
+                      <th><button type="button" className="admin-btn admin-btn-ghost" onClick={() => toggleWorksheetSort("name")}>Name</button></th>
+                      <th><button type="button" className="admin-btn admin-btn-ghost" onClick={() => toggleWorksheetSort("address")}>Address</button></th>
+                      <th><button type="button" className="admin-btn admin-btn-ghost" onClick={() => toggleWorksheetSort("city")}>City</button></th>
+                      <th><button type="button" className="admin-btn admin-btn-ghost" onClick={() => toggleWorksheetSort("phone")}>Phone</button></th>
+                      <th><button type="button" className="admin-btn admin-btn-ghost" onClick={() => toggleWorksheetSort("oilCompany")}>Oil Co</button></th>
+                      <th><button type="button" className="admin-btn admin-btn-ghost" onClick={() => toggleWorksheetSort("notes")}>Notes</button></th>
+                      <th><button type="button" className="admin-btn admin-btn-ghost" onClick={() => toggleWorksheetSort("status")}>Status</button></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredMembers.map((m) => {
+                    {worksheetMembers.map((m) => {
                       const rowActive = current?._id === m._id;
                       return (
                         <tr
@@ -1513,7 +1663,7 @@ export default function AdminWorkbenchPage() {
                   </tbody>
                 </table>
               </div>
-              {filteredMembers.length === 0 && (
+              {worksheetMembers.length === 0 && (
                 <p className="admin-meta" style={{ marginTop: "0.75rem" }}>No members match the current search/filter.</p>
               )}
             </div>
@@ -1709,89 +1859,6 @@ export default function AdminWorkbenchPage() {
                         </td>
                       </tr>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === "Oil Co Worksheet" && (
-          <div className="admin-workbench-data-entry">
-            <div className="admin-card admin-workbench-section">
-              <h2>Oil Co Worksheet</h2>
-              <h3>Members by Oil Company</h3>
-              <label style={{ display: "block", maxWidth: "24rem", marginBottom: "0.75rem" }}>
-                <span className="admin-meta" style={{ display: "block", marginBottom: "0.25rem" }}>Select Oil Company</span>
-                <select className="admin-input" value={oilCoWorksheetId} onChange={(e) => setOilCoWorksheetId(e.target.value)}>
-                  <option value="">All loaded members</option>
-                  {oilCompanies.map((oc) => (
-                    <option key={oc._id} value={oc._id}>{oc.name}</option>
-                  ))}
-                </select>
-              </label>
-              <div className="admin-toolbar" style={{ marginBottom: "0.6rem", justifyContent: "space-between" }}>
-                <span className="admin-meta">
-                  {membersForOilWorksheet.length} member(s) • Page {Math.min(oilCoWorksheetPage, oilCoWorksheetTotalPages)} of {oilCoWorksheetTotalPages}
-                </span>
-                <div style={{ display: "flex", gap: "0.35rem", alignItems: "center" }}>
-                  <button
-                    type="button"
-                    className="admin-btn admin-btn-ghost"
-                    onClick={() => setOilCoWorksheetPage(1)}
-                    disabled={oilCoWorksheetPage <= 1}
-                  >
-                    First
-                  </button>
-                  <button
-                    type="button"
-                    className="admin-btn admin-btn-ghost"
-                    onClick={() => setOilCoWorksheetPage((p) => Math.max(1, p - 1))}
-                    disabled={oilCoWorksheetPage <= 1}
-                  >
-                    Prev
-                  </button>
-                  <button
-                    type="button"
-                    className="admin-btn admin-btn-ghost"
-                    onClick={() => setOilCoWorksheetPage((p) => Math.min(oilCoWorksheetTotalPages, p + 1))}
-                    disabled={oilCoWorksheetPage >= oilCoWorksheetTotalPages}
-                  >
-                    Next
-                  </button>
-                  <button
-                    type="button"
-                    className="admin-btn admin-btn-ghost"
-                    onClick={() => setOilCoWorksheetPage(oilCoWorksheetTotalPages)}
-                    disabled={oilCoWorksheetPage >= oilCoWorksheetTotalPages}
-                  >
-                    Last
-                  </button>
-                </div>
-              </div>
-              <div className="admin-table-wrap">
-                <table className="admin-table">
-                  <thead><tr><th>ID</th><th>Name</th><th>Oil ID</th><th>Status</th></tr></thead>
-                  <tbody>
-                    {oilCoWorksheetRows.map((m) => (
-                      <tr
-                        key={m._id}
-                        onClick={() => {
-                          const gi = members.findIndex((x) => x._id === m._id);
-                          if (gi >= 0) setIndex(gi);
-                          setActiveTab("Data Entry");
-                        }}
-                        style={{ cursor: "pointer" }}
-                      >
-                        <td>{m.memberNumber || "—"}</td>
-                        <td>{m.firstName} {m.lastName}</td>
-                        <td>{String((m.legacyProfile as Record<string, unknown> | undefined)?.oilId ?? "—")}</td>
-                        <td><span className={`admin-pill${m.status === "active" ? " ok" : ""}`}>{m.status}</span></td>
-                      </tr>
-                    ))}
-                    {oilCoWorksheetRows.length === 0 && (
-                      <tr><td colSpan={4}>No members for this selection.</td></tr>
-                    )}
                   </tbody>
                 </table>
               </div>

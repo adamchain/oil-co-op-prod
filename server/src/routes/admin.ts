@@ -132,6 +132,7 @@ router.get("/members", async (req, res) => {
   const q = (req.query.q as string) || "";
   const qTrimmed = q.trim();
   const status = req.query.status as string | undefined;
+  const oilCompanyId = req.query.oilCompanyId as string | undefined;
   const signedUpVia = req.query.signedUpVia as string | undefined;
   const filter: Record<string, unknown> = { role: "member" };
   if (status && ["active", "expired", "cancelled"].includes(status)) {
@@ -139,6 +140,9 @@ router.get("/members", async (req, res) => {
   }
   if (signedUpVia && ["web", "phone", "admin"].includes(signedUpVia)) {
     filter.signedUpVia = signedUpVia;
+  }
+  if (oilCompanyId && mongoose.isValidObjectId(oilCompanyId)) {
+    filter.oilCompanyId = new mongoose.Types.ObjectId(oilCompanyId);
   }
   if (qTrimmed) {
     const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
@@ -174,12 +178,14 @@ router.get("/members", async (req, res) => {
   }
   let members = await Member.find(filter)
     .sort({ createdAt: -1 })
-    .limit(qTrimmed ? 1200 : 200)
+    .limit(qTrimmed ? 5000 : 200)
     .populate("oilCompanyId", "name")
     .lean();
 
   if (qTrimmed) {
     const qLower = qTrimmed.toLowerCase();
+    const isShortStateLikeQuery = /^[a-z]{1,2}$/i.test(qTrimmed);
+    const isStateAbbrevQuery = /^[a-z]{2}$/i.test(qTrimmed);
     const score = (m: any) => {
       const first = String(m.firstName || "").toLowerCase();
       const last = String(m.lastName || "").toLowerCase();
@@ -192,6 +198,7 @@ router.get("/members", async (req, res) => {
       const phone = String(m.phone || "").toLowerCase();
       const notes = String(m.notes || "").toLowerCase();
 
+      if (isStateAbbrevQuery && stateText === qLower) return 0;
       if (first.startsWith(qLower) || last.startsWith(qLower)) return 0;
       if (full.includes(qLower)) return 1;
       if (memberNo.includes(qLower)) return 2;
@@ -205,7 +212,7 @@ router.get("/members", async (req, res) => {
 
     members = members
       .sort((a, b) => score(a) - score(b))
-      .slice(0, 300);
+      .slice(0, isShortStateLikeQuery ? 1200 : 300);
   }
   res.json({ members });
 });
