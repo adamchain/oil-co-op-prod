@@ -336,21 +336,10 @@ export default function AdminOilCompaniesPage() {
   }
 
   return (
-    <>
+    <div className="admin-oil-companies-page">
       <p style={{ color: "var(--admin-muted)", fontSize: "0.875rem", margin: "0 0 1rem" }}>
         Manage oil company records. All 12 import fields are shown below.
       </p>
-
-      <div className="admin-stats">
-        <div className="admin-stat">
-          <strong>{rows.length}</strong>
-          <span>Total companies</span>
-        </div>
-        <div className="admin-stat">
-          <strong>{activeCount}</strong>
-          <span>Active companies</span>
-        </div>
-      </div>
 
       <div className="admin-card">
         <h2>Oil Companies</h2>
@@ -367,7 +356,7 @@ export default function AdminOilCompaniesPage() {
                 </option>
               ))}
           </select>
-          <span className="admin-meta">{filteredSortedRows.length} row(s)</span>
+          <span className="admin-meta">{filteredSortedRows.length} row(s) · {activeCount} active · {rows.length} total</span>
         </div>
         <div
           style={{
@@ -483,6 +472,6 @@ export default function AdminOilCompaniesPage() {
           </table>
         </div>
       </div>
-    </>
+    </div>
   );
 }
