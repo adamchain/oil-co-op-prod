@@ -750,7 +750,7 @@
 }
 
 .admin-wb-panel .admin-form-grid {
-  gap: 0.35rem 0.45rem;
+  gap: 0.22rem 0.32rem;
 }
 
 .admin-wb-panel .admin-form-grid label {
@@ -761,12 +761,12 @@
 }
 
 .admin-wb-panel .admin-input {
-  padding: 0.25rem 0.4rem;
+  padding: 0.16rem 0.32rem;
   border: 1px solid #94a3b8;
   border-radius: var(--wb-radius-sm);
   font-size: 0.88rem;
   font-weight: 700;
-  line-height: 1.35;
+  line-height: 1.2;
   color: #0f172a;
   min-width: 0;
   background: #ffffff;
@@ -790,13 +790,13 @@
 .admin-wb-panel .admin-form-grid-4 {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.35rem 0.45rem;
+  gap: 0.22rem 0.32rem;
 }
 
 .admin-wb-panel .admin-form-grid-3 {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.35rem 0.45rem;
+  gap: 0.22rem 0.32rem;
 }
 
 .admin-wb-panel .admin-form-grid-4 label {
@@ -806,7 +806,7 @@
   letter-spacing: 0.03em;
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.12rem;
   min-width: 0;
   overflow: hidden;
 }
