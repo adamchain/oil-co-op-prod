@@ -136,6 +136,9 @@ const MAILING_TEMPLATES = {
   },
 } as const;
 
+const DEFAULT_MAIL_HEADER = "Oil Co-op Administrative Office\nMember Services Workbench";
+const DEFAULT_MAIL_FOOTER = "Sincerely,\nOil Co-op Member Services";
+
 function csvCell(v: unknown): string {
   const s = String(v ?? "");
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, "\"\"")}"` : s;
@@ -179,6 +182,7 @@ export default function AdminWorkbenchPage() {
     key: "name",
     dir: "asc",
   });
+  const [worksheetPage, setWorksheetPage] = useState(1);
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   const [oilCompanies, setOilCompanies] = useState<OilCompany[]>([]);
@@ -198,6 +202,10 @@ export default function AdminWorkbenchPage() {
   const [mailTemplateKey, setMailTemplateKey] = useState<keyof typeof MAILING_TEMPLATES>("newMember");
   const [mailSubject, setMailSubject] = useState<string>(MAILING_TEMPLATES.newMember.subject);
   const [mailBody, setMailBody] = useState<string>(MAILING_TEMPLATES.newMember.body);
+  const [mailHeader, setMailHeader] = useState<string>(DEFAULT_MAIL_HEADER);
+  const [mailFooter, setMailFooter] = useState<string>(DEFAULT_MAIL_FOOTER);
+  const [mailToEmail, setMailToEmail] = useState("");
+  const [mailSending, setMailSending] = useState(false);
 
   const [form, setForm] = useState({
     firstName: "",
@@ -345,6 +353,10 @@ export default function AdminWorkbenchPage() {
     setMailBody(tpl.body);
   }, [mailTemplateKey]);
 
+  useEffect(() => {
+    setMailToEmail(current?.email || "");
+  }, [current?.email]);
+
   const filteredMembers = useMemo(() => {
     const q = search.trim().toLowerCase();
     return members.filter((m) => {
@@ -416,6 +428,22 @@ export default function AdminWorkbenchPage() {
     return out;
   }, [filteredMembers, worksheetSort]);
 
+  const worksheetPageSize = 50;
+  const worksheetTotalPages = Math.max(1, Math.ceil(worksheetMembers.length / worksheetPageSize));
+  const worksheetPageRows = useMemo(() => {
+    const safePage = Math.min(Math.max(1, worksheetPage), worksheetTotalPages);
+    const start = (safePage - 1) * worksheetPageSize;
+    return worksheetMembers.slice(start, start + worksheetPageSize);
+  }, [worksheetMembers, worksheetPage, worksheetTotalPages]);
+
+  useEffect(() => {
+    setWorksheetPage(1);
+  }, [search, statusFilter, oilCoFilterId, worksheetSort]);
+
+  useEffect(() => {
+    setWorksheetPage((p) => Math.min(p, worksheetTotalPages));
+  }, [worksheetTotalPages]);
+
   function toggleWorksheetSort(key: "memberNumber" | "name" | "address" | "city" | "phone" | "oilCompany" | "notes" | "status") {
     setWorksheetSort((prev) => (prev.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
   }
@@ -469,11 +497,11 @@ export default function AdminWorkbenchPage() {
     }
   };
 
-  const brandedShell = (title: string, content: string) => `
+  const brandedShell = (title: string, content: string, options?: { brandTitle?: string; brandSubtitle?: string }) => `
     <div style="max-width:900px;margin:0 auto">
       <header style="border-bottom:2px solid #c2410c;padding-bottom:10px;margin-bottom:18px">
-        <div style="font-size:22px;font-weight:700;color:#1f2937">Oil Co-op Administrative Office</div>
-        <div style="font-size:12px;color:#6b7280;margin-top:4px">Member Services Workbench</div>
+        <div style="font-size:22px;font-weight:700;color:#1f2937">${escHtml(options?.brandTitle || "Oil Co-op Administrative Office")}</div>
+        <div style="font-size:12px;color:#6b7280;margin-top:4px">${escHtml(options?.brandSubtitle || "Member Services Workbench")}</div>
       </header>
       <h1 style="margin:0 0 12px;font-size:20px;color:#111827">${escHtml(title)}</h1>
       ${content}
@@ -483,7 +511,12 @@ export default function AdminWorkbenchPage() {
     </div>
   `;
 
-  const brandedLetterHtml = (subject: string, recipientName: string, bodyText: string) =>
+  const brandedLetterHtml = (
+    subject: string,
+    recipientName: string,
+    bodyText: string,
+    options?: { brandTitle?: string; brandSubtitle?: string; footerText?: string }
+  ) =>
     brandedShell(
       subject,
       `
@@ -491,10 +524,10 @@ export default function AdminWorkbenchPage() {
         <p style="margin:0 0 10px">${new Date().toLocaleDateString()}</p>
         <p style="margin:0 0 12px">${escHtml(recipientName || "Member")}</p>
         <p style="margin:0 0 14px;white-space:normal;line-height:1.55">${nl2br(bodyText)}</p>
-        <p style="margin:20px 0 0">Sincerely,</p>
-        <p style="margin:4px 0 0;font-weight:600">Oil Co-op Member Services</p>
+        <p style="margin:20px 0 0;white-space:normal;line-height:1.55">${nl2br(options?.footerText || DEFAULT_MAIL_FOOTER)}</p>
       </div>
-      `
+      `,
+      { brandTitle: options?.brandTitle, brandSubtitle: options?.brandSubtitle }
     );
 
   const nav = (kind: "first" | "prev" | "next" | "last") => {
@@ -762,11 +795,51 @@ export default function AdminWorkbenchPage() {
       String((mailingMergeData as Record<string, string>)[key] ?? "")
     );
 
+  const mergedHeader = applyMailMerge(mailHeader);
+  const mergedHeaderLines = mergedHeader.split("\n").map((s) => s.trim()).filter(Boolean);
+  const mailingBrandTitle = mergedHeaderLines[0] || "Oil Co-op Administrative Office";
+  const mailingBrandSubtitle = mergedHeaderLines.slice(1).join(" ") || "Member Services Workbench";
   const mailingPreviewHtml = brandedLetterHtml(
     applyMailMerge(mailSubject),
     mailingMergeData.memberName,
-    applyMailMerge(mailBody)
+    applyMailMerge(mailBody),
+    {
+      brandTitle: mailingBrandTitle,
+      brandSubtitle: mailingBrandSubtitle,
+      footerText: applyMailMerge(mailFooter),
+    }
   );
+
+  const sendMailingEmail = async () => {
+    if (!token || !current) return;
+    const to = mailToEmail.trim();
+    if (!to) {
+      setActionMessage("Recipient email is required.");
+      return;
+    }
+    try {
+      setMailSending(true);
+      await api(`/api/admin/members/${current._id}/send-email`, {
+        method: "POST",
+        token,
+        body: JSON.stringify({
+          to,
+          subject: applyMailMerge(mailSubject),
+          body: applyMailMerge(mailBody),
+        }),
+      });
+      setActionMessage(`Email sent to ${to}.`);
+      const details = await api<{ billing: BillingEvent[]; communications: Comm[]; referral: Referral | null }>(
+        `/api/admin/members/${current._id}`,
+        { token }
+      );
+      setCommunications(details.communications || []);
+    } catch (e) {
+      setActionMessage(e instanceof Error ? e.message : "Failed to send email.");
+    } finally {
+      setMailSending(false);
+    }
+  };
 
   const refundLetterHtml = () =>
     brandedLetterHtml(
@@ -1484,12 +1557,54 @@ export default function AdminWorkbenchPage() {
                   Subject
                   <input className="admin-input" value={mailSubject} onChange={(e) => setMailSubject(e.target.value)} />
                 </label>
+                <label className="admin-form-span-2">
+                  Letter Header
+                  <textarea
+                    className="admin-input admin-note-input"
+                    style={{ minHeight: "74px" }}
+                    value={mailHeader}
+                    onChange={(e) => setMailHeader(e.target.value)}
+                    placeholder={"Oil Co-op Administrative Office\nMember Services Workbench"}
+                  />
+                </label>
+                <label className="admin-form-span-2">
+                  Send To Email
+                  <input
+                    className="admin-input"
+                    value={mailToEmail}
+                    onChange={(e) => setMailToEmail(e.target.value)}
+                    placeholder="member@example.com"
+                  />
+                </label>
                 <label className="admin-form-span-2 admin-note-field">
                   Body
                   <textarea className="admin-input admin-note-input" style={{ minHeight: "180px" }} value={mailBody} onChange={(e) => setMailBody(e.target.value)} />
                 </label>
+                <label className="admin-form-span-2">
+                  Letter Footer
+                  <textarea
+                    className="admin-input admin-note-input"
+                    style={{ minHeight: "88px" }}
+                    value={mailFooter}
+                    onChange={(e) => setMailFooter(e.target.value)}
+                    placeholder={"Sincerely,\nOil Co-op Member Services"}
+                  />
+                </label>
               </div>
               <div className="admin-actions-row">
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-ghost"
+                  onClick={() => {
+                    setMailHeader(DEFAULT_MAIL_HEADER);
+                    setMailFooter(DEFAULT_MAIL_FOOTER);
+                  }}
+                >
+                  Reset Header/Footer
+                </button>
+                <button type="button" className="admin-btn admin-btn-primary" disabled={!current || mailSending || !mailToEmail.trim()} onClick={() => void sendMailingEmail()}>
+                  {mailSending ? "Sending..." : "Email to Recipient"}
+                </button>
                 <button type="button" className="admin-btn" onClick={() => openPrintPreview("Mailing Letter Preview", mailingPreviewHtml)}>
                   Preview Letter
                 </button>
@@ -1623,10 +1738,19 @@ export default function AdminWorkbenchPage() {
               <p className="admin-readonly-hint">
                 Displays the same row-style data as search results. Click any row to load that member in Data Entry.
               </p>
-              <div className="admin-actions-row" style={{ marginBottom: "0.6rem" }}>
+              <div className="admin-toolbar" style={{ marginBottom: "0.6rem", justifyContent: "space-between" }}>
                 <button type="button" className="admin-btn" onClick={() => generateWorksheetCsv(worksheetMembers)}>
                   Export Worksheet to Excel
                 </button>
+                <div style={{ display: "flex", gap: "0.35rem", alignItems: "center", flexWrap: "wrap" }}>
+                  <span className="admin-meta">
+                    {worksheetMembers.length} member(s) • Page {Math.min(worksheetPage, worksheetTotalPages)} of {worksheetTotalPages}
+                  </span>
+                  <button type="button" className="admin-btn admin-btn-ghost" onClick={() => setWorksheetPage(1)} disabled={worksheetPage <= 1}>First</button>
+                  <button type="button" className="admin-btn admin-btn-ghost" onClick={() => setWorksheetPage((p) => Math.max(1, p - 1))} disabled={worksheetPage <= 1}>Prev</button>
+                  <button type="button" className="admin-btn admin-btn-ghost" onClick={() => setWorksheetPage((p) => Math.min(worksheetTotalPages, p + 1))} disabled={worksheetPage >= worksheetTotalPages}>Next</button>
+                  <button type="button" className="admin-btn admin-btn-ghost" onClick={() => setWorksheetPage(worksheetTotalPages)} disabled={worksheetPage >= worksheetTotalPages}>Last</button>
+                </div>
               </div>
               <div className="admin-table-wrap">
                 <table className="admin-table">
@@ -1643,7 +1767,7 @@ export default function AdminWorkbenchPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {worksheetMembers.map((m) => {
+                    {worksheetPageRows.map((m) => {
                       const rowActive = current?._id === m._id;
                       return (
                         <tr
@@ -1669,7 +1793,7 @@ export default function AdminWorkbenchPage() {
                   </tbody>
                 </table>
               </div>
-              {worksheetMembers.length === 0 && (
+              {worksheetPageRows.length === 0 && (
                 <p className="admin-meta" style={{ marginTop: "0.75rem" }}>No members match the current search/filter.</p>
               )}
             </div>

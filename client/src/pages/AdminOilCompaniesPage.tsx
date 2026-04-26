@@ -335,6 +335,13 @@ export default function AdminOilCompaniesPage() {
     }
   }
 
+  const narrowCodeStyle = { minWidth: "72px", maxWidth: "90px" } as const;
+  const narrowStateStyle = { minWidth: "56px", maxWidth: "64px" } as const;
+  const narrowZipStyle = { minWidth: "88px", maxWidth: "110px" } as const;
+  const narrowPhoneStyle = { minWidth: "118px", maxWidth: "146px" } as const;
+  const mediumContactStyle = { minWidth: "140px", maxWidth: "200px" } as const;
+  const mediumEmailStyle = { minWidth: "170px", maxWidth: "240px" } as const;
+
   return (
     <div className="admin-oil-companies-page">
       <p style={{ color: "var(--admin-muted)", fontSize: "0.875rem", margin: "0 0 1rem" }}>
@@ -371,20 +378,20 @@ export default function AdminOilCompaniesPage() {
           }}
         >
           <div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(120px, 1fr)) auto", gap: "0.5rem", alignItems: "center" }}>
-            <input className="admin-input" style={{ minWidth: 0 }} value={newRow.oilCoCode} onChange={(e) => setNewRow((s) => ({ ...s, oilCoCode: e.target.value }))} placeholder="Code" />
+            <input className="admin-input" style={{ ...narrowCodeStyle }} value={newRow.oilCoCode} onChange={(e) => setNewRow((s) => ({ ...s, oilCoCode: e.target.value }))} placeholder="Code" />
             <input className="admin-input" style={{ minWidth: 0 }} value={newRow.name} onChange={(e) => setNewRow((s) => ({ ...s, name: e.target.value }))} placeholder="Name" />
             <input className="admin-input" style={{ minWidth: 0 }} value={newRow.oilCoAddress} onChange={(e) => setNewRow((s) => ({ ...s, oilCoAddress: e.target.value }))} placeholder="Address" />
             <input className="admin-input" style={{ minWidth: 0 }} value={newRow.oilCoCity} onChange={(e) => setNewRow((s) => ({ ...s, oilCoCity: e.target.value }))} placeholder="City" />
-            <input className="admin-input" style={{ minWidth: 0, maxWidth: "64px" }} value={newRow.oilCoState} onChange={(e) => setNewRow((s) => ({ ...s, oilCoState: e.target.value.toUpperCase().slice(0, 2) }))} placeholder="ST" />
-            <input className="admin-input" style={{ minWidth: 0 }} value={newRow.oilCoZip} onChange={(e) => setNewRow((s) => ({ ...s, oilCoZip: e.target.value }))} placeholder="Zip" />
-            <input className="admin-input" style={{ minWidth: 0 }} value={newRow.contactPhone} onChange={(e) => setNewRow((s) => ({ ...s, contactPhone: e.target.value }))} placeholder="Phone" />
-            <input className="admin-input" style={{ minWidth: 0 }} value={newRow.oilCoFax} onChange={(e) => setNewRow((s) => ({ ...s, oilCoFax: e.target.value }))} placeholder="Fax" />
-            <input className="admin-input" style={{ minWidth: 0 }} value={newRow.oilCoContact} onChange={(e) => setNewRow((s) => ({ ...s, oilCoContact: e.target.value }))} placeholder="Contact 1" />
-            <input className="admin-input" style={{ minWidth: 0 }} value={newRow.oilCoContactEmail} onChange={(e) => setNewRow((s) => ({ ...s, oilCoContactEmail: e.target.value }))} placeholder="Email 1" />
-            <input className="admin-input" style={{ minWidth: 0 }} value={newRow.oilCoContact2} onChange={(e) => setNewRow((s) => ({ ...s, oilCoContact2: e.target.value }))} placeholder="Contact 2" />
-            <input className="admin-input" style={{ minWidth: 0 }} value={newRow.oilCoContact2Email} onChange={(e) => setNewRow((s) => ({ ...s, oilCoContact2Email: e.target.value }))} placeholder="Email 2" />
-            <input className="admin-input" style={{ minWidth: 0 }} value={newRow.oilCoContact3} onChange={(e) => setNewRow((s) => ({ ...s, oilCoContact3: e.target.value }))} placeholder="Contact 3" />
-            <input className="admin-input" style={{ minWidth: 0 }} value={newRow.oilCoContact3Email} onChange={(e) => setNewRow((s) => ({ ...s, oilCoContact3Email: e.target.value }))} placeholder="Email 3" />
+            <input className="admin-input" style={{ ...narrowStateStyle }} value={newRow.oilCoState} onChange={(e) => setNewRow((s) => ({ ...s, oilCoState: e.target.value.toUpperCase().slice(0, 2) }))} placeholder="ST" />
+            <input className="admin-input" style={{ ...narrowZipStyle }} value={newRow.oilCoZip} onChange={(e) => setNewRow((s) => ({ ...s, oilCoZip: e.target.value }))} placeholder="Zip" />
+            <input className="admin-input" style={{ ...narrowPhoneStyle }} value={newRow.contactPhone} onChange={(e) => setNewRow((s) => ({ ...s, contactPhone: e.target.value }))} placeholder="Phone" />
+            <input className="admin-input" style={{ ...narrowPhoneStyle }} value={newRow.oilCoFax} onChange={(e) => setNewRow((s) => ({ ...s, oilCoFax: e.target.value }))} placeholder="Fax" />
+            <input className="admin-input" style={{ ...mediumContactStyle }} value={newRow.oilCoContact} onChange={(e) => setNewRow((s) => ({ ...s, oilCoContact: e.target.value }))} placeholder="Contact 1" />
+            <input className="admin-input" style={{ ...mediumEmailStyle }} value={newRow.oilCoContactEmail} onChange={(e) => setNewRow((s) => ({ ...s, oilCoContactEmail: e.target.value }))} placeholder="Email 1" />
+            <input className="admin-input" style={{ ...mediumContactStyle }} value={newRow.oilCoContact2} onChange={(e) => setNewRow((s) => ({ ...s, oilCoContact2: e.target.value }))} placeholder="Contact 2" />
+            <input className="admin-input" style={{ ...mediumEmailStyle }} value={newRow.oilCoContact2Email} onChange={(e) => setNewRow((s) => ({ ...s, oilCoContact2Email: e.target.value }))} placeholder="Email 2" />
+            <input className="admin-input" style={{ ...mediumContactStyle }} value={newRow.oilCoContact3} onChange={(e) => setNewRow((s) => ({ ...s, oilCoContact3: e.target.value }))} placeholder="Contact 3" />
+            <input className="admin-input" style={{ ...mediumEmailStyle }} value={newRow.oilCoContact3Email} onChange={(e) => setNewRow((s) => ({ ...s, oilCoContact3Email: e.target.value }))} placeholder="Email 3" />
             <button type="button" className="admin-btn" onClick={createRow} disabled={saving || !newRow.name.trim()}>
               Add Oil Company
             </button>
@@ -418,20 +425,20 @@ export default function AdminOilCompaniesPage() {
                 const parsed = parseNotes(r.notes);
                 return (
                   <tr key={r._id}>
-                    <td>{isEditing ? <input className="admin-input" style={{ minWidth: "80px" }} value={edit.oilCoCode} onChange={(e) => setEdit((s) => ({ ...s, oilCoCode: e.target.value }))} /> : (parsed.oilCoCode || "—")}</td>
+                    <td>{isEditing ? <input className="admin-input" style={{ ...narrowCodeStyle }} value={edit.oilCoCode} onChange={(e) => setEdit((s) => ({ ...s, oilCoCode: e.target.value }))} /> : (parsed.oilCoCode || "—")}</td>
                     <td>{isEditing ? <input className="admin-input" style={{ minWidth: "180px" }} value={edit.name} onChange={(e) => setEdit((s) => ({ ...s, name: e.target.value }))} /> : r.name}</td>
                     <td>{isEditing ? <input className="admin-input" style={{ minWidth: "220px" }} value={edit.oilCoAddress} onChange={(e) => setEdit((s) => ({ ...s, oilCoAddress: e.target.value }))} /> : (parsed.oilCoAddress || "—")}</td>
                     <td>{isEditing ? <input className="admin-input" style={{ minWidth: "140px" }} value={edit.oilCoCity} onChange={(e) => setEdit((s) => ({ ...s, oilCoCity: e.target.value }))} /> : (parsed.oilCoCity || "—")}</td>
-                    <td>{isEditing ? <input className="admin-input" style={{ minWidth: "56px", maxWidth: "64px" }} value={edit.oilCoState} onChange={(e) => setEdit((s) => ({ ...s, oilCoState: e.target.value.toUpperCase().slice(0, 2) }))} /> : (parsed.oilCoState || "—")}</td>
-                    <td>{isEditing ? <input className="admin-input" style={{ minWidth: "100px" }} value={edit.oilCoZip} onChange={(e) => setEdit((s) => ({ ...s, oilCoZip: e.target.value }))} /> : (parsed.oilCoZip || "—")}</td>
-                    <td>{isEditing ? <input className="admin-input" style={{ minWidth: "140px" }} value={edit.contactPhone} onChange={(e) => setEdit((s) => ({ ...s, contactPhone: e.target.value }))} /> : (r.contactPhone || "—")}</td>
-                    <td>{isEditing ? <input className="admin-input" style={{ minWidth: "140px" }} value={edit.oilCoFax} onChange={(e) => setEdit((s) => ({ ...s, oilCoFax: e.target.value }))} /> : (parsed.oilCoFax || "—")}</td>
-                    <td>{isEditing ? <input className="admin-input" style={{ minWidth: "180px" }} value={edit.oilCoContact} onChange={(e) => setEdit((s) => ({ ...s, oilCoContact: e.target.value }))} /> : (parsed.oilCoContact || "—")}</td>
-                    <td>{isEditing ? <input className="admin-input" style={{ minWidth: "180px" }} value={edit.oilCoContactEmail} onChange={(e) => setEdit((s) => ({ ...s, oilCoContactEmail: e.target.value }))} /> : (parsed.oilCoContactEmail || contactEmailsArray(r)[0] || "—")}</td>
-                    <td>{isEditing ? <input className="admin-input" style={{ minWidth: "180px" }} value={edit.oilCoContact2} onChange={(e) => setEdit((s) => ({ ...s, oilCoContact2: e.target.value }))} /> : (parsed.oilCoContact2 || "—")}</td>
-                    <td>{isEditing ? <input className="admin-input" style={{ minWidth: "180px" }} value={edit.oilCoContact2Email} onChange={(e) => setEdit((s) => ({ ...s, oilCoContact2Email: e.target.value }))} /> : (parsed.oilCoContact2Email || contactEmailsArray(r)[1] || "—")}</td>
-                    <td>{isEditing ? <input className="admin-input" style={{ minWidth: "180px" }} value={edit.oilCoContact3} onChange={(e) => setEdit((s) => ({ ...s, oilCoContact3: e.target.value }))} /> : (parsed.oilCoContact3 || "—")}</td>
-                    <td>{isEditing ? <input className="admin-input" style={{ minWidth: "180px" }} value={edit.oilCoContact3Email} onChange={(e) => setEdit((s) => ({ ...s, oilCoContact3Email: e.target.value }))} /> : (parsed.oilCoContact3Email || contactEmailsArray(r)[2] || "—")}</td>
+                    <td>{isEditing ? <input className="admin-input" style={{ ...narrowStateStyle }} value={edit.oilCoState} onChange={(e) => setEdit((s) => ({ ...s, oilCoState: e.target.value.toUpperCase().slice(0, 2) }))} /> : (parsed.oilCoState || "—")}</td>
+                    <td>{isEditing ? <input className="admin-input" style={{ ...narrowZipStyle }} value={edit.oilCoZip} onChange={(e) => setEdit((s) => ({ ...s, oilCoZip: e.target.value }))} /> : (parsed.oilCoZip || "—")}</td>
+                    <td>{isEditing ? <input className="admin-input" style={{ ...narrowPhoneStyle }} value={edit.contactPhone} onChange={(e) => setEdit((s) => ({ ...s, contactPhone: e.target.value }))} /> : (r.contactPhone || "—")}</td>
+                    <td>{isEditing ? <input className="admin-input" style={{ ...narrowPhoneStyle }} value={edit.oilCoFax} onChange={(e) => setEdit((s) => ({ ...s, oilCoFax: e.target.value }))} /> : (parsed.oilCoFax || "—")}</td>
+                    <td>{isEditing ? <input className="admin-input" style={{ ...mediumContactStyle }} value={edit.oilCoContact} onChange={(e) => setEdit((s) => ({ ...s, oilCoContact: e.target.value }))} /> : (parsed.oilCoContact || "—")}</td>
+                    <td>{isEditing ? <input className="admin-input" style={{ ...mediumEmailStyle }} value={edit.oilCoContactEmail} onChange={(e) => setEdit((s) => ({ ...s, oilCoContactEmail: e.target.value }))} /> : (parsed.oilCoContactEmail || contactEmailsArray(r)[0] || "—")}</td>
+                    <td>{isEditing ? <input className="admin-input" style={{ ...mediumContactStyle }} value={edit.oilCoContact2} onChange={(e) => setEdit((s) => ({ ...s, oilCoContact2: e.target.value }))} /> : (parsed.oilCoContact2 || "—")}</td>
+                    <td>{isEditing ? <input className="admin-input" style={{ ...mediumEmailStyle }} value={edit.oilCoContact2Email} onChange={(e) => setEdit((s) => ({ ...s, oilCoContact2Email: e.target.value }))} /> : (parsed.oilCoContact2Email || contactEmailsArray(r)[1] || "—")}</td>
+                    <td>{isEditing ? <input className="admin-input" style={{ ...mediumContactStyle }} value={edit.oilCoContact3} onChange={(e) => setEdit((s) => ({ ...s, oilCoContact3: e.target.value }))} /> : (parsed.oilCoContact3 || "—")}</td>
+                    <td>{isEditing ? <input className="admin-input" style={{ ...mediumEmailStyle }} value={edit.oilCoContact3Email} onChange={(e) => setEdit((s) => ({ ...s, oilCoContact3Email: e.target.value }))} /> : (parsed.oilCoContact3Email || contactEmailsArray(r)[2] || "—")}</td>
                     <td>{r.active === false ? "inactive" : "active"}</td>
                     <td style={{ whiteSpace: "nowrap" }}>
                       {isEditing ? (

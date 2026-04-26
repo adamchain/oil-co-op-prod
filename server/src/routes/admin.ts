@@ -946,6 +946,43 @@ const paymentLinkSchema = z.object({
   expiresInDays: z.number().int().min(1).max(90).default(30),
 });
 
+const sendMemberEmailSchema = z.object({
+  to: z.string().email().optional(),
+  subject: z.string().min(1),
+  body: z.string().min(1),
+});
+
+router.post("/members/:id/send-email", async (req: AuthedRequest, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const parsed = sendMemberEmailSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const member = await Member.findById(req.params.id);
+  if (!member || member.role !== "member") {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  const to = parsed.data.to?.trim().toLowerCase() || member.email;
+  const subject = parsed.data.subject.trim();
+  const body = parsed.data.body;
+
+  await sendMemberEmail(member._id, to, subject, body);
+  await logActivity(
+    member._id,
+    "admin_member_email_sent",
+    { to, subject, adminId: req.userId },
+    new mongoose.Types.ObjectId(req.userId!)
+  );
+
+  res.json({ ok: true, to });
+});
+
 router.post("/members/:id/payment-link", async (req: AuthedRequest, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) {
     res.status(400).json({ error: "Invalid id" });
