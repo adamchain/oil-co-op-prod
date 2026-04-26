@@ -817,6 +817,11 @@ export default function AdminWorkbenchPage() {
       setActionMessage("Recipient email is required.");
       return;
     }
+    const confirmed = window.confirm(`Send this email to ${to}?`);
+    if (!confirmed) {
+      setActionMessage("Email send cancelled.");
+      return;
+    }
     try {
       setMailSending(true);
       await api(`/api/admin/members/${current._id}/send-email`, {
@@ -1591,10 +1596,11 @@ export default function AdminWorkbenchPage() {
                   />
                 </label>
               </div>
-              <div className="admin-actions-row">
+              <div className="admin-actions-row" style={{ gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
                 <button
                   type="button"
                   className="admin-btn admin-btn-ghost"
+                  style={{ minWidth: "150px" }}
                   onClick={() => {
                     setMailHeader(DEFAULT_MAIL_HEADER);
                     setMailFooter(DEFAULT_MAIL_FOOTER);
@@ -1602,16 +1608,37 @@ export default function AdminWorkbenchPage() {
                 >
                   Reset Header/Footer
                 </button>
-                <button type="button" className="admin-btn admin-btn-primary" disabled={!current || mailSending || !mailToEmail.trim()} onClick={() => void sendMailingEmail()}>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-primary"
+                  style={{ minWidth: "150px" }}
+                  disabled={!current || mailSending || !mailToEmail.trim()}
+                  onClick={() => void sendMailingEmail()}
+                >
                   {mailSending ? "Sending..." : "Email to Recipient"}
                 </button>
-                <button type="button" className="admin-btn" onClick={() => openPrintPreview("Mailing Letter Preview", mailingPreviewHtml)}>
+                <button
+                  type="button"
+                  className="admin-btn"
+                  style={{ minWidth: "130px" }}
+                  onClick={() => openPrintPreview("Mailing Letter Preview", mailingPreviewHtml)}
+                >
                   Preview Letter
                 </button>
-                <button type="button" className="admin-btn" onClick={() => openPrintPreview("Mailing Letter", mailingPreviewHtml, true)}>
+                <button
+                  type="button"
+                  className="admin-btn"
+                  style={{ minWidth: "130px" }}
+                  onClick={() => openPrintPreview("Mailing Letter", mailingPreviewHtml, true)}
+                >
                   Print Letter
                 </button>
-                <button type="button" className="admin-btn" onClick={() => generateMembersCsv("Mailing Audience", mailingAudience())}>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-ghost"
+                  style={{ minWidth: "160px" }}
+                  onClick={() => generateMembersCsv("Mailing Audience", mailingAudience())}
+                >
                   Export Audience CSV
                 </button>
               </div>
