@@ -981,11 +981,11 @@ export default function AdminWorkbenchPage() {
                     </span>
                     <button
                       type="button"
-                      className="admin-wb-btn admin-wb-btn-secondary"
-                      style={{ marginLeft: "0.4rem", fontSize: "0.6rem", padding: "0.15rem 0.35rem" }}
+                      className="admin-wb-btn admin-wb-btn-primary"
+                      style={{ marginLeft: "0.5rem", fontSize: "0.7rem", padding: "0.24rem 0.55rem", fontWeight: 700 }}
                       onClick={() => setActiveTab("MAILINGS")}
                     >
-                      Mail Address
+                      Mail Manager
                     </button>
                   </label>
                 </div>
