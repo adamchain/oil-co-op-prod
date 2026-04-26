@@ -449,13 +449,20 @@ export default function AdminWorkbenchPage() {
   };
 
   const openPrintPreview = (title: string, body: string, triggerPrint = false) => {
-    const w = window.open("", "_blank", "noopener,noreferrer,width=960,height=720");
+    const w = window.open("", "_blank", "width=960,height=720");
     if (!w) {
       setActionMessage("Popup blocked. Please allow popups for print preview.");
       return;
     }
-    w.document.write(`<!doctype html><html><head><title>${title}</title><style>body{font-family:Arial,sans-serif;padding:24px;line-height:1.4}h1{margin-top:0;font-size:20px}table{border-collapse:collapse;width:100%;margin-top:12px}th,td{border:1px solid #ddd;padding:6px;font-size:12px;text-align:left}th{background:#f6f6f6}pre{white-space:pre-wrap;font-family:inherit}</style></head><body>${body}</body></html>`);
-    w.document.close();
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escHtml(title)}</title><style>body{font-family:Arial,sans-serif;padding:24px;line-height:1.4}h1{margin-top:0;font-size:20px}table{border-collapse:collapse;width:100%;margin-top:12px}th,td{border:1px solid #ddd;padding:6px;font-size:12px;text-align:left}th{background:#f6f6f6}pre{white-space:pre-wrap;font-family:inherit}</style></head><body>${body}</body></html>`;
+    try {
+      w.document.open();
+      w.document.write(html);
+      w.document.close();
+    } catch {
+      // Fallback for browsers that restrict direct document writes on new tabs/windows.
+      w.location.href = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
+    }
     if (triggerPrint) {
       w.focus();
       w.print();
@@ -789,13 +796,6 @@ export default function AdminWorkbenchPage() {
           <span className="admin-wb-count">Record {recordCount} of {members.length}</span>
         </div>
         <div className="admin-wb-header-right">
-          <input
-            className="admin-wb-search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") void loadMembers(); }}
-            placeholder="Search members..."
-          />
           <select className="admin-wb-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="all">All Records</option>
             <option value="active">Active</option>
@@ -808,6 +808,13 @@ export default function AdminWorkbenchPage() {
               <option key={oc._id} value={oc._id}>{oc.name}</option>
             ))}
           </select>
+          <input
+            className="admin-wb-search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") void loadMembers(); }}
+            placeholder="Search records..."
+          />
         </div>
       </header>
 
@@ -1443,14 +1450,21 @@ export default function AdminWorkbenchPage() {
           <div className="admin-workbench-data-entry">
             <div className="admin-card admin-workbench-section">
               <h2>Mail Manager</h2>
-              <h3>Template Buttons</h3>
-              <div className="admin-form-grid-3" style={{ marginBottom: "0.65rem" }}>
+              <h3>Templates</h3>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+                  gap: "0.35rem",
+                  marginBottom: "0.55rem",
+                }}
+              >
                 {(Object.keys(MAILING_TEMPLATES) as Array<keyof typeof MAILING_TEMPLATES>).map((key) => (
                   <button
                     key={key}
                     type="button"
                     className={`admin-wb-btn ${mailTemplateKey === key ? "admin-wb-btn-primary" : "admin-wb-btn-secondary"}`}
-                    style={{ width: "100%", justifyContent: "center", minHeight: "2rem" }}
+                    style={{ width: "100%", justifyContent: "center", minHeight: "1.85rem", fontSize: "0.68rem", padding: "0.22rem 0.38rem" }}
                     onClick={() => setMailTemplateKey(key)}
                   >
                     {MAILING_TEMPLATES[key].label}
@@ -1458,14 +1472,6 @@ export default function AdminWorkbenchPage() {
                 ))}
               </div>
               <div className="admin-form-grid">
-                <label>
-                  Letter Template
-                  <select className="admin-input" value={mailTemplateKey} onChange={(e) => setMailTemplateKey(e.target.value as keyof typeof MAILING_TEMPLATES)}>
-                    {Object.entries(MAILING_TEMPLATES).map(([key, tpl]) => (
-                      <option key={key} value={key}>{tpl.label}</option>
-                    ))}
-                  </select>
-                </label>
                 <label>
                   Recipient (selected member)
                   <input className="admin-input" readOnly value={mailingMergeData.memberName} />
