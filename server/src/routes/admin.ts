@@ -170,6 +170,13 @@ router.get("/members", async (req, res) => {
   }
   const tokens = qTrimmed.split(/\s+/).filter(Boolean);
   const escapeRx = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const stateOnlyClauseFor = (token: string): { $or: { state: RegExp }[] } | null => {
+    const alt = expandStateQuery(token);
+    if (!alt) return null;
+    const tokenRx = new RegExp(`^${escapeRx(token)}$`, "i");
+    const altRx = new RegExp(`^${escapeRx(alt)}$`, "i");
+    return { $or: [{ state: tokenRx }, { state: altRx }] };
+  };
   const buildOrForToken = (token: string) => {
     const rx = new RegExp(escapeRx(token), "i");
     const stateAlt = expandStateQuery(token);
@@ -208,12 +215,21 @@ router.get("/members", async (req, res) => {
       { "legacyProfile.contactNote": rx },
     ];
   };
-  if (tokens.length === 1) {
+  // When the entire query is exactly a known state abbreviation or state name
+  // (e.g. "PA", "Pennsylvania"), restrict the search to the state field only.
+  // Otherwise short tokens like "pa" would match any name/city containing "pa".
+  const stateOnly = tokens.length === 1 ? stateOnlyClauseFor(tokens[0]) : null;
+  if (stateOnly) {
+    filter.$and = [
+      ...((filter.$and as unknown[] | undefined) || []),
+      stateOnly,
+    ];
+  } else if (tokens.length === 1) {
     filter.$or = buildOrForToken(tokens[0]);
   } else if (tokens.length > 1) {
     filter.$and = [
       ...((filter.$and as unknown[] | undefined) || []),
-      ...tokens.map((t) => ({ $or: buildOrForToken(t) })),
+      ...tokens.map((t) => stateOnlyClauseFor(t) || { $or: buildOrForToken(t) }),
     ];
   }
   let members = await Member.find(filter)

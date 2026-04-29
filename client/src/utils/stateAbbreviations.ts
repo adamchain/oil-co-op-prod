@@ -69,3 +69,16 @@ export function stateSynonyms(stored: string | null | undefined): string[] {
   if (abbr) return [abbr, US_STATE_ABBR_TO_NAME[abbr]];
   return [trimmed];
 }
+
+/** When the query is exactly a US state abbr or full name, returns [abbr, fullName] (uppercased / normalized). Otherwise null. */
+export function exactStateMatch(query: string): [string, string] | null {
+  const trimmed = query.trim();
+  if (!trimmed) return null;
+  const upper = trimmed.toUpperCase();
+  if (US_STATE_ABBR_TO_NAME[upper]) {
+    return [upper, US_STATE_ABBR_TO_NAME[upper]];
+  }
+  const abbr = US_STATE_NAME_TO_ABBR[trimmed.toLowerCase()];
+  if (abbr) return [abbr, US_STATE_ABBR_TO_NAME[abbr]];
+  return null;
+}

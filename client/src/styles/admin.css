@@ -636,6 +636,62 @@
   border-color: var(--wb-accent);
 }
 
+.admin-wb-search-multi {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  border: 1px solid var(--wb-border);
+  border-radius: var(--wb-radius-sm);
+  padding: 0.18rem 0.32rem;
+  background: var(--wb-surface);
+  min-width: 220px;
+}
+
+.admin-wb-search-multi:focus-within {
+  border-color: var(--wb-accent);
+}
+
+.admin-wb-search-multi .admin-wb-search {
+  border: none;
+  padding: 0.18rem 0.25rem;
+  min-width: 110px;
+  flex: 1;
+  background: transparent;
+}
+
+.admin-wb-search-multi .admin-wb-search:focus {
+  border: none;
+}
+
+.admin-wb-search-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.08rem 0.45rem;
+  background: var(--wb-accent-soft);
+  color: var(--wb-accent);
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.admin-wb-search-chip button {
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.95rem;
+  line-height: 1;
+  padding: 0 0.1rem;
+  font-weight: 700;
+}
+
+.admin-wb-search-chip button:hover {
+  color: var(--wb-text);
+}
+
 .admin-wb-select {
   border: 1px solid var(--wb-border);
   border-radius: var(--wb-radius-sm);

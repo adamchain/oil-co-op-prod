@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../authContext";
-import { stateSynonyms } from "../utils/stateAbbreviations";
+import { stateSynonyms, exactStateMatch } from "../utils/stateAbbreviations";
 
 const tabs = [
   "Data Entry",
@@ -169,12 +169,16 @@ function formatPhoneValue(raw: string): string {
 
 export default function AdminWorkbenchPage() {
   const { token } = useAuth();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const memberParam = searchParams.get("member") ?? "";
   const missingMemberFetchAttempt = useRef<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabName>("Data Entry");
   const [members, setMembers] = useState<Member[]>([]);
-  const [search, setSearch] = useState(() => searchParams.get("q") || "");
+  const [searchTerms, setSearchTerms] = useState<string[]>(() => {
+    const q = searchParams.get("q") || "";
+    return q.trim().split(/\s+/).filter(Boolean);
+  });
+  const [searchInput, setSearchInput] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [oilCoFilterId, setOilCoFilterId] = useState("");
   const [flagFilter, setFlagFilter] = useState("");
@@ -227,7 +231,8 @@ export default function AdminWorkbenchPage() {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (search.trim()) params.set("q", search.trim());
+      const queryString = searchTerms.join(" ").trim();
+      if (queryString) params.set("q", queryString);
       if (statusFilter === "active") params.set("status", "active");
       if (statusFilter === "inactive") params.set("status", "expired");
       if (oilCoFilterId) params.set("oilCompanyId", oilCoFilterId);
@@ -249,8 +254,31 @@ export default function AdminWorkbenchPage() {
 
   useEffect(() => {
     const qq = searchParams.get("q") || "";
-    setSearch(qq);
+    setSearchTerms(qq.trim().split(/\s+/).filter(Boolean));
   }, [searchParams]);
+
+  function commitSearchTerm() {
+    const term = searchInput.trim();
+    if (!term) return;
+    setSearchInput("");
+    if (searchTerms.includes(term)) return;
+    const next = [...searchTerms, term];
+    setSearchParams((prev) => {
+      const np = new URLSearchParams(prev);
+      np.set("q", next.join(" "));
+      return np;
+    });
+  }
+
+  function removeSearchTerm(idx: number) {
+    const next = searchTerms.filter((_, i) => i !== idx);
+    setSearchParams((prev) => {
+      const np = new URLSearchParams(prev);
+      if (next.length) np.set("q", next.join(" "));
+      else np.delete("q");
+      return np;
+    });
+  }
 
   useEffect(() => {
     void loadOilCompanies();
@@ -359,7 +387,7 @@ export default function AdminWorkbenchPage() {
   }, [current?.email]);
 
   const filteredMembers = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const tokens = searchTerms.map((t) => t.toLowerCase()).filter(Boolean);
     return members.filter((m) => {
       const ws = defaultWorkbenchMemberStatus(m);
       const statusOk =
@@ -383,12 +411,12 @@ export default function AdminWorkbenchPage() {
           return false;
         }
       }
-      if (!q) return true;
+      if (!tokens.length) return true;
       const legacyValues =
         m.legacyProfile && typeof m.legacyProfile === "object"
           ? Object.values(m.legacyProfile as Record<string, unknown>)
           : [];
-      return [
+      const haystack = [
         m.memberNumber,
         m.firstName,
         m.lastName,
@@ -404,9 +432,22 @@ export default function AdminWorkbenchPage() {
         ...legacyValues,
       ]
         .filter(Boolean)
-        .some((x) => String(x).toLowerCase().includes(q));
+        .map((x) => String(x).toLowerCase());
+      // Tokens that exactly match a US state abbreviation or full name must
+      // match the state field exactly — never partial-match names/cities/etc.
+      const stateValueLower = String(m.state || "").toLowerCase();
+      const stateSyns = stateSynonyms(m.state).map((s) => s.toLowerCase());
+      return tokens.every((tok) => {
+        const stateMatch = exactStateMatch(tok);
+        if (stateMatch) {
+          const [abbr, full] = stateMatch;
+          const wanted = [abbr.toLowerCase(), full.toLowerCase()];
+          return wanted.includes(stateValueLower) || stateSyns.some((s) => wanted.includes(s));
+        }
+        return haystack.some((field) => field.includes(tok));
+      });
     });
-  }, [members, search, statusFilter, oilCoFilterId, flagFilter]);
+  }, [members, searchTerms, statusFilter, oilCoFilterId, flagFilter]);
 
   const worksheetMembers = useMemo(() => {
     const getValue = (m: Member, key: "memberNumber" | "name" | "address" | "city" | "phone" | "oilCompany" | "notes" | "status") => {
@@ -451,7 +492,7 @@ export default function AdminWorkbenchPage() {
 
   useEffect(() => {
     setWorksheetPage(1);
-  }, [search, statusFilter, oilCoFilterId, flagFilter, worksheetSort]);
+  }, [searchTerms, statusFilter, oilCoFilterId, flagFilter, worksheetSort]);
 
   useEffect(() => {
     setWorksheetPage((p) => Math.min(p, worksheetTotalPages));
@@ -915,13 +956,35 @@ export default function AdminWorkbenchPage() {
             <option value="useBothNames">Use Both Names</option>
             <option value="mailAddr">Has Mail Address</option>
           </select>
-          <input
-            className="admin-wb-search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") void loadMembers(); }}
-            placeholder="Search records..."
-          />
+          <div className="admin-wb-search-multi">
+            {searchTerms.map((term, i) => (
+              <span className="admin-wb-search-chip" key={`${term}-${i}`}>
+                <span>{term}</span>
+                <button
+                  type="button"
+                  onClick={() => removeSearchTerm(i)}
+                  aria-label={`Remove ${term}`}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+            <input
+              className="admin-wb-search"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  commitSearchTerm();
+                } else if (e.key === "Backspace" && !searchInput && searchTerms.length) {
+                  removeSearchTerm(searchTerms.length - 1);
+                }
+              }}
+              onBlur={() => { if (searchInput.trim()) commitSearchTerm(); }}
+              placeholder={searchTerms.length ? "Add filter..." : "Search records..."}
+            />
+          </div>
         </div>
       </header>
 
@@ -1834,8 +1897,25 @@ export default function AdminWorkbenchPage() {
                   <option value="inactive">Inactive</option>
                   <option value="prospective">Prospective</option>
                 </select>
-                <input className="admin-input" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search" style={{ minWidth: "12rem" }} />
-                <button type="button" className="admin-btn" onClick={() => void loadMembers()} disabled={loading}>{loading ? "Loading..." : "Search"}</button>
+                <input
+                  className="admin-input"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commitSearchTerm(); } }}
+                  placeholder={searchTerms.length ? `Add filter (${searchTerms.join(", ")})` : "Search"}
+                  style={{ minWidth: "12rem" }}
+                />
+                <button type="button" className="admin-btn" onClick={() => commitSearchTerm()} disabled={loading || !searchInput.trim()}>{loading ? "Loading..." : "Add"}</button>
+                {searchTerms.length > 0 && (
+                  <button
+                    type="button"
+                    className="admin-btn admin-btn-ghost"
+                    onClick={() => setSearchParams((prev) => { const np = new URLSearchParams(prev); np.delete("q"); return np; })}
+                    title="Clear all search terms"
+                  >
+                    Clear
+                  </button>
+                )}
               </div>
               <div className="admin-table-wrap">
                 <table className="admin-table">
