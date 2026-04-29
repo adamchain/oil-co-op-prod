@@ -1401,36 +1401,39 @@ export default function AdminWorkbenchPage() {
             </div>
 
             <div className="admin-wb-panel">
-              <div className="admin-wb-panel-title">Solor Insurance &amp; Energy Audits</div>
+              <div className="admin-wb-panel-title">Solar Insurance &amp; Energy Audits</div>
               <div
-                className="admin-form-grid"
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "1fr 2fr 1fr 1fr 1fr",
+                  gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 0.7fr) minmax(0, 0.6fr) minmax(0, 1fr)",
                   gap: "0.22rem 0.32rem",
                   marginBottom: "0.32rem",
                 }}
               >
-                <label>Solor Referral Sent Date<input className="admin-input" type="date" value={legacyValue("solorReferralSentDate")} onChange={(e) => setLegacy("solorReferralSentDate", e.target.value)} /></label>
-                <label>Solor Notes<input className="admin-input" value={legacyValue("solorNotes")} onChange={(e) => setLegacy("solorNotes", e.target.value)} /></label>
+                <label>Solar Referral Sent Date<input className="admin-input" type="date" value={legacyValue("solorReferralSentDate")} onChange={(e) => setLegacy("solorReferralSentDate", e.target.value)} /></label>
+                <label>Solar Notes<input className="admin-input" value={legacyValue("solorNotes")} onChange={(e) => setLegacy("solorNotes", e.target.value)} /></label>
                 <label>Panels<input className="admin-input" value={legacyValue("solorPanels")} onChange={(e) => setLegacy("solorPanels", e.target.value)} /></label>
-                <label>Solor: Paid
+                <label>Solar: Paid
                   <select className="admin-input" value={legacyValue("solorPaid") || ""} onChange={(e) => setLegacy("solorPaid", e.target.value)}>
                     <option value=""></option>
                     <option value="YES">YES</option>
                     <option value="NO">NO</option>
                   </select>
                 </label>
-                <label>Solor: Date Paid<input className="admin-input" type="date" value={legacyValue("solorDatePaid")} onChange={(e) => setLegacy("solorDatePaid", e.target.value)} /></label>
+                <label>Solar: Date Paid<input className="admin-input" type="date" value={legacyValue("solorDatePaid")} onChange={(e) => setLegacy("solorDatePaid", e.target.value)} /></label>
               </div>
-              <div className="admin-form-grid-4" style={{ marginBottom: "0.32rem" }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(6, minmax(0, 1fr))",
+                  gap: "0.22rem 0.32rem",
+                }}
+              >
                 <label>Energy Audit Referral Date<input className="admin-input" type="date" value={legacyValue("energyAuditReferralDate")} onChange={(e) => setLegacy("energyAuditReferralDate", e.target.value)} /></label>
-                <label className="admin-form-span-2">Energy Audit Notes<input className="admin-input" value={legacyValue("energyAuditNotes")} onChange={(e) => setLegacy("energyAuditNotes", e.target.value)} /></label>
+                <label>Energy Audit Notes<input className="admin-input" value={legacyValue("energyAuditNotes")} onChange={(e) => setLegacy("energyAuditNotes", e.target.value)} /></label>
                 <label>Energy Audit Date Paid<input className="admin-input" type="date" value={legacyValue("energyAuditDatePaid")} onChange={(e) => setLegacy("energyAuditDatePaid", e.target.value)} /></label>
-              </div>
-              <div className="admin-form-grid-4">
                 <label>Insurance Audit Referral Date<input className="admin-input" type="date" value={legacyValue("insuranceAuditReferralDate")} onChange={(e) => setLegacy("insuranceAuditReferralDate", e.target.value)} /></label>
-                <label className="admin-form-span-2">Insurance: Audit Notes<input className="admin-input" value={legacyValue("insuranceAuditNotes")} onChange={(e) => setLegacy("insuranceAuditNotes", e.target.value)} /></label>
+                <label>Insurance: Audit Notes<input className="admin-input" value={legacyValue("insuranceAuditNotes")} onChange={(e) => setLegacy("insuranceAuditNotes", e.target.value)} /></label>
                 <label>Insurance: Date Paid<input className="admin-input" type="date" value={legacyValue("insuranceDatePaid")} onChange={(e) => setLegacy("insuranceDatePaid", e.target.value)} /></label>
               </div>
             </div>
