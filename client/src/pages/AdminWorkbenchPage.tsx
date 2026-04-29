@@ -1073,25 +1073,6 @@ export default function AdminWorkbenchPage() {
                 </div>
                 <div
                   className="admin-form-span-4"
-                  style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "0.6rem", marginTop: "0.15rem" }}
-                >
-                  <label style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.7rem", fontWeight: 600, whiteSpace: "nowrap" }}>
-                    <input type="checkbox" checked={legacyBool("mailAddr")} onChange={(e) => setLegacy("mailAddr", e.target.checked)} />
-                    Mail Addr
-                  </label>
-                  <button
-                    type="button"
-                    className="admin-wb-btn admin-wb-btn-primary"
-                    style={{ fontSize: "0.7rem", padding: "0.24rem 0.55rem", fontWeight: 700 }}
-                    onClick={() => setActiveTab("MAILINGS")}
-                    disabled={!legacyBool("mailAddr")}
-                    title={legacyBool("mailAddr") ? "Open Mail Manager" : "Check Mail Addr first to enable"}
-                  >
-                    Mail Manager
-                  </button>
-                </div>
-                <div
-                  className="admin-form-span-4"
                   style={{
                     display: "grid",
                     gridTemplateColumns: "1fr 110px 1fr 64px auto",
@@ -1120,13 +1101,12 @@ export default function AdminWorkbenchPage() {
                   className="admin-form-span-4"
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "minmax(0, 1.6fr) 56px minmax(0, 1.2fr) minmax(0, 1.2fr) 50px 80px",
+                    gridTemplateColumns: "minmax(0, 1.6fr) 56px minmax(0, 1.4fr) 50px 80px",
                     gap: "0.22rem 0.32rem",
                   }}
                 >
                   <label style={{ whiteSpace: "nowrap" }}>Street<input className="admin-input" value={form.addressLine1} onChange={(e) => setForm((f) => ({ ...f, addressLine1: e.target.value }))} /></label>
                   <label style={{ whiteSpace: "nowrap" }}>Apt<input className="admin-input" value={legacyValue("aptNo1")} onChange={(e) => setLegacy("aptNo1", e.target.value)} /></label>
-                  <label style={{ whiteSpace: "nowrap" }}>Address 2<input className="admin-input" value={form.addressLine2} onChange={(e) => setForm((f) => ({ ...f, addressLine2: e.target.value }))} /></label>
                   <label style={{ whiteSpace: "nowrap" }}>City<input className="admin-input" value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} /></label>
                   <label style={{ whiteSpace: "nowrap" }}>State<input className="admin-input" maxLength={2} value={form.state} onChange={(e) => setForm((f) => ({ ...f, state: e.target.value.toUpperCase().slice(0, 2) }))} /></label>
                   <label style={{ whiteSpace: "nowrap" }}>Zip<input className="admin-input" maxLength={10} value={form.postalCode} onChange={(e) => setForm((f) => ({ ...f, postalCode: e.target.value }))} /></label>
@@ -1135,8 +1115,9 @@ export default function AdminWorkbenchPage() {
                   className="admin-form-span-4"
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "minmax(0, 1fr) 92px 72px minmax(0, 1fr)",
+                    gridTemplateColumns: "150px 90px 60px minmax(0, 1fr) auto",
                     gap: "0.22rem 0.32rem",
+                    alignItems: "end",
                   }}
                 >
                   <label>
@@ -1149,7 +1130,7 @@ export default function AdminWorkbenchPage() {
                     />
                   </label>
                   <label>
-                    Type Phone 1
+                    Type
                     <select className="admin-input" value={legacyValue("typePhone1") || "HOME"} onChange={(e) => setLegacy("typePhone1", e.target.value)}>
                       {PHONE_TYPE.map((s) => (
                         <option key={s} value={s}>{s}</option>
@@ -1157,7 +1138,7 @@ export default function AdminWorkbenchPage() {
                     </select>
                   </label>
                   <label>
-                    P1 Ext
+                    Ext
                     <input
                       className="admin-input"
                       inputMode="numeric"
@@ -1167,13 +1148,21 @@ export default function AdminWorkbenchPage() {
                     />
                   </label>
                   <label>E Mail<input className="admin-input" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} /></label>
+                  <label
+                    style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", paddingBottom: "0.32rem", whiteSpace: "nowrap" }}
+                    title="Email opt-out"
+                  >
+                    <input type="checkbox" checked={legacyBool("emailOptOut")} onChange={(e) => setLegacy("emailOptOut", e.target.checked)} />
+                    <span style={{ fontSize: "0.62rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "#dc2626" }}>Opted out</span>
+                  </label>
                 </div>
                 <div
                   className="admin-form-span-4"
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "minmax(0, 1fr) 92px 72px minmax(0, 1fr)",
+                    gridTemplateColumns: "150px 90px 60px minmax(0, 1fr) auto",
                     gap: "0.22rem 0.32rem",
+                    alignItems: "end",
                   }}
                 >
                   <label>
@@ -1186,7 +1175,7 @@ export default function AdminWorkbenchPage() {
                     />
                   </label>
                   <label>
-                    Type Phone 2
+                    Type
                     <select className="admin-input" value={legacyValue("typePhone2") || "HOME"} onChange={(e) => setLegacy("typePhone2", e.target.value)}>
                       {PHONE_TYPE.map((s) => (
                         <option key={s} value={s}>{s}</option>
@@ -1194,7 +1183,7 @@ export default function AdminWorkbenchPage() {
                     </select>
                   </label>
                   <label>
-                    P2 Ext
+                    Ext
                     <input
                       className="admin-input"
                       inputMode="numeric"
@@ -1204,13 +1193,30 @@ export default function AdminWorkbenchPage() {
                     />
                   </label>
                   <label>E Mail 2<input className="admin-input" value={legacyValue("email2")} onChange={(e) => setLegacy("email2", e.target.value)} /></label>
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem", paddingBottom: "0.32rem", whiteSpace: "nowrap" }}>
+                    <label style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.7rem", fontWeight: 600 }}>
+                      <input type="checkbox" checked={legacyBool("mailAddr")} onChange={(e) => setLegacy("mailAddr", e.target.checked)} />
+                      Mail Addr
+                    </label>
+                    <button
+                      type="button"
+                      className="admin-wb-btn admin-wb-btn-primary"
+                      style={{ fontSize: "0.62rem", padding: "0.18rem 0.5rem", fontWeight: 700 }}
+                      onClick={() => setActiveTab("MAILINGS")}
+                      disabled={!legacyBool("mailAddr")}
+                      title={legacyBool("mailAddr") ? "Open Mail Manager" : "Check Mail Addr first to enable"}
+                    >
+                      Mail Manager
+                    </button>
+                  </div>
                 </div>
                 <div
                   className="admin-form-span-4"
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "minmax(0, 1fr) 92px 72px minmax(0, 1fr)",
+                    gridTemplateColumns: "150px 90px 60px minmax(0, 1fr) auto",
                     gap: "0.22rem 0.32rem",
+                    alignItems: "end",
                   }}
                 >
                   <label>
@@ -1223,7 +1229,7 @@ export default function AdminWorkbenchPage() {
                     />
                   </label>
                   <label>
-                    Type Phone 3
+                    Type
                     <select className="admin-input" value={legacyValue("typePhone3") || "HOME"} onChange={(e) => setLegacy("typePhone3", e.target.value)}>
                       {PHONE_TYPE.map((s) => (
                         <option key={s} value={s}>{s}</option>
@@ -1231,7 +1237,7 @@ export default function AdminWorkbenchPage() {
                     </select>
                   </label>
                   <label>
-                    P3 Ext
+                    Ext
                     <input
                       className="admin-input"
                       inputMode="numeric"
@@ -1241,13 +1247,8 @@ export default function AdminWorkbenchPage() {
                     />
                   </label>
                   <span />
+                  <span />
                 </div>
-                <label>
-                  <span style={{ display: "flex", alignItems: "center", gap: "0.3rem", marginTop: "0.3rem" }}>
-                    <input type="checkbox" checked={legacyBool("emailOptOut")} onChange={(e) => setLegacy("emailOptOut", e.target.checked)} />
-                    <span style={{ fontSize: "0.62rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", color: "#dc2626" }}>Opted out</span>
-                  </span>
-                </label>
                 <label>
                   <span style={{ display: "flex", alignItems: "center", gap: "0.3rem", marginTop: "0.3rem" }}>
                     <input type="checkbox" checked={legacyBool("callBack")} onChange={(e) => setLegacy("callBack", e.target.checked)} />
@@ -1302,6 +1303,31 @@ export default function AdminWorkbenchPage() {
                     </button>
                   </div>
                 </label>
+                <div
+                  className="admin-form-span-4"
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)",
+                    gap: "0.22rem 0.32rem",
+                  }}
+                >
+                  <label>
+                    How Joined
+                    <select className="admin-input" value={legacyValue("howJoined") || "WEB"} onChange={(e) => setLegacy("howJoined", e.target.value)}>
+                      {HOW_JOINED.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    Referral
+                    <select className="admin-input" value={legacyValue("referralSource") || "OTHER"} onChange={(e) => setLegacy("referralSource", e.target.value)}>
+                      {REFERRAL_SOURCE.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
                 <div
                   className="admin-form-span-4"
                   style={{
@@ -1365,22 +1391,6 @@ export default function AdminWorkbenchPage() {
                   </button>
                 </label>
                 <label>Oil Start Date<input className="admin-input" type="date" value={legacyValue("oilStartDate")} onChange={(e) => setLegacy("oilStartDate", e.target.value)} /></label>
-                <label className="admin-form-span-2">
-                  How Joined
-                  <select className="admin-input" value={legacyValue("howJoined") || "WEB"} onChange={(e) => setLegacy("howJoined", e.target.value)}>
-                    {HOW_JOINED.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className="admin-form-span-2">
-                  Referral
-                  <select className="admin-input" value={legacyValue("referralSource") || "OTHER"} onChange={(e) => setLegacy("referralSource", e.target.value)}>
-                    {REFERRAL_SOURCE.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
-                </label>
               </div>
             </div>
 
