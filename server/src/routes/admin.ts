@@ -145,6 +145,29 @@ router.get("/members", async (req, res) => {
   if (oilCompanyId && mongoose.isValidObjectId(oilCompanyId)) {
     filter.oilCompanyId = new mongoose.Types.ObjectId(oilCompanyId);
   }
+  const flag = (req.query.flag as string | undefined)?.trim();
+  const FLAG_KEYS = new Set([
+    "standardMembership",
+    "seniorMember",
+    "waiveFeeLifetime",
+    "waiveFeeSenior",
+    "lowVolume",
+    "useBothNames",
+    "mailAddr",
+  ]);
+  if (flag === "waived") {
+    filter.$and = [
+      ...((filter.$and as unknown[] | undefined) || []),
+      {
+        $or: [
+          { "legacyProfile.waiveFeeSenior": true },
+          { "legacyProfile.registrationPaymentStatus": { $regex: /^waived$/i } },
+        ],
+      },
+    ];
+  } else if (flag && FLAG_KEYS.has(flag)) {
+    filter[`legacyProfile.${flag}`] = true;
+  }
   if (qTrimmed) {
     const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
     const stateAlt = expandStateQuery(qTrimmed);
@@ -185,7 +208,7 @@ router.get("/members", async (req, res) => {
   }
   let members = await Member.find(filter)
     .sort({ createdAt: -1 })
-    .limit(qTrimmed ? 5000 : 200)
+    .limit(qTrimmed || flag ? 5000 : 200)
     .populate("oilCompanyId", "name")
     .lean();
 
@@ -318,6 +341,7 @@ router.patch("/members/:id", async (req: AuthedRequest, res) => {
       ...(typeof member.legacyProfile === "object" && member.legacyProfile ? member.legacyProfile : {}),
       ...body.legacyProfile,
     };
+    member.markModified("legacyProfile");
   }
   await member.save();
 

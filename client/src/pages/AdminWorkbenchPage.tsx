@@ -231,6 +231,7 @@ export default function AdminWorkbenchPage() {
       if (statusFilter === "active") params.set("status", "active");
       if (statusFilter === "inactive") params.set("status", "expired");
       if (oilCoFilterId) params.set("oilCompanyId", oilCoFilterId);
+      if (flagFilter) params.set("flag", flagFilter);
       const path = `/api/admin/members${params.size ? `?${params.toString()}` : ""}`;
       const { members: rows } = await api<{ members: Member[] }>(path, { token });
       setMembers(rows);
@@ -260,7 +261,7 @@ export default function AdminWorkbenchPage() {
   useEffect(() => {
     void loadMembers();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, statusFilter, searchParams, oilCoFilterId]);
+  }, [token, statusFilter, searchParams, oilCoFilterId, flagFilter]);
 
   useEffect(() => {
     missingMemberFetchAttempt.current = null;
@@ -905,6 +906,7 @@ export default function AdminWorkbenchPage() {
             title="Filter by member flag"
           >
             <option value="">All Members</option>
+            <option value="standardMembership">Standard</option>
             <option value="seniorMember">Senior</option>
             <option value="waiveFeeLifetime">Lifetime</option>
             <option value="waiveFeeSenior">Waive Fee — Senior</option>
@@ -1043,21 +1045,12 @@ export default function AdminWorkbenchPage() {
                   className="admin-form-span-4"
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "minmax(0, 1fr) 90px",
+                    gridTemplateColumns: "minmax(0, 1.2fr) 56px minmax(0, 1fr) minmax(0, 1fr) 44px 76px",
                     gap: "0.22rem 0.32rem",
                   }}
                 >
                   <label>Street Nm<input className="admin-input" value={form.addressLine1} onChange={(e) => setForm((f) => ({ ...f, addressLine1: e.target.value }))} /></label>
                   <label>Apt No<input className="admin-input" value={legacyValue("aptNo1")} onChange={(e) => setLegacy("aptNo1", e.target.value)} /></label>
-                </div>
-                <div
-                  className="admin-form-span-4"
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr) 56px 90px",
-                    gap: "0.22rem 0.32rem",
-                  }}
-                >
                   <label>Address Line 2<input className="admin-input" value={form.addressLine2} onChange={(e) => setForm((f) => ({ ...f, addressLine2: e.target.value }))} /></label>
                   <label>City<input className="admin-input" value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} /></label>
                   <label>State<input className="admin-input" maxLength={2} value={form.state} onChange={(e) => setForm((f) => ({ ...f, state: e.target.value.toUpperCase().slice(0, 2) }))} /></label>
