@@ -168,15 +168,17 @@ router.get("/members", async (req, res) => {
   } else if (flag && FLAG_KEYS.has(flag)) {
     filter[`legacyProfile.${flag}`] = true;
   }
-  if (qTrimmed) {
-    const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-    const stateAlt = expandStateQuery(qTrimmed);
-    const stateRxList = [{ state: rx }];
+  const tokens = qTrimmed.split(/\s+/).filter(Boolean);
+  const escapeRx = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const buildOrForToken = (token: string) => {
+    const rx = new RegExp(escapeRx(token), "i");
+    const stateAlt = expandStateQuery(token);
+    const stateRxList: { state: RegExp }[] = [{ state: rx }];
     if (stateAlt) {
-      const altRx = new RegExp(`^${stateAlt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i");
+      const altRx = new RegExp(`^${escapeRx(stateAlt)}$`, "i");
       stateRxList.push({ state: altRx });
     }
-    filter.$or = [
+    return [
       { firstName: rx },
       { lastName: rx },
       { email: rx },
@@ -205,6 +207,14 @@ router.get("/members", async (req, res) => {
       { "legacyProfile.dateReferred": rx },
       { "legacyProfile.contactNote": rx },
     ];
+  };
+  if (tokens.length === 1) {
+    filter.$or = buildOrForToken(tokens[0]);
+  } else if (tokens.length > 1) {
+    filter.$and = [
+      ...((filter.$and as unknown[] | undefined) || []),
+      ...tokens.map((t) => ({ $or: buildOrForToken(t) })),
+    ];
   }
   let members = await Member.find(filter)
     .sort({ createdAt: -1 })
@@ -212,7 +222,7 @@ router.get("/members", async (req, res) => {
     .populate("oilCompanyId", "name")
     .lean();
 
-  if (qTrimmed) {
+  if (tokens.length === 1) {
     const qLower = qTrimmed.toLowerCase();
     const isShortStateLikeQuery = /^[a-z]{1,2}$/i.test(qTrimmed);
     const isStateAbbrevQuery = /^[a-z]{2}$/i.test(qTrimmed);
@@ -248,6 +258,8 @@ router.get("/members", async (req, res) => {
     members = members
       .sort((a, b) => score(a) - score(b))
       .slice(0, isShortStateLikeQuery ? 1200 : 300);
+  } else if (tokens.length > 1) {
+    members = members.slice(0, 1000);
   }
   res.json({ members });
 });

@@ -1045,16 +1045,16 @@ export default function AdminWorkbenchPage() {
                   className="admin-form-span-4"
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "minmax(0, 1.2fr) 56px minmax(0, 1fr) minmax(0, 1fr) 44px 76px",
+                    gridTemplateColumns: "minmax(0, 1.6fr) 56px minmax(0, 1.2fr) minmax(0, 1.2fr) 50px 80px",
                     gap: "0.22rem 0.32rem",
                   }}
                 >
-                  <label>Street Nm<input className="admin-input" value={form.addressLine1} onChange={(e) => setForm((f) => ({ ...f, addressLine1: e.target.value }))} /></label>
-                  <label>Apt No<input className="admin-input" value={legacyValue("aptNo1")} onChange={(e) => setLegacy("aptNo1", e.target.value)} /></label>
-                  <label>Address Line 2<input className="admin-input" value={form.addressLine2} onChange={(e) => setForm((f) => ({ ...f, addressLine2: e.target.value }))} /></label>
-                  <label>City<input className="admin-input" value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} /></label>
-                  <label>State<input className="admin-input" maxLength={2} value={form.state} onChange={(e) => setForm((f) => ({ ...f, state: e.target.value.toUpperCase().slice(0, 2) }))} /></label>
-                  <label>Zip<input className="admin-input" maxLength={10} value={form.postalCode} onChange={(e) => setForm((f) => ({ ...f, postalCode: e.target.value }))} /></label>
+                  <label style={{ whiteSpace: "nowrap" }}>Street<input className="admin-input" value={form.addressLine1} onChange={(e) => setForm((f) => ({ ...f, addressLine1: e.target.value }))} /></label>
+                  <label style={{ whiteSpace: "nowrap" }}>Apt<input className="admin-input" value={legacyValue("aptNo1")} onChange={(e) => setLegacy("aptNo1", e.target.value)} /></label>
+                  <label style={{ whiteSpace: "nowrap" }}>Address 2<input className="admin-input" value={form.addressLine2} onChange={(e) => setForm((f) => ({ ...f, addressLine2: e.target.value }))} /></label>
+                  <label style={{ whiteSpace: "nowrap" }}>City<input className="admin-input" value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} /></label>
+                  <label style={{ whiteSpace: "nowrap" }}>State<input className="admin-input" maxLength={2} value={form.state} onChange={(e) => setForm((f) => ({ ...f, state: e.target.value.toUpperCase().slice(0, 2) }))} /></label>
+                  <label style={{ whiteSpace: "nowrap" }}>Zip<input className="admin-input" maxLength={10} value={form.postalCode} onChange={(e) => setForm((f) => ({ ...f, postalCode: e.target.value }))} /></label>
                 </div>
                 <div
                   className="admin-form-span-4"
