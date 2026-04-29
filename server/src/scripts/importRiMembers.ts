@@ -135,7 +135,14 @@ async function main() {
     const lastName = r.L_NAME_1 || legacyId;
     const email =
       (r.E_MAIL || "").toLowerCase().trim() || syntheticEmail(legacyId, firstName, lastName);
-    const phone = r.PHONE_1 ? `(${r.ACODE_1 || ""}) ${r.PHONE_1}` : r.PHONE_2 ? `(${r.ACODE_2 || ""}) ${r.PHONE_2}` : "";
+    const buildPhone = (acode: string | undefined, num: string | undefined) => {
+      const digits = `${acode || ""}${num || ""}`.replace(/\D/g, "");
+      if (digits.length === 10) return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+      if (digits.length === 11 && digits.startsWith("1")) return `+1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+      if (digits.length === 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+      return digits;
+    };
+    const phone = r.PHONE_1 ? buildPhone(r.ACODE_1, r.PHONE_1) : r.PHONE_2 ? buildPhone(r.ACODE_2, r.PHONE_2) : "";
 
     const addressLine1 = [r.STREET_NO, r.STREET_NM].filter(Boolean).join(" ").trim();
     const addressLine2 = r.APT_NO_1 ? `Apt ${r.APT_NO_1}` : "";
@@ -152,7 +159,7 @@ async function main() {
       streetNo: r.STREET_NO || "",
       aptNo1: r.APT_NO_1 || "",
       plus4: r.PLUS_4 || "",
-      phone2: r.PHONE_2 ? `(${r.ACODE_2 || ""}) ${r.PHONE_2}` : "",
+      phone2: r.PHONE_2 ? buildPhone(r.ACODE_2, r.PHONE_2) : "",
       company: r.COMPANY || "",
       carrierRt: r.CARRIER_RT || "",
       keyCodes: r.KEY_CODES || "",

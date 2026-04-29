@@ -232,9 +232,10 @@ router.get("/members", async (req, res) => {
       ...tokens.map((t) => stateOnlyClauseFor(t) || { $or: buildOrForToken(t) }),
     ];
   }
+  const requestAll = String(req.query.all || "") === "1";
   let members = await Member.find(filter)
     .sort({ createdAt: -1 })
-    .limit(qTrimmed || flag ? 5000 : 200)
+    .limit(qTrimmed || flag || requestAll ? 5000 : 200)
     .populate("oilCompanyId", "name")
     .lean();
 

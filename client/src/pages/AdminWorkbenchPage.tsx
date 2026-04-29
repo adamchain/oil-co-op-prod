@@ -2,7 +2,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../authContext";
-import { stateSynonyms, exactStateMatch } from "../utils/stateAbbreviations";
+import {
+  MemberFilterWidget,
+  buildFilterFields,
+  decodeFilters,
+  encodeFilters,
+  evaluateFilter,
+  type MemberFilter,
+} from "../components/MemberFilterWidget";
+import { exactStateMatch, stateSynonyms } from "../utils/stateAbbreviations";
 
 const tabs = [
   "Data Entry",
@@ -174,14 +182,8 @@ export default function AdminWorkbenchPage() {
   const missingMemberFetchAttempt = useRef<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabName>("Data Entry");
   const [members, setMembers] = useState<Member[]>([]);
-  const [searchTerms, setSearchTerms] = useState<string[]>(() => {
-    const q = searchParams.get("q") || "";
-    return q.trim().split(/\s+/).filter(Boolean);
-  });
-  const [searchInput, setSearchInput] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [oilCoFilterId, setOilCoFilterId] = useState("");
-  const [flagFilter, setFlagFilter] = useState("");
+  const [filters, setFilters] = useState<MemberFilter[]>(() => decodeFilters(searchParams.get("filters") || ""));
+  const [quickSearch, setQuickSearch] = useState<string>(() => searchParams.get("q") || "");
   const [worksheetSort, setWorksheetSort] = useState<{ key: "memberNumber" | "name" | "address" | "city" | "phone" | "oilCompany" | "notes" | "status"; dir: "asc" | "desc" }>({
     key: "name",
     dir: "asc",
@@ -230,14 +232,7 @@ export default function AdminWorkbenchPage() {
     if (!token) return;
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      const queryString = searchTerms.join(" ").trim();
-      if (queryString) params.set("q", queryString);
-      if (statusFilter === "active") params.set("status", "active");
-      if (statusFilter === "inactive") params.set("status", "expired");
-      if (oilCoFilterId) params.set("oilCompanyId", oilCoFilterId);
-      if (flagFilter) params.set("flag", flagFilter);
-      const path = `/api/admin/members${params.size ? `?${params.toString()}` : ""}`;
+      const path = `/api/admin/members?all=1`;
       const { members: rows } = await api<{ members: Member[] }>(path, { token });
       setMembers(rows);
       setIndex(0);
@@ -253,28 +248,27 @@ export default function AdminWorkbenchPage() {
   }
 
   useEffect(() => {
-    const qq = searchParams.get("q") || "";
-    setSearchTerms(qq.trim().split(/\s+/).filter(Boolean));
+    setFilters(decodeFilters(searchParams.get("filters") || ""));
+    setQuickSearch(searchParams.get("q") || "");
   }, [searchParams]);
 
-  function commitSearchTerm() {
-    const term = searchInput.trim();
-    if (!term) return;
-    setSearchInput("");
-    if (searchTerms.includes(term)) return;
-    const next = [...searchTerms, term];
+  function applyFilters(next: MemberFilter[]) {
+    setFilters(next);
     setSearchParams((prev) => {
       const np = new URLSearchParams(prev);
-      np.set("q", next.join(" "));
+      const enc = encodeFilters(next);
+      if (enc) np.set("filters", enc);
+      else np.delete("filters");
       return np;
     });
   }
 
-  function removeSearchTerm(idx: number) {
-    const next = searchTerms.filter((_, i) => i !== idx);
+  function applyQuickSearch(value: string) {
+    setQuickSearch(value);
     setSearchParams((prev) => {
       const np = new URLSearchParams(prev);
-      if (next.length) np.set("q", next.join(" "));
+      const trimmed = value.trim();
+      if (trimmed) np.set("q", trimmed);
       else np.delete("q");
       return np;
     });
@@ -285,22 +279,81 @@ export default function AdminWorkbenchPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  /** Reload list when URL query changes (global search) or status filter changes — not on every local keystroke. */
   useEffect(() => {
     void loadMembers();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, statusFilter, searchParams, oilCoFilterId, flagFilter]);
+  }, [token]);
 
   useEffect(() => {
     missingMemberFetchAttempt.current = null;
   }, [memberParam]);
 
+  const filterFields = useMemo(() => buildFilterFields(oilCompanies), [oilCompanies]);
+
+  const filteredMembers = useMemo(() => {
+    const q = quickSearch.trim().toLowerCase();
+    if (filters.length === 0 && !q) return members;
+    return members.filter((m) => {
+      if (filters.length > 0) {
+        const allFiltersMatch = filters.every((f) => {
+          const def = filterFields.find((x) => x.key === f.field);
+          return evaluateFilter(m as unknown as Record<string, unknown>, f, def);
+        });
+        if (!allFiltersMatch) return false;
+      }
+      if (q) {
+        // If the entire query is a known state abbreviation or full state name
+        // (e.g. "ri", "Rhode Island"), restrict the match to the state field
+        // — both the literal stored value and any equivalent synonym (so a
+        // member stored as "RI" or "Rhode Island" both match either query).
+        const stateMatch = exactStateMatch(q);
+        if (stateMatch) {
+          const [abbr, full] = stateMatch;
+          const wanted = new Set([abbr.toLowerCase(), full.toLowerCase()]);
+          const stateLower = String(m.state || "").toLowerCase().trim();
+          const synonyms = stateSynonyms(m.state).map((s) => s.toLowerCase());
+          if (!wanted.has(stateLower) && !synonyms.some((s) => wanted.has(s))) return false;
+        } else {
+          const legacyValues =
+            m.legacyProfile && typeof m.legacyProfile === "object"
+              ? Object.values(m.legacyProfile as Record<string, unknown>)
+              : [];
+          const haystack = [
+            m.memberNumber,
+            m.firstName,
+            m.lastName,
+            m.email,
+            m.phone,
+            m.addressLine1,
+            m.addressLine2,
+            m.city,
+            m.state,
+            ...stateSynonyms(m.state),
+            m.postalCode,
+            m.notes,
+            ...legacyValues,
+          ]
+            .filter(Boolean)
+            .map((x) => String(x).toLowerCase());
+          if (!haystack.some((field) => field.includes(q))) return false;
+        }
+      }
+      return true;
+    });
+  }, [members, filters, filterFields, quickSearch]);
+
   /** Select member from `?member=` or load that record if it is outside the current result set. */
   useEffect(() => {
     if (!token || !memberParam || loading) return;
+    const filteredIdx = filteredMembers.findIndex((m) => m._id === memberParam);
+    if (filteredIdx >= 0) {
+      setIndex(filteredIdx);
+      missingMemberFetchAttempt.current = null;
+      return;
+    }
     if (members.some((m) => m._id === memberParam)) {
-      const i = members.findIndex((m) => m._id === memberParam);
-      if (i >= 0) setIndex(i);
+      applyFilters([]);
+      applyQuickSearch("");
       missingMemberFetchAttempt.current = null;
       return;
     }
@@ -321,7 +374,8 @@ export default function AdminWorkbenchPage() {
     return () => {
       cancelled = true;
     };
-  }, [token, memberParam, loading, members]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, memberParam, loading, members, filteredMembers]);
 
   useEffect(() => {
     try {
@@ -333,7 +387,7 @@ export default function AdminWorkbenchPage() {
     }
   }, []);
 
-  const current = members[index] || null;
+  const current = filteredMembers[index] || null;
 
   useEffect(() => {
     if (!token || !current) {
@@ -346,11 +400,13 @@ export default function AdminWorkbenchPage() {
     if (typeof lp.workbenchMemberStatus !== "string" || !lp.workbenchMemberStatus) {
       lp.workbenchMemberStatus = defaultWorkbenchMemberStatus({ ...current, legacyProfile: lp });
     }
+    if (typeof lp.phone2 === "string" && lp.phone2) lp.phone2 = formatPhoneValue(lp.phone2);
+    if (typeof lp.phone3 === "string" && lp.phone3) lp.phone3 = formatPhoneValue(lp.phone3);
     setForm({
       firstName: current.firstName || "",
       lastName: current.lastName || "",
       email: current.email || "",
-      phone: current.phone || "",
+      phone: formatPhoneValue(current.phone || ""),
       addressLine1: current.addressLine1 || "",
       addressLine2: current.addressLine2 || "",
       city: current.city || "",
@@ -385,69 +441,6 @@ export default function AdminWorkbenchPage() {
   useEffect(() => {
     setMailToEmail(current?.email || "");
   }, [current?.email]);
-
-  const filteredMembers = useMemo(() => {
-    const tokens = searchTerms.map((t) => t.toLowerCase()).filter(Boolean);
-    return members.filter((m) => {
-      const ws = defaultWorkbenchMemberStatus(m);
-      const statusOk =
-        statusFilter === "all"
-          ? true
-          : statusFilter === "active"
-            ? m.status === "active"
-            : statusFilter === "inactive"
-              ? m.status !== "active"
-              : ws === "PROSPECTIVE";
-      if (!statusOk) return false;
-      if (oilCoFilterId && m.oilCompanyId?._id !== oilCoFilterId) return false;
-      if (flagFilter) {
-        const lp = (m.legacyProfile && typeof m.legacyProfile === "object")
-          ? (m.legacyProfile as Record<string, unknown>)
-          : {};
-        if (flagFilter === "waived") {
-          const status = String(lp.registrationPaymentStatus || "").toLowerCase();
-          if (!lp.waiveFeeSenior && status !== "waived") return false;
-        } else if (!lp[flagFilter]) {
-          return false;
-        }
-      }
-      if (!tokens.length) return true;
-      const legacyValues =
-        m.legacyProfile && typeof m.legacyProfile === "object"
-          ? Object.values(m.legacyProfile as Record<string, unknown>)
-          : [];
-      const haystack = [
-        m.memberNumber,
-        m.firstName,
-        m.lastName,
-        m.email,
-        m.phone,
-        m.addressLine1,
-        m.addressLine2,
-        m.city,
-        m.state,
-        ...stateSynonyms(m.state),
-        m.postalCode,
-        m.notes,
-        ...legacyValues,
-      ]
-        .filter(Boolean)
-        .map((x) => String(x).toLowerCase());
-      // Tokens that exactly match a US state abbreviation or full name must
-      // match the state field exactly — never partial-match names/cities/etc.
-      const stateValueLower = String(m.state || "").toLowerCase();
-      const stateSyns = stateSynonyms(m.state).map((s) => s.toLowerCase());
-      return tokens.every((tok) => {
-        const stateMatch = exactStateMatch(tok);
-        if (stateMatch) {
-          const [abbr, full] = stateMatch;
-          const wanted = [abbr.toLowerCase(), full.toLowerCase()];
-          return wanted.includes(stateValueLower) || stateSyns.some((s) => wanted.includes(s));
-        }
-        return haystack.some((field) => field.includes(tok));
-      });
-    });
-  }, [members, searchTerms, statusFilter, oilCoFilterId, flagFilter]);
 
   const worksheetMembers = useMemo(() => {
     const getValue = (m: Member, key: "memberNumber" | "name" | "address" | "city" | "phone" | "oilCompany" | "notes" | "status") => {
@@ -492,7 +485,17 @@ export default function AdminWorkbenchPage() {
 
   useEffect(() => {
     setWorksheetPage(1);
-  }, [searchTerms, statusFilter, oilCoFilterId, flagFilter, worksheetSort]);
+  }, [filters, quickSearch, worksheetSort]);
+
+  useEffect(() => {
+    setIndex(0);
+  }, [filters, quickSearch]);
+
+  useEffect(() => {
+    if (filteredMembers.length > 0 && index >= filteredMembers.length) {
+      setIndex(filteredMembers.length - 1);
+    }
+  }, [filteredMembers.length, index]);
 
   useEffect(() => {
     setWorksheetPage((p) => Math.min(p, worksheetTotalPages));
@@ -513,7 +516,7 @@ export default function AdminWorkbenchPage() {
       .slice(0, 5);
   }
 
-  const recordCount = `${members.length ? index + 1 : 0}`;
+  const recordCount = `${filteredMembers.length ? Math.min(index + 1, filteredMembers.length) : 0}`;
 
   const downloadText = (filename: string, content: string, mime = "text/plain;charset=utf-8") => {
     const blob = new Blob([content], { type: mime });
@@ -585,11 +588,11 @@ export default function AdminWorkbenchPage() {
     );
 
   const nav = (kind: "first" | "prev" | "next" | "last") => {
-    if (!members.length) return;
+    if (!filteredMembers.length) return;
     if (kind === "first") setIndex(0);
-    if (kind === "last") setIndex(members.length - 1);
+    if (kind === "last") setIndex(filteredMembers.length - 1);
     if (kind === "prev") setIndex((i) => Math.max(0, i - 1));
-    if (kind === "next") setIndex((i) => Math.min(members.length - 1, i + 1));
+    if (kind === "next") setIndex((i) => Math.min(filteredMembers.length - 1, i + 1));
   };
 
   const saveCurrent = async () => {
@@ -925,66 +928,25 @@ export default function AdminWorkbenchPage() {
             <button onClick={() => nav("next")} title="Next">&gt;</button>
             <button onClick={() => nav("last")} title="Last">&gt;|</button>
           </div>
-          <span className="admin-wb-count">Record {recordCount} of {members.length}</span>
+          <span className="admin-wb-count">
+            Record {recordCount} of {filteredMembers.length}
+            {filteredMembers.length !== members.length ? ` (${members.length} total)` : ""}
+          </span>
         </div>
         <div className="admin-wb-header-right">
-          <select className="admin-wb-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-            <option value="all">All Records</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="prospective">Prospective</option>
-          </select>
-          <select className="admin-wb-select" value={oilCoFilterId} onChange={(e) => setOilCoFilterId(e.target.value)}>
-            <option value="">All Oil Companies</option>
-            {oilCompanies.map((oc) => (
-              <option key={oc._id} value={oc._id}>{oc.name}</option>
-            ))}
-          </select>
-          <select
-            className="admin-wb-select"
-            value={flagFilter}
-            onChange={(e) => setFlagFilter(e.target.value)}
-            title="Filter by member flag"
-          >
-            <option value="">All Members</option>
-            <option value="standardMembership">Standard</option>
-            <option value="seniorMember">Senior</option>
-            <option value="waiveFeeLifetime">Lifetime</option>
-            <option value="waiveFeeSenior">Waive Fee — Senior</option>
-            <option value="waived">Registration Waived</option>
-            <option value="lowVolume">Low Volume</option>
-            <option value="useBothNames">Use Both Names</option>
-            <option value="mailAddr">Has Mail Address</option>
-          </select>
-          <div className="admin-wb-search-multi">
-            {searchTerms.map((term, i) => (
-              <span className="admin-wb-search-chip" key={`${term}-${i}`}>
-                <span>{term}</span>
-                <button
-                  type="button"
-                  onClick={() => removeSearchTerm(i)}
-                  aria-label={`Remove ${term}`}
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-            <input
-              className="admin-wb-search"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  commitSearchTerm();
-                } else if (e.key === "Backspace" && !searchInput && searchTerms.length) {
-                  removeSearchTerm(searchTerms.length - 1);
-                }
-              }}
-              onBlur={() => { if (searchInput.trim()) commitSearchTerm(); }}
-              placeholder={searchTerms.length ? "Add filter..." : "Search records..."}
-            />
-          </div>
+          <input
+            className="admin-wb-search"
+            type="search"
+            value={quickSearch}
+            onChange={(e) => applyQuickSearch(e.target.value)}
+            placeholder="Search records..."
+            aria-label="Quick search"
+          />
+          <MemberFilterWidget
+            filters={filters}
+            onFiltersChange={applyFilters}
+            fields={filterFields}
+          />
         </div>
       </header>
 
@@ -1879,32 +1841,13 @@ export default function AdminWorkbenchPage() {
             <div className="admin-card admin-workbench-section">
               <h2>Members List</h2>
               <div className="admin-toolbar" style={{ marginBottom: "0.75rem" }}>
-                <span className="admin-meta">All Members</span>
-                <select className="admin-input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-                  <option value="all">Filter by Status — All</option>
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                  <option value="prospective">Prospective</option>
-                </select>
-                <input
-                  className="admin-input"
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); commitSearchTerm(); } }}
-                  placeholder={searchTerms.length ? `Add filter (${searchTerms.join(", ")})` : "Search"}
-                  style={{ minWidth: "12rem" }}
+                <span className="admin-meta">{filteredMembers.length} of {members.length} members</span>
+                <MemberFilterWidget
+                  filters={filters}
+                  onFiltersChange={applyFilters}
+                  fields={filterFields}
                 />
-                <button type="button" className="admin-btn" onClick={() => commitSearchTerm()} disabled={loading || !searchInput.trim()}>{loading ? "Loading..." : "Add"}</button>
-                {searchTerms.length > 0 && (
-                  <button
-                    type="button"
-                    className="admin-btn admin-btn-ghost"
-                    onClick={() => setSearchParams((prev) => { const np = new URLSearchParams(prev); np.delete("q"); return np; })}
-                    title="Clear all search terms"
-                  >
-                    Clear
-                  </button>
-                )}
+                <button type="button" className="admin-btn" onClick={() => void loadMembers()} disabled={loading}>{loading ? "Loading..." : "Reload"}</button>
               </div>
               <div className="admin-table-wrap">
                 <table className="admin-table">
@@ -1912,7 +1855,7 @@ export default function AdminWorkbenchPage() {
                     <tr><th>ID</th><th>Name</th><th>Address</th><th>City</th><th>Phone</th><th>Oil Co</th><th>Status</th></tr>
                   </thead>
                   <tbody>
-                    {members.map((m, i) => (
+                    {filteredMembers.map((m, i) => (
                       <tr key={m._id} onClick={() => setIndex(i)}>
                         <td>{m.memberNumber || "—"}</td>
                         <td>{m.firstName} {m.lastName}</td>
