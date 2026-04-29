@@ -649,15 +649,15 @@
 .admin-wb-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem;
-  padding: 0.35rem 0.55rem;
+  gap: 0.15rem;
+  padding: 0.22rem 0.45rem;
   background: var(--wb-surface);
   border-bottom: 1px solid var(--wb-border);
 }
 
 .admin-wb-tab {
-  padding: 0.3rem 0.6rem;
-  font-size: 0.68rem;
+  padding: 0.18rem 0.45rem;
+  font-size: 0.62rem;
   font-weight: 500;
   background: transparent;
   border: none;
