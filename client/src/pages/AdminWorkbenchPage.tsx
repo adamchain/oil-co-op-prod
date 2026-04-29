@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../authContext";
+import { stateSynonyms } from "../utils/stateAbbreviations";
 
 const tabs = [
   "Data Entry",
@@ -72,11 +73,9 @@ function workbenchStatusToApiStatus(ws: string): Member["status"] {
   return "active";
 }
 
-const WB_MEMBER_STATUS = ["ACTIVE", "INACTIVE", "PROSPECTIVE", "RESIDENT", "NO OIL", "UNKNOWN", "CANCELLED"] as const;
 const WB_OIL_STATUS = ["ACTIVE", "INACTIVE", "PROSPECTIVE", "RESIDENT", "NO OIL", "UNKNOWN"] as const;
 const WB_PROPANE_STATUS = ["ACTIVE", "INACTIVE", "PROSPECTIVE", "RESIDENT", "NO PROPANE", "UNKNOWN"] as const;
 const ELECTRIC_STATUS = ["ELECTRIC", "PENDING", "INTERESTED", "UNKNOWN", "DROPPED"] as const;
-const REC_TYPE = ["IND", "BUS"] as const;
 const PHONE_TYPE = ["HOME", "WORK", "CELL"] as const;
 const HOW_JOINED = ["PHO", "WEB", "REF", "MAIL"] as const;
 const REFERRAL_SOURCE = ["CCAG", "MEMBER", "OTHER"] as const;
@@ -178,6 +177,7 @@ export default function AdminWorkbenchPage() {
   const [search, setSearch] = useState(() => searchParams.get("q") || "");
   const [statusFilter, setStatusFilter] = useState("all");
   const [oilCoFilterId, setOilCoFilterId] = useState("");
+  const [flagFilter, setFlagFilter] = useState("");
   const [worksheetSort, setWorksheetSort] = useState<{ key: "memberNumber" | "name" | "address" | "city" | "phone" | "oilCompany" | "notes" | "status"; dir: "asc" | "desc" }>({
     key: "name",
     dir: "asc",
@@ -371,6 +371,17 @@ export default function AdminWorkbenchPage() {
               : ws === "PROSPECTIVE";
       if (!statusOk) return false;
       if (oilCoFilterId && m.oilCompanyId?._id !== oilCoFilterId) return false;
+      if (flagFilter) {
+        const lp = (m.legacyProfile && typeof m.legacyProfile === "object")
+          ? (m.legacyProfile as Record<string, unknown>)
+          : {};
+        if (flagFilter === "waived") {
+          const status = String(lp.registrationPaymentStatus || "").toLowerCase();
+          if (!lp.waiveFeeSenior && status !== "waived") return false;
+        } else if (!lp[flagFilter]) {
+          return false;
+        }
+      }
       if (!q) return true;
       const legacyValues =
         m.legacyProfile && typeof m.legacyProfile === "object"
@@ -386,6 +397,7 @@ export default function AdminWorkbenchPage() {
         m.addressLine2,
         m.city,
         m.state,
+        ...stateSynonyms(m.state),
         m.postalCode,
         m.notes,
         ...legacyValues,
@@ -393,7 +405,7 @@ export default function AdminWorkbenchPage() {
         .filter(Boolean)
         .some((x) => String(x).toLowerCase().includes(q));
     });
-  }, [members, search, statusFilter, oilCoFilterId]);
+  }, [members, search, statusFilter, oilCoFilterId, flagFilter]);
 
   const worksheetMembers = useMemo(() => {
     const getValue = (m: Member, key: "memberNumber" | "name" | "address" | "city" | "phone" | "oilCompany" | "notes" | "status") => {
@@ -438,7 +450,7 @@ export default function AdminWorkbenchPage() {
 
   useEffect(() => {
     setWorksheetPage(1);
-  }, [search, statusFilter, oilCoFilterId, worksheetSort]);
+  }, [search, statusFilter, oilCoFilterId, flagFilter, worksheetSort]);
 
   useEffect(() => {
     setWorksheetPage((p) => Math.min(p, worksheetTotalPages));
@@ -886,6 +898,21 @@ export default function AdminWorkbenchPage() {
               <option key={oc._id} value={oc._id}>{oc.name}</option>
             ))}
           </select>
+          <select
+            className="admin-wb-select"
+            value={flagFilter}
+            onChange={(e) => setFlagFilter(e.target.value)}
+            title="Filter by member flag"
+          >
+            <option value="">All Members</option>
+            <option value="seniorMember">Senior</option>
+            <option value="waiveFeeLifetime">Lifetime</option>
+            <option value="waiveFeeSenior">Waive Fee — Senior</option>
+            <option value="waived">Registration Waived</option>
+            <option value="lowVolume">Low Volume</option>
+            <option value="useBothNames">Use Both Names</option>
+            <option value="mailAddr">Has Mail Address</option>
+          </select>
           <input
             className="admin-wb-search"
             value={search}
@@ -922,179 +949,218 @@ export default function AdminWorkbenchPage() {
             <div className="admin-wb-col">
             <div className="admin-wb-panel">
               <div className="admin-wb-panel-title">Member Identity</div>
-              <div className="admin-wb-status-row">
-                {WB_MEMBER_STATUS.map((s) => (
-                  <label key={s} className={`on-${s === "ACTIVE" ? "active" : s === "INACTIVE" ? "inactive" : s === "PROSPECTIVE" ? "prospect" : s === "NO OIL" ? "noOil" : "unknown"}`}>
-                    <input
-                      type="radio"
-                      name="wb-member-status"
-                      checked={(legacyValue("workbenchMemberStatus") || "ACTIVE") === s}
-                      onChange={() => setLegacy("workbenchMemberStatus", s)}
-                    />
-                    {s}
-                  </label>
-                ))}
-              </div>
-              <div className="admin-status-pill-row" style={{ margin: "0.35rem 0 0.5rem" }}>
+              <div className="admin-status-pill-row" style={{ margin: "0 0 0.5rem" }}>
                 {isLifetime && <span className="admin-pill ok">Lifetime Member</span>}
                 {isWaived && <span className="admin-pill">Waived</span>}
                 {isSenior && <span className="admin-pill">Senior</span>}
                 {isLowVolume && <span className="admin-pill">Low Volume</span>}
               </div>
               <div className="admin-form-grid-4">
-                <label>
-                  ID
-                  <input className="admin-input" value={legacyValue("legacyId")} onChange={(e) => setLegacy("legacyId", e.target.value)} placeholder={current.memberNumber || ""} />
-                </label>
-                <label>
-                  Rec Type
-                  <select className="admin-input" value={legacyValue("recordType") || "IND"} onChange={(e) => setLegacy("recordType", e.target.value)}>
-                    {REC_TYPE.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  New Member Dt
-                  <input className="admin-input" value={legacyValue("newMemberDt")} onChange={(e) => setLegacy("newMemberDt", e.target.value)} placeholder={current.createdAt ? new Date(current.createdAt).toLocaleDateString() : ""} />
-                </label>
-                <label>
-                  Original Start Date
-                  <input className="admin-input" value={legacyValue("originalStartDate")} onChange={(e) => setLegacy("originalStartDate", e.target.value)} />
-                </label>
-                <div className="admin-checkbox-grid">
+                <div
+                  className="admin-form-span-4"
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "120px 130px 130px minmax(0, 1fr)",
+                    gap: "0.22rem 0.55rem",
+                    alignItems: "end",
+                  }}
+                >
                   <label>
-                    <input type="checkbox" checked={legacyBool("waiveFeeLifetime")} onChange={(e) => setLegacy("waiveFeeLifetime", e.target.checked)} />
-                    Lifetime Member
+                    ID
+                    <input className="admin-input" value={legacyValue("legacyId")} onChange={(e) => setLegacy("legacyId", e.target.value)} placeholder={current.memberNumber || ""} />
                   </label>
                   <label>
-                    <input type="checkbox" checked={legacyBool("seniorMember")} onChange={(e) => setLegacy("seniorMember", e.target.checked)} />
-                    Senior
+                    New Member Dt
+                    <input className="admin-input" type="date" value={legacyValue("newMemberDt")} onChange={(e) => setLegacy("newMemberDt", e.target.value)} />
                   </label>
                   <label>
-                    <input type="checkbox" checked={legacyBool("lowVolume")} onChange={(e) => setLegacy("lowVolume", e.target.checked)} />
-                    Low Volume
+                    Original Start Date
+                    <input className="admin-input" type="date" value={legacyValue("originalStartDate")} onChange={(e) => setLegacy("originalStartDate", e.target.value)} />
                   </label>
-                  <label>
+                  <div
+                    className="admin-checkbox-grid"
+                    style={{ display: "grid", gridTemplateColumns: "repeat(4, auto)", gap: "0.2rem 0.6rem", alignContent: "end", paddingBottom: "0.2rem" }}
+                  >
+                    <label>
+                      <input type="checkbox" checked={legacyBool("standardMembership")} onChange={(e) => setLegacy("standardMembership", e.target.checked)} />
+                      Standard
+                    </label>
+                    <label>
+                      <input type="checkbox" checked={legacyBool("seniorMember")} onChange={(e) => setLegacy("seniorMember", e.target.checked)} />
+                      Senior
+                    </label>
+                    <label>
+                      <input type="checkbox" checked={legacyBool("lowVolume")} onChange={(e) => setLegacy("lowVolume", e.target.checked)} />
+                      Low Volume
+                    </label>
+                    <label>
+                      <input type="checkbox" checked={legacyBool("waiveFeeLifetime")} onChange={(e) => setLegacy("waiveFeeLifetime", e.target.checked)} />
+                      Lifetime
+                    </label>
+                  </div>
+                </div>
+                <div
+                  className="admin-form-span-4"
+                  style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginTop: "0.15rem" }}
+                >
+                  <label style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.7rem", fontWeight: 600 }}>
+                    <input type="checkbox" checked={legacyBool("mailAddr")} onChange={(e) => setLegacy("mailAddr", e.target.checked)} />
+                    Mail Addr
+                  </label>
+                  <button
+                    type="button"
+                    className="admin-wb-btn admin-wb-btn-primary"
+                    style={{ fontSize: "0.7rem", padding: "0.24rem 0.55rem", fontWeight: 700 }}
+                    onClick={() => setActiveTab("MAILINGS")}
+                    disabled={!legacyBool("mailAddr")}
+                    title={legacyBool("mailAddr") ? "Open Mail Manager" : "Check Mail Addr first to enable"}
+                  >
+                    Mail Manager
+                  </button>
+                </div>
+                <div
+                  className="admin-form-span-4"
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 110px 1fr 64px auto",
+                    gap: "0.22rem 0.32rem",
+                    alignItems: "end",
+                  }}
+                >
+                  <label>First Name 1<input className="admin-input" value={form.firstName} onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))} /></label>
+                  <label>Mid Name 1<input className="admin-input" value={legacyValue("midName1")} onChange={(e) => setLegacy("midName1", e.target.value)} /></label>
+                  <label>Last Name 1<input className="admin-input" value={form.lastName} onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))} /></label>
+                  <label>Suffix 1<input className="admin-input" value={legacyValue("suffix1")} onChange={(e) => setLegacy("suffix1", e.target.value)} /></label>
+                  <label
+                    style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.7rem", fontWeight: 600, paddingBottom: "0.32rem", whiteSpace: "nowrap" }}
+                    title="Address letters and emails to both names"
+                  >
                     <input type="checkbox" checked={legacyBool("useBothNames")} onChange={(e) => setLegacy("useBothNames", e.target.checked)} />
                     Use Both Names
                   </label>
-                  <label>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem" }}>
-                      <input type="checkbox" checked={legacyBool("mailAddr")} onChange={(e) => setLegacy("mailAddr", e.target.checked)} />
-                      Mail Addr
-                    </span>
-                    <button
-                      type="button"
-                      className="admin-wb-btn admin-wb-btn-primary"
-                      style={{ marginLeft: "0.5rem", fontSize: "0.7rem", padding: "0.24rem 0.55rem", fontWeight: 700 }}
-                      onClick={() => setActiveTab("MAILINGS")}
-                    >
-                      Mail Manager
-                    </button>
-                  </label>
+                  <label>First Name 2<input className="admin-input" value={legacyValue("firstName2")} onChange={(e) => setLegacy("firstName2", e.target.value)} /></label>
+                  <label>Mid Name 2<input className="admin-input" value={legacyValue("midName2")} onChange={(e) => setLegacy("midName2", e.target.value)} /></label>
+                  <label>Last Name 2<input className="admin-input" value={legacyValue("lastName2")} onChange={(e) => setLegacy("lastName2", e.target.value)} /></label>
+                  <label>Suffix 2<input className="admin-input" value={legacyValue("suffix2")} onChange={(e) => setLegacy("suffix2", e.target.value)} /></label>
+                  <span />
                 </div>
-                <label>First Name 1<input className="admin-input" value={form.firstName} onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))} /></label>
-                <label>Mid Name 1<input className="admin-input" value={legacyValue("midName1")} onChange={(e) => setLegacy("midName1", e.target.value)} /></label>
-                <label>Last Name 1<input className="admin-input" value={form.lastName} onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))} /></label>
-                <label>Suffix 1<input className="admin-input" value={legacyValue("suffix1")} onChange={(e) => setLegacy("suffix1", e.target.value)} /></label>
-                <label>First Name 2<input className="admin-input" value={legacyValue("firstName2")} onChange={(e) => setLegacy("firstName2", e.target.value)} /></label>
-                <label>Mid Name 2<input className="admin-input" value={legacyValue("midName2")} onChange={(e) => setLegacy("midName2", e.target.value)} /></label>
-                <label>Last Name 2<input className="admin-input" value={legacyValue("lastName2")} onChange={(e) => setLegacy("lastName2", e.target.value)} /></label>
-                <label>Suffix 2<input className="admin-input" value={legacyValue("suffix2")} onChange={(e) => setLegacy("suffix2", e.target.value)} /></label>
                 <label>Street Nm<input className="admin-input" value={form.addressLine1} onChange={(e) => setForm((f) => ({ ...f, addressLine1: e.target.value }))} /></label>
-                <label>Apt No<input className="admin-input" value={legacyValue("aptNo1")} onChange={(e) => setLegacy("aptNo1", e.target.value)} /></label>
-                <label>Address Line2<input className="admin-input" value={form.addressLine2} onChange={(e) => setForm((f) => ({ ...f, addressLine2: e.target.value }))} /></label>
-                <label>City<input className="admin-input" value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} /></label>
-                <label>State<input className="admin-input" value={form.state} onChange={(e) => setForm((f) => ({ ...f, state: e.target.value }))} /></label>
-                <label>Zip<input className="admin-input" value={form.postalCode} onChange={(e) => setForm((f) => ({ ...f, postalCode: e.target.value }))} /></label>
-                <label>Company<input className="admin-input" value={legacyValue("company")} onChange={(e) => setLegacy("company", e.target.value)} /></label>
-                <label>
-                  Phone 1
-                  <input
-                    className="admin-input"
-                    value={form.phone}
-                    onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                    onBlur={(e) => setForm((f) => ({ ...f, phone: formatPhoneValue(e.target.value) }))}
-                  />
-                </label>
-                <label>
-                  Type Phone 1
-                  <select className="admin-input" style={{ maxWidth: "92px" }} value={legacyValue("typePhone1") || "HOME"} onChange={(e) => setLegacy("typePhone1", e.target.value)}>
-                    {PHONE_TYPE.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  P1 Ext
-                  <input
-                    className="admin-input"
-                    style={{ maxWidth: "72px" }}
-                    inputMode="numeric"
-                    maxLength={3}
-                    value={legacyValue("p1Ext")}
-                    onChange={(e) => setLegacy("p1Ext", e.target.value.replace(/\D/g, "").slice(0, 3))}
-                  />
-                </label>
-                <label>
-                  Phone 2
-                  <input
-                    className="admin-input"
-                    value={legacyValue("phone2")}
-                    onChange={(e) => setLegacy("phone2", e.target.value)}
-                    onBlur={(e) => setLegacy("phone2", formatPhoneValue(e.target.value))}
-                  />
-                </label>
-                <label>
-                  Type Phone 2
-                  <select className="admin-input" style={{ maxWidth: "92px" }} value={legacyValue("typePhone2") || "HOME"} onChange={(e) => setLegacy("typePhone2", e.target.value)}>
-                    {PHONE_TYPE.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  P2 Ext
-                  <input
-                    className="admin-input"
-                    style={{ maxWidth: "72px" }}
-                    inputMode="numeric"
-                    maxLength={3}
-                    value={legacyValue("p2Ext")}
-                    onChange={(e) => setLegacy("p2Ext", e.target.value.replace(/\D/g, "").slice(0, 3))}
-                  />
-                </label>
-                <label>
-                  Phone 3
-                  <input
-                    className="admin-input"
-                    value={legacyValue("phone3")}
-                    onChange={(e) => setLegacy("phone3", e.target.value)}
-                    onBlur={(e) => setLegacy("phone3", formatPhoneValue(e.target.value))}
-                  />
-                </label>
-                <label>
-                  Type Phone 3
-                  <select className="admin-input" style={{ maxWidth: "92px" }} value={legacyValue("typePhone3") || "HOME"} onChange={(e) => setLegacy("typePhone3", e.target.value)}>
-                    {PHONE_TYPE.map((s) => (
-                      <option key={s} value={s}>{s}</option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  P3 Ext
-                  <input
-                    className="admin-input"
-                    style={{ maxWidth: "72px" }}
-                    inputMode="numeric"
-                    maxLength={3}
-                    value={legacyValue("p3Ext")}
-                    onChange={(e) => setLegacy("p3Ext", e.target.value.replace(/\D/g, "").slice(0, 3))}
-                  />
-                </label>
-                <label>E Mail<input className="admin-input" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} /></label>
-                <label>E Mail 2<input className="admin-input" value={legacyValue("email2")} onChange={(e) => setLegacy("email2", e.target.value)} /></label>
+                <label>Apt No<input className="admin-input" style={{ maxWidth: "90px" }} value={legacyValue("aptNo1")} onChange={(e) => setLegacy("aptNo1", e.target.value)} /></label>
+                <label className="admin-form-span-2">Address Line 2<input className="admin-input" value={form.addressLine2} onChange={(e) => setForm((f) => ({ ...f, addressLine2: e.target.value }))} /></label>
+                <label className="admin-form-span-2">City<input className="admin-input" value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} /></label>
+                <label>State<input className="admin-input" style={{ maxWidth: "56px" }} maxLength={2} value={form.state} onChange={(e) => setForm((f) => ({ ...f, state: e.target.value.toUpperCase().slice(0, 2) }))} /></label>
+                <label>Zip<input className="admin-input" style={{ maxWidth: "90px" }} maxLength={10} value={form.postalCode} onChange={(e) => setForm((f) => ({ ...f, postalCode: e.target.value }))} /></label>
+                <div
+                  className="admin-form-span-4"
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "minmax(0, 1fr) 92px 72px minmax(0, 1fr)",
+                    gap: "0.22rem 0.32rem",
+                  }}
+                >
+                  <label>
+                    Phone 1
+                    <input
+                      className="admin-input"
+                      value={form.phone}
+                      onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                      onBlur={(e) => setForm((f) => ({ ...f, phone: formatPhoneValue(e.target.value) }))}
+                    />
+                  </label>
+                  <label>
+                    Type Phone 1
+                    <select className="admin-input" value={legacyValue("typePhone1") || "HOME"} onChange={(e) => setLegacy("typePhone1", e.target.value)}>
+                      {PHONE_TYPE.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    P1 Ext
+                    <input
+                      className="admin-input"
+                      inputMode="numeric"
+                      maxLength={3}
+                      value={legacyValue("p1Ext")}
+                      onChange={(e) => setLegacy("p1Ext", e.target.value.replace(/\D/g, "").slice(0, 3))}
+                    />
+                  </label>
+                  <label>E Mail<input className="admin-input" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} /></label>
+                </div>
+                <div
+                  className="admin-form-span-4"
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "minmax(0, 1fr) 92px 72px minmax(0, 1fr)",
+                    gap: "0.22rem 0.32rem",
+                  }}
+                >
+                  <label>
+                    Phone 2
+                    <input
+                      className="admin-input"
+                      value={legacyValue("phone2")}
+                      onChange={(e) => setLegacy("phone2", e.target.value)}
+                      onBlur={(e) => setLegacy("phone2", formatPhoneValue(e.target.value))}
+                    />
+                  </label>
+                  <label>
+                    Type Phone 2
+                    <select className="admin-input" value={legacyValue("typePhone2") || "HOME"} onChange={(e) => setLegacy("typePhone2", e.target.value)}>
+                      {PHONE_TYPE.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    P2 Ext
+                    <input
+                      className="admin-input"
+                      inputMode="numeric"
+                      maxLength={3}
+                      value={legacyValue("p2Ext")}
+                      onChange={(e) => setLegacy("p2Ext", e.target.value.replace(/\D/g, "").slice(0, 3))}
+                    />
+                  </label>
+                  <label>E Mail 2<input className="admin-input" value={legacyValue("email2")} onChange={(e) => setLegacy("email2", e.target.value)} /></label>
+                </div>
+                <div
+                  className="admin-form-span-4"
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "minmax(0, 1fr) 92px 72px minmax(0, 1fr)",
+                    gap: "0.22rem 0.32rem",
+                  }}
+                >
+                  <label>
+                    Phone 3
+                    <input
+                      className="admin-input"
+                      value={legacyValue("phone3")}
+                      onChange={(e) => setLegacy("phone3", e.target.value)}
+                      onBlur={(e) => setLegacy("phone3", formatPhoneValue(e.target.value))}
+                    />
+                  </label>
+                  <label>
+                    Type Phone 3
+                    <select className="admin-input" value={legacyValue("typePhone3") || "HOME"} onChange={(e) => setLegacy("typePhone3", e.target.value)}>
+                      {PHONE_TYPE.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label>
+                    P3 Ext
+                    <input
+                      className="admin-input"
+                      inputMode="numeric"
+                      maxLength={3}
+                      value={legacyValue("p3Ext")}
+                      onChange={(e) => setLegacy("p3Ext", e.target.value.replace(/\D/g, "").slice(0, 3))}
+                    />
+                  </label>
+                  <span />
+                </div>
                 <label>
                   <span style={{ display: "flex", alignItems: "center", gap: "0.3rem", marginTop: "0.3rem" }}>
                     <input type="checkbox" checked={legacyBool("emailOptOut")} onChange={(e) => setLegacy("emailOptOut", e.target.checked)} />
@@ -1122,25 +1188,17 @@ export default function AdminWorkbenchPage() {
                     </span>
                   </div>
                   <div className="admin-notes-history" style={{ maxHeight: "150px", overflowY: "auto", border: "1px solid var(--wb-border)", borderRadius: "var(--wb-radius-sm)", padding: "0.5rem", marginBottom: "0.5rem", background: "var(--wb-surface)" }}>
-                    {(current?.notesHistory || []).length === 0 && !form.notes ? (
+                    {(current?.notesHistory || []).length === 0 ? (
                       <p style={{ color: "var(--wb-muted)", fontSize: "0.75rem", margin: 0 }}>No notes yet</p>
                     ) : (
-                      <>
-                        {form.notes && (
-                          <div style={{ paddingBottom: "0.5rem", borderBottom: "1px solid var(--wb-border)", marginBottom: "0.5rem" }}>
-                            <div style={{ fontSize: "0.65rem", color: "var(--wb-muted)", marginBottom: "0.15rem" }}>Legacy Note</div>
-                            <div style={{ fontSize: "0.8rem", whiteSpace: "pre-wrap" }}>{form.notes}</div>
+                      [...(current?.notesHistory || [])].reverse().map((note, i) => (
+                        <div key={note._id || i} style={{ paddingBottom: "0.5rem", borderBottom: i < (current?.notesHistory || []).length - 1 ? "1px solid var(--wb-border)" : "none", marginBottom: "0.5rem" }}>
+                          <div style={{ fontSize: "0.65rem", color: "var(--wb-muted)", marginBottom: "0.15rem" }}>
+                            {new Date(note.createdAt).toLocaleDateString()} {new Date(note.createdAt).toLocaleTimeString()} — {note.createdBy}
                           </div>
-                        )}
-                        {[...(current?.notesHistory || [])].reverse().map((note, i) => (
-                          <div key={note._id || i} style={{ paddingBottom: "0.5rem", borderBottom: i < (current?.notesHistory || []).length - 1 ? "1px solid var(--wb-border)" : "none", marginBottom: "0.5rem" }}>
-                            <div style={{ fontSize: "0.65rem", color: "var(--wb-muted)", marginBottom: "0.15rem" }}>
-                              {new Date(note.createdAt).toLocaleDateString()} {new Date(note.createdAt).toLocaleTimeString()} — {note.createdBy}
-                            </div>
-                            <div style={{ fontSize: "0.8rem", whiteSpace: "pre-wrap" }}>{note.text}</div>
-                          </div>
-                        ))}
-                      </>
+                          <div style={{ fontSize: "0.8rem", whiteSpace: "pre-wrap" }}>{note.text}</div>
+                        </div>
+                      ))
                     )}
                   </div>
                   <div style={{ display: "flex", gap: "0.5rem" }}>
@@ -1164,9 +1222,10 @@ export default function AdminWorkbenchPage() {
                   </div>
                 </label>
                 <label>Employer<input className="admin-input" value={legacyValue("employer")} onChange={(e) => setLegacy("employer", e.target.value)} /></label>
-                <label>The Next Step?<input className="admin-input" value={legacyValue("nextStep")} onChange={(e) => setLegacy("nextStep", e.target.value)} /></label>
+                <label>Company<input className="admin-input" value={legacyValue("company")} onChange={(e) => setLegacy("company", e.target.value)} /></label>
+                <label className="admin-form-span-2">The Next Step?<input className="admin-input" value={legacyValue("nextStep")} onChange={(e) => setLegacy("nextStep", e.target.value)} /></label>
                 <label>Referred By ID<input className="admin-input" value={legacyValue("referredById")} onChange={(e) => setLegacy("referredById", e.target.value)} /></label>
-                <label>Date Referred<input className="admin-input" value={legacyValue("dateReferred")} onChange={(e) => setLegacy("dateReferred", e.target.value)} /></label>
+                <label>Date Referred<input className="admin-input" type="date" value={legacyValue("dateReferred")} onChange={(e) => setLegacy("dateReferred", e.target.value)} /></label>
               </div>
             </div>
 
@@ -1215,8 +1274,8 @@ export default function AdminWorkbenchPage() {
                     OIL CO INFO
                   </button>
                 </label>
-                <label>Oil Start Date<input className="admin-input" value={legacyValue("oilStartDate")} onChange={(e) => setLegacy("oilStartDate", e.target.value)} /></label>
-                <label>
+                <label>Oil Start Date<input className="admin-input" type="date" value={legacyValue("oilStartDate")} onChange={(e) => setLegacy("oilStartDate", e.target.value)} /></label>
+                <label className="admin-form-span-2">
                   How Joined
                   <select className="admin-input" value={legacyValue("howJoined") || "WEB"} onChange={(e) => setLegacy("howJoined", e.target.value)}>
                     {HOW_JOINED.map((s) => (
@@ -1224,7 +1283,7 @@ export default function AdminWorkbenchPage() {
                     ))}
                   </select>
                 </label>
-                <label>
+                <label className="admin-form-span-2">
                   Referral
                   <select className="admin-input" value={legacyValue("referralSource") || "OTHER"} onChange={(e) => setLegacy("referralSource", e.target.value)}>
                     {REFERRAL_SOURCE.map((s) => (
@@ -1319,6 +1378,41 @@ export default function AdminWorkbenchPage() {
               </button>
             </div>
 
+            <div className="admin-wb-panel">
+              <div className="admin-wb-panel-title">Solor Insurance &amp; Energy Audits</div>
+              <div
+                className="admin-form-grid"
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 2fr 1fr 1fr 1fr",
+                  gap: "0.22rem 0.32rem",
+                  marginBottom: "0.32rem",
+                }}
+              >
+                <label>Solor Referral Sent Date<input className="admin-input" type="date" value={legacyValue("solorReferralSentDate")} onChange={(e) => setLegacy("solorReferralSentDate", e.target.value)} /></label>
+                <label>Solor Notes<input className="admin-input" value={legacyValue("solorNotes")} onChange={(e) => setLegacy("solorNotes", e.target.value)} /></label>
+                <label>Panels<input className="admin-input" value={legacyValue("solorPanels")} onChange={(e) => setLegacy("solorPanels", e.target.value)} /></label>
+                <label>Solor: Paid
+                  <select className="admin-input" value={legacyValue("solorPaid") || ""} onChange={(e) => setLegacy("solorPaid", e.target.value)}>
+                    <option value=""></option>
+                    <option value="YES">YES</option>
+                    <option value="NO">NO</option>
+                  </select>
+                </label>
+                <label>Solor: Date Paid<input className="admin-input" type="date" value={legacyValue("solorDatePaid")} onChange={(e) => setLegacy("solorDatePaid", e.target.value)} /></label>
+              </div>
+              <div className="admin-form-grid-4" style={{ marginBottom: "0.32rem" }}>
+                <label>Energy Audit Referral Date<input className="admin-input" type="date" value={legacyValue("energyAuditReferralDate")} onChange={(e) => setLegacy("energyAuditReferralDate", e.target.value)} /></label>
+                <label className="admin-form-span-2">Energy Audit Notes<input className="admin-input" value={legacyValue("energyAuditNotes")} onChange={(e) => setLegacy("energyAuditNotes", e.target.value)} /></label>
+                <label>Energy Audit Date Paid<input className="admin-input" type="date" value={legacyValue("energyAuditDatePaid")} onChange={(e) => setLegacy("energyAuditDatePaid", e.target.value)} /></label>
+              </div>
+              <div className="admin-form-grid-4">
+                <label>Insurance Audit Referral Date<input className="admin-input" type="date" value={legacyValue("insuranceAuditReferralDate")} onChange={(e) => setLegacy("insuranceAuditReferralDate", e.target.value)} /></label>
+                <label className="admin-form-span-2">Insurance: Audit Notes<input className="admin-input" value={legacyValue("insuranceAuditNotes")} onChange={(e) => setLegacy("insuranceAuditNotes", e.target.value)} /></label>
+                <label>Insurance: Date Paid<input className="admin-input" type="date" value={legacyValue("insuranceDatePaid")} onChange={(e) => setLegacy("insuranceDatePaid", e.target.value)} /></label>
+              </div>
+            </div>
+
             <div className="admin-wb-panel electric">
               <div className="admin-wb-panel-title">Electric Status</div>
               <div className="admin-wb-status-row">
@@ -1353,29 +1447,45 @@ export default function AdminWorkbenchPage() {
               </div>
             </div>
 
-            <div className="admin-wb-panel">
-              <div className="admin-wb-panel-title">Legacy Profile</div>
-              <div className="admin-form-grid-4" style={{ fontSize: "0.75rem" }}>
-                <label>Legacy ID<input className="admin-input" readOnly value={legacyValue("legacyId") || "—"} /></label>
-                <label>Record Type<input className="admin-input" readOnly value={legacyValue("recordType") || "—"} /></label>
-                <label>Import Source<input className="admin-input" readOnly value={legacyValue("importSource") || "—"} /></label>
-                <label>Date Added<input className="admin-input" readOnly value={legacyValue("dateAdd") || "—"} /></label>
-                <label>Date Updated<input className="admin-input" readOnly value={legacyValue("dateUpdat") || "—"} /></label>
-                <label>Last User<input className="admin-input" readOnly value={legacyValue("lastUser") || "—"} /></label>
-                <label>Key Codes<input className="admin-input" readOnly value={legacyValue("keyCodes") || "—"} /></label>
-                <label>Carrier Rt<input className="admin-input" readOnly value={legacyValue("carrierRt") || "—"} /></label>
-                <label>Oil Co Raw<input className="admin-input" readOnly value={legacyValue("oilCoRaw") || "—"} /></label>
-                <label>Plus 4<input className="admin-input" readOnly value={legacyValue("plus4") || "—"} /></label>
-                <label>Formal 1<input className="admin-input" readOnly value={legacyValue("formal1") || "—"} /></label>
-                <label>Formal 2<input className="admin-input" readOnly value={legacyValue("formal2") || "—"} /></label>
-                <label>Pref 1<input className="admin-input" readOnly value={legacyValue("pref1") || "—"} /></label>
-                <label>Pref 2<input className="admin-input" readOnly value={legacyValue("pref2") || "—"} /></label>
-                <label>Generation 1<input className="admin-input" readOnly value={legacyValue("generation1") || "—"} /></label>
-                <label>Generation 2<input className="admin-input" readOnly value={legacyValue("generation2") || "—"} /></label>
+            </div> {/* end right col */}
+            <div
+              style={{
+                gridColumn: "1 / -1",
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "0.55rem",
+              }}
+            >
+              <div className="admin-wb-panel">
+                <div className="admin-wb-panel-title">Legacy Note</div>
+                {form.notes ? (
+                  <div style={{ fontSize: "0.8rem", whiteSpace: "pre-wrap", color: "var(--wb-text)" }}>{form.notes}</div>
+                ) : (
+                  <p style={{ color: "var(--wb-muted)", fontSize: "0.75rem", margin: 0 }}>No legacy note on file.</p>
+                )}
+              </div>
+              <div className="admin-wb-panel">
+                <div className="admin-wb-panel-title">Legacy Profile</div>
+                <div className="admin-form-grid-4" style={{ fontSize: "0.75rem" }}>
+                  <label>Legacy ID<input className="admin-input" readOnly value={legacyValue("legacyId") || "—"} /></label>
+                  <label>Record Type<input className="admin-input" readOnly value={legacyValue("recordType") || "—"} /></label>
+                  <label>Import Source<input className="admin-input" readOnly value={legacyValue("importSource") || "—"} /></label>
+                  <label>Date Added<input className="admin-input" readOnly value={legacyValue("dateAdd") || "—"} /></label>
+                  <label>Date Updated<input className="admin-input" readOnly value={legacyValue("dateUpdat") || "—"} /></label>
+                  <label>Last User<input className="admin-input" readOnly value={legacyValue("lastUser") || "—"} /></label>
+                  <label>Key Codes<input className="admin-input" readOnly value={legacyValue("keyCodes") || "—"} /></label>
+                  <label>Carrier Rt<input className="admin-input" readOnly value={legacyValue("carrierRt") || "—"} /></label>
+                  <label>Oil Co Raw<input className="admin-input" readOnly value={legacyValue("oilCoRaw") || "—"} /></label>
+                  <label>Plus 4<input className="admin-input" readOnly value={legacyValue("plus4") || "—"} /></label>
+                  <label>Formal 1<input className="admin-input" readOnly value={legacyValue("formal1") || "—"} /></label>
+                  <label>Formal 2<input className="admin-input" readOnly value={legacyValue("formal2") || "—"} /></label>
+                  <label>Pref 1<input className="admin-input" readOnly value={legacyValue("pref1") || "—"} /></label>
+                  <label>Pref 2<input className="admin-input" readOnly value={legacyValue("pref2") || "—"} /></label>
+                  <label>Generation 1<input className="admin-input" readOnly value={legacyValue("generation1") || "—"} /></label>
+                  <label>Generation 2<input className="admin-input" readOnly value={legacyValue("generation2") || "—"} /></label>
+                </div>
               </div>
             </div>
-
-            </div> {/* end right col */}
           </div>
         )}
 

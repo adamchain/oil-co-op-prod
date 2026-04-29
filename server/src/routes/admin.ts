@@ -15,6 +15,7 @@ import { logActivity } from "../services/activity.js";
 import { sendMemberEmail, sendPaymentLinkEmail, sendOilCompanyAssignedEmail } from "../services/mail.js";
 import { applyTemplateVariables, ensureEmailTemplates } from "../services/emailTemplateStore.js";
 import { nextJuneFirstAfterSignup } from "../utils/juneBilling.js";
+import { expandStateQuery, US_STATE_ABBR_TO_NAME } from "../utils/stateAbbreviations.js";
 import { chargeCard, addPaymentProfile, createCustomerProfile } from "../services/authorizeNet.js";
 import { config, authorizeNetEnabled } from "../config.js";
 import bcrypt from "bcryptjs";
@@ -146,6 +147,12 @@ router.get("/members", async (req, res) => {
   }
   if (qTrimmed) {
     const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    const stateAlt = expandStateQuery(qTrimmed);
+    const stateRxList = [{ state: rx }];
+    if (stateAlt) {
+      const altRx = new RegExp(`^${stateAlt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i");
+      stateRxList.push({ state: altRx });
+    }
     filter.$or = [
       { firstName: rx },
       { lastName: rx },
@@ -155,7 +162,7 @@ router.get("/members", async (req, res) => {
       { addressLine1: rx },
       { addressLine2: rx },
       { city: rx },
-      { state: rx },
+      ...stateRxList,
       { postalCode: rx },
       { notes: rx },
       { "legacyProfile.legacyId": rx },
@@ -186,6 +193,7 @@ router.get("/members", async (req, res) => {
     const qLower = qTrimmed.toLowerCase();
     const isShortStateLikeQuery = /^[a-z]{1,2}$/i.test(qTrimmed);
     const isStateAbbrevQuery = /^[a-z]{2}$/i.test(qTrimmed);
+    const stateAltLower = (expandStateQuery(qTrimmed) || "").toLowerCase();
     const score = (m: any) => {
       const first = String(m.firstName || "").toLowerCase();
       const last = String(m.lastName || "").toLowerCase();
@@ -193,18 +201,22 @@ router.get("/members", async (req, res) => {
       const memberNo = String(m.memberNumber || "").toLowerCase();
       const email = String(m.email || "").toLowerCase();
       const stateText = String(m.state || "").toLowerCase();
+      const stateAbbrFromName = (US_STATE_ABBR_TO_NAME[stateText.toUpperCase()] ? stateText.toUpperCase() : "").toLowerCase();
+      const stateNameFromAbbr = (US_STATE_ABBR_TO_NAME[stateText.toUpperCase()] || "").toLowerCase();
+      const stateMatchesAlt = !!stateAltLower && (stateText === stateAltLower);
       const city = String(m.city || "").toLowerCase();
       const address = `${String(m.addressLine1 || "")} ${String(m.addressLine2 || "")}`.toLowerCase();
       const phone = String(m.phone || "").toLowerCase();
       const notes = String(m.notes || "").toLowerCase();
 
-      if (isStateAbbrevQuery && stateText === qLower) return 0;
+      if (isStateAbbrevQuery && (stateText === qLower || stateAbbrFromName === qLower)) return 0;
+      if (stateMatchesAlt) return 0;
       if (first.startsWith(qLower) || last.startsWith(qLower)) return 0;
       if (full.includes(qLower)) return 1;
       if (memberNo.includes(qLower)) return 2;
       if (email.includes(qLower)) return 3;
       // Keep state/city/address searchable, but rank below direct name hits for short state-like queries (e.g. "ri").
-      if (stateText.includes(qLower)) return 4;
+      if (stateText.includes(qLower) || stateNameFromAbbr.includes(qLower)) return 4;
       if (city.includes(qLower) || address.includes(qLower)) return 5;
       if (phone.includes(qLower) || notes.includes(qLower)) return 6;
       return 7;
