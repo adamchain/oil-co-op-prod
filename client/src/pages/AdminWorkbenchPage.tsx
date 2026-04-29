@@ -1024,59 +1024,71 @@ export default function AdminWorkbenchPage() {
                 <div
                   className="admin-form-span-4"
                   style={{
-                    display: "grid",
-                    gridTemplateColumns: "120px 130px 130px minmax(0, 1fr)",
-                    gap: "0.22rem 0.55rem",
+                    display: "flex",
+                    flexWrap: "wrap",
                     alignItems: "end",
+                    gap: "0.4rem 0.7rem",
                   }}
                 >
-                  <label>
+                  <label style={{ flex: "0 0 auto", width: "110px" }}>
                     ID
                     <input className="admin-input" readOnly value={current.memberNumber || legacyValue("legacyId") || "—"} />
                   </label>
-                  <label>
+                  <label style={{ flex: "0 0 auto", width: "130px" }}>
                     New Member Dt
                     <input className="admin-input" type="date" value={legacyValue("newMemberDt")} onChange={(e) => setLegacy("newMemberDt", e.target.value)} />
                   </label>
-                  <label>
+                  <label style={{ flex: "0 0 auto", width: "130px" }}>
                     Original Start Date
                     <input className="admin-input" type="date" value={legacyValue("originalStartDate")} onChange={(e) => setLegacy("originalStartDate", e.target.value)} />
                   </label>
                   <div
-                    className="admin-checkbox-grid"
-                    style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.2rem 0.55rem", alignContent: "end", paddingBottom: "0.2rem" }}
+                    style={{
+                      flex: "1 1 auto",
+                      display: "flex",
+                      flexWrap: "wrap",
+                      alignItems: "center",
+                      gap: "0.3rem 0.75rem",
+                      paddingBottom: "0.32rem",
+                      minWidth: 0,
+                    }}
                   >
-                    <label>
+                    <label style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.7rem", fontWeight: 600, whiteSpace: "nowrap" }}>
                       <input type="checkbox" checked={legacyBool("standardMembership")} onChange={(e) => setLegacy("standardMembership", e.target.checked)} />
                       Standard
                     </label>
-                    <label>
+                    <label style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.7rem", fontWeight: 600, whiteSpace: "nowrap" }}>
                       <input type="checkbox" checked={legacyBool("seniorMember")} onChange={(e) => setLegacy("seniorMember", e.target.checked)} />
                       Senior
                     </label>
-                    <label>
+                    <label style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.7rem", fontWeight: 600, whiteSpace: "nowrap" }}>
                       <input type="checkbox" checked={legacyBool("lowVolume")} onChange={(e) => setLegacy("lowVolume", e.target.checked)} />
                       Low Volume
                     </label>
-                    <label>
+                    <label style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.7rem", fontWeight: 600, whiteSpace: "nowrap" }}>
                       <input type="checkbox" checked={legacyBool("waiveFeeLifetime")} onChange={(e) => setLegacy("waiveFeeLifetime", e.target.checked)} />
                       Lifetime
                     </label>
-                    <label>
-                      <input type="checkbox" checked={legacyBool("mailAddr")} onChange={(e) => setLegacy("mailAddr", e.target.checked)} />
-                      Mail Addr
-                    </label>
-                    <button
-                      type="button"
-                      className="admin-wb-btn admin-wb-btn-primary"
-                      style={{ fontSize: "0.62rem", padding: "0.18rem 0.5rem", fontWeight: 700 }}
-                      onClick={() => setActiveTab("MAILINGS")}
-                      disabled={!legacyBool("mailAddr")}
-                      title={legacyBool("mailAddr") ? "Open Mail Manager" : "Check Mail Addr first to enable"}
-                    >
-                      Mail Manager
-                    </button>
                   </div>
+                </div>
+                <div
+                  className="admin-form-span-4"
+                  style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "0.6rem", marginTop: "0.15rem" }}
+                >
+                  <label style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.7rem", fontWeight: 600, whiteSpace: "nowrap" }}>
+                    <input type="checkbox" checked={legacyBool("mailAddr")} onChange={(e) => setLegacy("mailAddr", e.target.checked)} />
+                    Mail Addr
+                  </label>
+                  <button
+                    type="button"
+                    className="admin-wb-btn admin-wb-btn-primary"
+                    style={{ fontSize: "0.7rem", padding: "0.24rem 0.55rem", fontWeight: 700 }}
+                    onClick={() => setActiveTab("MAILINGS")}
+                    disabled={!legacyBool("mailAddr")}
+                    title={legacyBool("mailAddr") ? "Open Mail Manager" : "Check Mail Addr first to enable"}
+                  >
+                    Mail Manager
+                  </button>
                 </div>
                 <div
                   className="admin-form-span-4"
