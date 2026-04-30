@@ -1476,51 +1476,37 @@ export default function AdminWorkbenchPage() {
             <div className={`admin-wb-panel${collapsedPanels.has("solarAudits") ? " collapsed" : ""}`}>
               {panelHeader("solarAudits", "Solar, Insurance & Energy Audits")}
               {!collapsedPanels.has("solarAudits") && (<>
-              <div style={{ fontSize: "0.62rem", fontWeight: 700, color: "var(--wb-muted)", letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: "0.2rem" }}>Solar</div>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                  gap: "0.22rem 0.45rem",
-                  marginBottom: "0.5rem",
-                }}
-              >
-                <label>Referral Sent Date<input className="admin-input" type="date" value={legacyValue("solorReferralSentDate")} onChange={(e) => setLegacy("solorReferralSentDate", e.target.value)} /></label>
-                <label>Date Paid<input className="admin-input" type="date" value={legacyValue("solorDatePaid")} onChange={(e) => setLegacy("solorDatePaid", e.target.value)} /></label>
-                <label>Paid
-                  <select className="admin-input" value={legacyValue("solorPaid") || ""} onChange={(e) => setLegacy("solorPaid", e.target.value)}>
-                    <option value=""></option>
-                    <option value="YES">YES</option>
-                    <option value="NO">NO</option>
-                  </select>
-                </label>
-                <label>Panels<input className="admin-input" value={legacyValue("solorPanels")} onChange={(e) => setLegacy("solorPanels", e.target.value)} /></label>
-                <label style={{ gridColumn: "span 2" }}>Notes<input className="admin-input" value={legacyValue("solorNotes")} onChange={(e) => setLegacy("solorNotes", e.target.value)} /></label>
+              <div className="admin-wb-audit-section">
+                <div className="admin-wb-audit-tag">Solar</div>
+                <div className="admin-wb-audit-grid">
+                  <label>Referral Sent<input className="admin-input" type="date" value={legacyValue("solorReferralSentDate")} onChange={(e) => setLegacy("solorReferralSentDate", e.target.value)} /></label>
+                  <label>Date Paid<input className="admin-input" type="date" value={legacyValue("solorDatePaid")} onChange={(e) => setLegacy("solorDatePaid", e.target.value)} /></label>
+                  <label>Paid
+                    <select className="admin-input" value={legacyValue("solorPaid") || ""} onChange={(e) => setLegacy("solorPaid", e.target.value)}>
+                      <option value=""></option>
+                      <option value="YES">YES</option>
+                      <option value="NO">NO</option>
+                    </select>
+                  </label>
+                  <label>Panels<input className="admin-input" value={legacyValue("solorPanels")} onChange={(e) => setLegacy("solorPanels", e.target.value)} /></label>
+                  <label style={{ gridColumn: "span 2" }}>Notes<input className="admin-input" value={legacyValue("solorNotes")} onChange={(e) => setLegacy("solorNotes", e.target.value)} /></label>
+                </div>
               </div>
-              <div style={{ fontSize: "0.62rem", fontWeight: 700, color: "var(--wb-muted)", letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: "0.2rem" }}>Energy Audit</div>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                  gap: "0.22rem 0.45rem",
-                  marginBottom: "0.5rem",
-                }}
-              >
-                <label>Referral Date<input className="admin-input" type="date" value={legacyValue("energyAuditReferralDate")} onChange={(e) => setLegacy("energyAuditReferralDate", e.target.value)} /></label>
-                <label>Date Paid<input className="admin-input" type="date" value={legacyValue("energyAuditDatePaid")} onChange={(e) => setLegacy("energyAuditDatePaid", e.target.value)} /></label>
-                <label style={{ gridColumn: "span 2" }}>Notes<input className="admin-input" value={legacyValue("energyAuditNotes")} onChange={(e) => setLegacy("energyAuditNotes", e.target.value)} /></label>
+              <div className="admin-wb-audit-section">
+                <div className="admin-wb-audit-tag">Energy</div>
+                <div className="admin-wb-audit-grid">
+                  <label>Referral<input className="admin-input" type="date" value={legacyValue("energyAuditReferralDate")} onChange={(e) => setLegacy("energyAuditReferralDate", e.target.value)} /></label>
+                  <label>Date Paid<input className="admin-input" type="date" value={legacyValue("energyAuditDatePaid")} onChange={(e) => setLegacy("energyAuditDatePaid", e.target.value)} /></label>
+                  <label>Notes<input className="admin-input" value={legacyValue("energyAuditNotes")} onChange={(e) => setLegacy("energyAuditNotes", e.target.value)} /></label>
+                </div>
               </div>
-              <div style={{ fontSize: "0.62rem", fontWeight: 700, color: "var(--wb-muted)", letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: "0.2rem" }}>Insurance Audit</div>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                  gap: "0.22rem 0.45rem",
-                }}
-              >
-                <label>Referral Date<input className="admin-input" type="date" value={legacyValue("insuranceAuditReferralDate")} onChange={(e) => setLegacy("insuranceAuditReferralDate", e.target.value)} /></label>
-                <label>Date Paid<input className="admin-input" type="date" value={legacyValue("insuranceDatePaid")} onChange={(e) => setLegacy("insuranceDatePaid", e.target.value)} /></label>
-                <label style={{ gridColumn: "span 2" }}>Notes<input className="admin-input" value={legacyValue("insuranceAuditNotes")} onChange={(e) => setLegacy("insuranceAuditNotes", e.target.value)} /></label>
+              <div className="admin-wb-audit-section admin-wb-audit-section-last">
+                <div className="admin-wb-audit-tag">Insurance</div>
+                <div className="admin-wb-audit-grid">
+                  <label>Referral<input className="admin-input" type="date" value={legacyValue("insuranceAuditReferralDate")} onChange={(e) => setLegacy("insuranceAuditReferralDate", e.target.value)} /></label>
+                  <label>Date Paid<input className="admin-input" type="date" value={legacyValue("insuranceDatePaid")} onChange={(e) => setLegacy("insuranceDatePaid", e.target.value)} /></label>
+                  <label>Notes<input className="admin-input" value={legacyValue("insuranceAuditNotes")} onChange={(e) => setLegacy("insuranceAuditNotes", e.target.value)} /></label>
+                </div>
               </div>
               </>)}
             </div>

@@ -1218,6 +1218,49 @@ button.admin-wb-panel-title.admin-wb-panel-toggle:hover {
   margin-bottom: -0.1rem;
 }
 
+.admin-wb-audit-section {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: start;
+  gap: 0.4rem;
+  padding-bottom: 0.3rem;
+  margin-bottom: 0.3rem;
+  border-bottom: 1px dashed var(--wb-border);
+}
+
+.admin-wb-audit-section-last {
+  padding-bottom: 0;
+  margin-bottom: 0;
+  border-bottom: none;
+}
+
+.admin-wb-audit-tag {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--wb-muted);
+  padding-top: 0.85rem;
+}
+
+.admin-wb-audit-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.18rem 0.4rem;
+}
+
+.admin-wb-audit-grid > label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  font-size: 0.56rem;
+  font-weight: 600;
+  color: var(--wb-muted);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  min-width: 0;
+}
+
 .admin-wb-panel .admin-form-grid {
   gap: 0.22rem 0.32rem;
 }
