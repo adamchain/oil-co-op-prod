@@ -1577,48 +1577,6 @@ export default function AdminWorkbenchPage() {
             </div>
 
             </div> {/* end right col */}
-            <div
-              style={{
-                gridColumn: "1 / -1",
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: "0.55rem",
-              }}
-            >
-              <div className={`admin-wb-panel${collapsedPanels.has("legacyNote") ? " collapsed" : ""}`}>
-                {panelHeader("legacyNote", "Legacy Note")}
-                {!collapsedPanels.has("legacyNote") && (
-                  form.notes ? (
-                    <div style={{ fontSize: "0.8rem", whiteSpace: "pre-wrap", color: "var(--wb-text)" }}>{form.notes}</div>
-                  ) : (
-                    <p style={{ color: "var(--wb-muted)", fontSize: "0.75rem", margin: 0 }}>No legacy note on file.</p>
-                  )
-                )}
-              </div>
-              <div className={`admin-wb-panel${collapsedPanels.has("legacyProfile") ? " collapsed" : ""}`}>
-                {panelHeader("legacyProfile", "Legacy Profile")}
-                {!collapsedPanels.has("legacyProfile") && (
-                <div className="admin-form-grid-4" style={{ fontSize: "0.75rem" }}>
-                  <label>Legacy ID<input className="admin-input" readOnly value={legacyValue("legacyId") || "—"} /></label>
-                  <label>Record Type<input className="admin-input" readOnly value={legacyValue("recordType") || "—"} /></label>
-                  <label>Import Source<input className="admin-input" readOnly value={legacyValue("importSource") || "—"} /></label>
-                  <label>Date Added<input className="admin-input" readOnly value={legacyValue("dateAdd") || "—"} /></label>
-                  <label>Date Updated<input className="admin-input" readOnly value={legacyValue("dateUpdat") || "—"} /></label>
-                  <label>Last User<input className="admin-input" readOnly value={legacyValue("lastUser") || "—"} /></label>
-                  <label>Key Codes<input className="admin-input" readOnly value={legacyValue("keyCodes") || "—"} /></label>
-                  <label>Carrier Rt<input className="admin-input" readOnly value={legacyValue("carrierRt") || "—"} /></label>
-                  <label>Oil Co Raw<input className="admin-input" readOnly value={legacyValue("oilCoRaw") || "—"} /></label>
-                  <label>Plus 4<input className="admin-input" readOnly value={legacyValue("plus4") || "—"} /></label>
-                  <label>Formal 1<input className="admin-input" readOnly value={legacyValue("formal1") || "—"} /></label>
-                  <label>Formal 2<input className="admin-input" readOnly value={legacyValue("formal2") || "—"} /></label>
-                  <label>Pref 1<input className="admin-input" readOnly value={legacyValue("pref1") || "—"} /></label>
-                  <label>Pref 2<input className="admin-input" readOnly value={legacyValue("pref2") || "—"} /></label>
-                  <label>Generation 1<input className="admin-input" readOnly value={legacyValue("generation1") || "—"} /></label>
-                  <label>Generation 2<input className="admin-input" readOnly value={legacyValue("generation2") || "—"} /></label>
-                </div>
-                )}
-              </div>
-            </div>
           </div>
         )}
 
