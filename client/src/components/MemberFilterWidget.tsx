@@ -397,6 +397,27 @@ export function decodeFilters(encoded: string): MemberFilter[] {
   }
 }
 
+const PINNED_FIELDS_STORAGE_KEY = "admin-wb-pinned-fields";
+
+export function loadPinnedFieldKeys(): string[] {
+  try {
+    const raw = localStorage.getItem(PINNED_FIELDS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+export function savePinnedFieldKeys(keys: string[]): void {
+  try {
+    localStorage.setItem(PINNED_FIELDS_STORAGE_KEY, JSON.stringify(keys));
+  } catch {
+    // ignore
+  }
+}
+
 function makeFilterId(): string {
   return `f-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -406,6 +427,192 @@ type Props = {
   onFiltersChange: (next: MemberFilter[]) => void;
   fields: FilterFieldDef[];
 };
+
+type FieldPickerProps = {
+  value: string;
+  onChange: (next: string) => void;
+  fields: FilterFieldDef[];
+  groups: string[];
+  pinnedFields: FilterFieldDef[];
+  pinnedFieldKeys: string[];
+  onTogglePin: (key: string) => void;
+};
+
+function FieldPicker({
+  value,
+  onChange,
+  fields,
+  groups,
+  pinnedFields,
+  pinnedFieldKeys,
+  onTogglePin,
+}: FieldPickerProps) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const toggleRef = useRef<HTMLButtonElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const current = fields.find((x) => x.key === value);
+
+  useEffect(() => {
+    if (!open) return;
+    function updatePos() {
+      const t = toggleRef.current;
+      if (!t) return;
+      const r = t.getBoundingClientRect();
+      const desiredWidth = Math.max(320, r.width);
+      const maxLeft = window.innerWidth - desiredWidth - 8;
+      setMenuPos({
+        top: r.bottom + 4,
+        left: Math.max(8, Math.min(r.left, maxLeft)),
+        width: desiredWidth,
+      });
+    }
+    updatePos();
+    window.addEventListener("scroll", updatePos, true);
+    window.addEventListener("resize", updatePos);
+    return () => {
+      window.removeEventListener("scroll", updatePos, true);
+      window.removeEventListener("resize", updatePos);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (toggleRef.current?.contains(target)) return;
+      if (menuRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) setQuery("");
+  }, [open]);
+
+  const q = query.trim().toLowerCase();
+  const matches = (def: FilterFieldDef) =>
+    !q ||
+    def.label.toLowerCase().includes(q) ||
+    def.group.toLowerCase().includes(q) ||
+    def.key.toLowerCase().includes(q);
+
+  return (
+    <div className="admin-wb-field-picker">
+      <button
+        ref={toggleRef}
+        type="button"
+        className="admin-wb-field-picker-toggle"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className="admin-wb-field-picker-toggle-label">
+          {current ? current.label : "Select field…"}
+        </span>
+        <span className="admin-wb-field-picker-toggle-caret" aria-hidden="true">▾</span>
+      </button>
+      {open && menuPos && (
+        <div
+          ref={menuRef}
+          className="admin-wb-field-picker-menu"
+          style={{ top: menuPos.top, left: menuPos.left, width: menuPos.width }}
+        >
+          <div className="admin-wb-field-picker-search">
+            <input
+              type="search"
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search fields…"
+            />
+          </div>
+          <div className="admin-wb-field-picker-list">
+            {pinnedFields.length > 0 && (
+              <div className="admin-wb-field-picker-group">
+                <div className="admin-wb-field-picker-group-label">★ Pinned</div>
+                {pinnedFields.filter(matches).map((def) => (
+                  <FieldPickerOption
+                    key={`pinned-${def.key}`}
+                    def={def}
+                    selected={def.key === value}
+                    pinned
+                    onSelect={() => {
+                      onChange(def.key);
+                      setOpen(false);
+                    }}
+                    onTogglePin={() => onTogglePin(def.key)}
+                  />
+                ))}
+              </div>
+            )}
+            {groups.map((group) => {
+              const groupFields = fields.filter((x) => x.group === group && matches(x));
+              if (groupFields.length === 0) return null;
+              return (
+                <div className="admin-wb-field-picker-group" key={group}>
+                  <div className="admin-wb-field-picker-group-label">{group}</div>
+                  {groupFields.map((def) => (
+                    <FieldPickerOption
+                      key={def.key}
+                      def={def}
+                      selected={def.key === value}
+                      pinned={pinnedFieldKeys.includes(def.key)}
+                      onSelect={() => {
+                        onChange(def.key);
+                        setOpen(false);
+                      }}
+                      onTogglePin={() => onTogglePin(def.key)}
+                    />
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FieldPickerOption({
+  def,
+  selected,
+  pinned,
+  onSelect,
+  onTogglePin,
+}: {
+  def: FilterFieldDef;
+  selected: boolean;
+  pinned: boolean;
+  onSelect: () => void;
+  onTogglePin: () => void;
+}) {
+  return (
+    <div className={`admin-wb-field-picker-option${selected ? " selected" : ""}`}>
+      <button
+        type="button"
+        className={`admin-wb-field-picker-pin${pinned ? " active" : ""}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          onTogglePin();
+        }}
+        title={pinned ? `Unpin "${def.label}"` : `Pin "${def.label}" to top of list`}
+        aria-label={pinned ? "Unpin field" : "Pin field"}
+      >
+        ★
+      </button>
+      <button
+        type="button"
+        className="admin-wb-field-picker-option-label"
+        onClick={onSelect}
+      >
+        {def.label}
+      </button>
+    </div>
+  );
+}
 
 export function MemberFilterWidget({ filters, onFiltersChange, fields }: Props) {
   const [open, setOpen] = useState(false);
@@ -435,7 +642,7 @@ export function MemberFilterWidget({ filters, onFiltersChange, fields }: Props) 
   }, [open]);
 
   function addFilter() {
-    const first = fields[0];
+    const first = pinnedFields[0] || fields[0];
     if (!first) return;
     const nextFilter: MemberFilter = {
       id: makeFilterId(),
@@ -470,6 +677,22 @@ export function MemberFilterWidget({ filters, onFiltersChange, fields }: Props) 
   function clearAll() {
     onFiltersChange([]);
   }
+
+  const [pinnedFieldKeys, setPinnedFieldKeys] = useState<string[]>(() => loadPinnedFieldKeys());
+
+  function toggleFieldPin(key: string) {
+    setPinnedFieldKeys((prev) => {
+      const next = prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key];
+      savePinnedFieldKeys(next);
+      return next;
+    });
+  }
+
+  const pinnedFields = useMemo(() => {
+    return pinnedFieldKeys
+      .map((k) => fields.find((x) => x.key === k))
+      .filter((x): x is FilterFieldDef => !!x);
+  }, [pinnedFieldKeys, fields]);
 
   return (
     <div className="admin-wb-filter" ref={containerRef}>
@@ -520,21 +743,15 @@ export function MemberFilterWidget({ filters, onFiltersChange, fields }: Props) 
               const showValue = !["is_empty", "is_not_empty", "is_true", "is_false"].includes(f.operator);
               return (
                 <div className="admin-wb-filter-row" key={f.id}>
-                  <select
+                  <FieldPicker
                     value={f.field}
-                    onChange={(e) => updateFilter(f.id, { field: e.target.value })}
-                    className="admin-wb-filter-select"
-                  >
-                    {groups.map((group) => (
-                      <optgroup key={group} label={group}>
-                        {fields
-                          .filter((x) => x.group === group)
-                          .map((x) => (
-                            <option key={x.key} value={x.key}>{x.label}</option>
-                          ))}
-                      </optgroup>
-                    ))}
-                  </select>
+                    onChange={(key) => updateFilter(f.id, { field: key })}
+                    fields={fields}
+                    groups={groups}
+                    pinnedFields={pinnedFields}
+                    pinnedFieldKeys={pinnedFieldKeys}
+                    onTogglePin={toggleFieldPin}
+                  />
                   <select
                     value={f.operator}
                     onChange={(e) => updateFilter(f.id, { operator: e.target.value as FilterOperator })}

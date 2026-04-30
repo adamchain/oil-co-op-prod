@@ -175,6 +175,21 @@ function formatPhoneValue(raw: string): string {
   return raw.trim();
 }
 
+const COLLAPSED_PANELS_KEY = "wb.collapsedPanels.v1";
+
+function loadCollapsedPanels(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  try {
+    const raw = window.localStorage.getItem(COLLAPSED_PANELS_KEY);
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw);
+    if (Array.isArray(arr)) return new Set(arr.filter((v) => typeof v === "string"));
+  } catch {
+    // ignore corrupted storage
+  }
+  return new Set();
+}
+
 export default function AdminWorkbenchPage() {
   const { token } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -212,6 +227,40 @@ export default function AdminWorkbenchPage() {
   const [mailFooter, setMailFooter] = useState<string>(DEFAULT_MAIL_FOOTER);
   const [mailToEmail, setMailToEmail] = useState("");
   const [mailSending, setMailSending] = useState(false);
+
+  const [collapsedPanels, setCollapsedPanels] = useState<Set<string>>(loadCollapsedPanels);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(COLLAPSED_PANELS_KEY, JSON.stringify(Array.from(collapsedPanels)));
+    } catch {
+      // ignore quota errors
+    }
+  }, [collapsedPanels]);
+
+  function togglePanel(id: string) {
+    setCollapsedPanels((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function panelHeader(id: string, title: string) {
+    const collapsed = collapsedPanels.has(id);
+    return (
+      <button
+        type="button"
+        className="admin-wb-panel-title admin-wb-panel-toggle"
+        aria-expanded={!collapsed}
+        onClick={() => togglePanel(id)}
+      >
+        <span>{title}</span>
+        <span className="admin-wb-collapse-chevron" aria-hidden="true">{collapsed ? "+" : "−"}</span>
+      </button>
+    );
+  }
 
   const [form, setForm] = useState({
     firstName: "",
@@ -974,8 +1023,9 @@ export default function AdminWorkbenchPage() {
         {activeTab === "Data Entry" && current && (
           <div className="admin-wb-grid">
             <div className="admin-wb-col">
-            <div className="admin-wb-panel">
-              <div className="admin-wb-panel-title">Member Identity</div>
+            <div className={`admin-wb-panel${collapsedPanels.has("memberIdentity") ? " collapsed" : ""}`}>
+              {panelHeader("memberIdentity", "Member Identity")}
+              {!collapsedPanels.has("memberIdentity") && (<>
               <div className="admin-status-pill-row" style={{ margin: "0 0 0.5rem" }}>
                 {isLifetime && <span className="admin-pill ok">Lifetime Member</span>}
                 {isWaived && <span className="admin-pill">Waived</span>}
@@ -1253,17 +1303,26 @@ export default function AdminWorkbenchPage() {
                 >
                   <label style={{ flex: "0 0 auto", width: "180px" }}>Employer<input className="admin-input" value={legacyValue("employer")} onChange={(e) => setLegacy("employer", e.target.value)} /></label>
                   <label style={{ flex: "0 0 auto", width: "160px" }}>Company<input className="admin-input" value={legacyValue("company")} onChange={(e) => setLegacy("company", e.target.value)} /></label>
-                  <label style={{ flex: "0 0 auto", width: "220px" }}>The Next Step?<input className="admin-input" value={legacyValue("nextStep")} onChange={(e) => setLegacy("nextStep", e.target.value)} /></label>
+                  <label style={{ flex: "0 0 auto", width: "120px" }}>
+                    The Next Step?
+                    <select className="admin-input" value={legacyValue("nextStep")} onChange={(e) => setLegacy("nextStep", e.target.value)}>
+                      <option value=""></option>
+                      <option value="YES">YES</option>
+                      <option value="NO">NO</option>
+                    </select>
+                  </label>
                   <label style={{ flex: "0 0 auto", width: "130px" }}>Referred By ID<input className="admin-input" value={legacyValue("referredById")} onChange={(e) => setLegacy("referredById", e.target.value)} /></label>
                   <label style={{ flex: "0 0 auto", width: "140px" }}>Date Referred<input className="admin-input" type="date" value={legacyValue("dateReferred")} onChange={(e) => setLegacy("dateReferred", e.target.value)} /></label>
                 </div>
               </div>
+              </>)}
             </div>
 
             </div> {/* end left col */}
             <div className="admin-wb-col">
-            <div className="admin-wb-panel">
-              <div className="admin-wb-panel-title">Oil Company Status</div>
+            <div className={`admin-wb-panel${collapsedPanels.has("oilStatus") ? " collapsed" : ""}`}>
+              {panelHeader("oilStatus", "Oil Company Status")}
+              {!collapsedPanels.has("oilStatus") && (<>
               <div className="admin-wb-status-row">
                 {WB_OIL_STATUS.map((s) => (
                   <label key={s} className={`on-${s === "ACTIVE" ? "active" : s === "INACTIVE" ? "inactive" : s === "PROSPECTIVE" ? "prospect" : s === "NO OIL" ? "noOil" : "unknown"}`}>
@@ -1323,10 +1382,12 @@ export default function AdminWorkbenchPage() {
                   </select>
                 </label>
               </div>
+              </>)}
             </div>
 
-            <div className="admin-wb-panel">
-              <div className="admin-wb-panel-title">Propane Company Info</div>
+            <div className={`admin-wb-panel${collapsedPanels.has("propaneInfo") ? " collapsed" : ""}`}>
+              {panelHeader("propaneInfo", "Propane Company Info")}
+              {!collapsedPanels.has("propaneInfo") && (<>
               <div className="admin-wb-status-row">
                 {WB_PROPANE_STATUS.map((s) => (
                   <label key={s} className={`on-${s === "ACTIVE" ? "active" : s === "INACTIVE" ? "inactive" : s === "PROSPECTIVE" ? "prospect" : s === "NO PROPANE" ? "noOil" : "unknown"}`}>
@@ -1372,10 +1433,12 @@ export default function AdminWorkbenchPage() {
                 </label>
                 <label style={{ flex: "0 0 auto", width: "150px" }}>Propane Start Date<input className="admin-input" type="date" value={legacyValue("propaneStartDate")} onChange={(e) => setLegacy("propaneStartDate", e.target.value)} /></label>
               </div>
+              </>)}
             </div>
 
-            <div className="admin-wb-panel">
-              <div className="admin-wb-panel-title">Delivery Status</div>
+            <div className={`admin-wb-panel${collapsedPanels.has("deliveryStatus") ? " collapsed" : ""}`}>
+              {panelHeader("deliveryStatus", "Delivery Status")}
+              {!collapsedPanels.has("deliveryStatus") && (<>
               <div className="admin-checkbox-grid" style={{marginBottom: "0.4rem"}}>
                 <label>
                   <input type="checkbox" checked={legacyBool("deliveryHistory")} onChange={(e) => setLegacy("deliveryHistory", e.target.checked)} />
@@ -1407,10 +1470,12 @@ export default function AdminWorkbenchPage() {
               >
                 DELIVERY HISTORY
               </button>
+              </>)}
             </div>
 
-            <div className="admin-wb-panel">
-              <div className="admin-wb-panel-title">Solar, Insurance &amp; Energy Audits</div>
+            <div className={`admin-wb-panel${collapsedPanels.has("solarAudits") ? " collapsed" : ""}`}>
+              {panelHeader("solarAudits", "Solar, Insurance & Energy Audits")}
+              {!collapsedPanels.has("solarAudits") && (<>
               <div style={{ fontSize: "0.62rem", fontWeight: 700, color: "var(--wb-muted)", letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: "0.2rem" }}>Solar</div>
               <div
                 style={{
@@ -1457,10 +1522,12 @@ export default function AdminWorkbenchPage() {
                 <label>Date Paid<input className="admin-input" type="date" value={legacyValue("insuranceDatePaid")} onChange={(e) => setLegacy("insuranceDatePaid", e.target.value)} /></label>
                 <label style={{ gridColumn: "span 2" }}>Notes<input className="admin-input" value={legacyValue("insuranceAuditNotes")} onChange={(e) => setLegacy("insuranceAuditNotes", e.target.value)} /></label>
               </div>
+              </>)}
             </div>
 
-            <div className="admin-wb-panel electric">
-              <div className="admin-wb-panel-title">Electric Status</div>
+            <div className={`admin-wb-panel electric${collapsedPanels.has("electricStatus") ? " collapsed" : ""}`}>
+              {panelHeader("electricStatus", "Electric Status")}
+              {!collapsedPanels.has("electricStatus") && (<>
               <div className="admin-wb-status-row">
                 {ELECTRIC_STATUS.map((s) => (
                   <label key={s} className={`on-${s === "ELECTRIC" ? "active" : s === "PENDING" ? "prospect" : s === "INTERESTED" ? "prospect" : s === "DROPPED" ? "inactive" : "unknown"}`}>
@@ -1479,16 +1546,34 @@ export default function AdminWorkbenchPage() {
                 <label style={{ flex: "0 0 auto", width: "140px" }}>Elec Start Date<input className="admin-input" type="date" value={legacyValue("elecStartDate")} onChange={(e) => setLegacy("elecStartDate", e.target.value)} /></label>
                 <label style={{ flex: "0 0 auto", width: "120px" }}>Name Key<input className="admin-input" value={legacyValue("nameKey")} onChange={(e) => setLegacy("nameKey", e.target.value)} /></label>
                 <label style={{ flex: "0 0 auto", width: "140px" }}>Dropped Date<input className="admin-input" type="date" value={legacyValue("droppedDate")} onChange={(e) => setLegacy("droppedDate", e.target.value)} /></label>
-                <label style={{ flex: "0 0 auto", width: "180px" }}>Electricity Account Number<input className="admin-input" value={legacyValue("electricAccountNumber")} onChange={(e) => setLegacy("electricAccountNumber", e.target.value)} /></label>
-                <label style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.7rem", fontWeight: 600, paddingBottom: "0.32rem", whiteSpace: "nowrap" }}>
-                  <input type="checkbox" checked={legacyBool("notPaidCurrentYr")} onChange={(e) => setLegacy("notPaidCurrentYr", e.target.checked)} />
-                  Not Paid Current Yr
-                </label>
-                <label style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.7rem", fontWeight: 600, paddingBottom: "0.32rem", whiteSpace: "nowrap" }}>
-                  <input type="checkbox" checked={legacyBool("delinquent")} onChange={(e) => setLegacy("delinquent", e.target.checked)} />
-                  Delinquent
+                <label style={{ flex: "0 0 auto", width: "170px" }}>
+                  Electricity Account #
+                  <input
+                    className="admin-input"
+                    inputMode="numeric"
+                    maxLength={13}
+                    value={legacyValue("electricAccountNumber")}
+                    onChange={(e) => setLegacy("electricAccountNumber", e.target.value.replace(/\D/g, "").slice(0, 13))}
+                  />
                 </label>
               </div>
+              </>)}
+            </div>
+
+            <div className={`admin-wb-panel${collapsedPanels.has("delinquent") ? " collapsed" : ""}`}>
+              {panelHeader("delinquent", "Delinquent / Payment Status")}
+              {!collapsedPanels.has("delinquent") && (
+                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.5rem 1rem" }}>
+                  <label style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.7rem", fontWeight: 600, whiteSpace: "nowrap" }}>
+                    <input type="checkbox" checked={legacyBool("delinquent")} onChange={(e) => setLegacy("delinquent", e.target.checked)} />
+                    Delinquent
+                  </label>
+                  <label style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.7rem", fontWeight: 600, whiteSpace: "nowrap" }}>
+                    <input type="checkbox" checked={legacyBool("notPaidCurrentYr")} onChange={(e) => setLegacy("notPaidCurrentYr", e.target.checked)} />
+                    Not Paid Current Yr
+                  </label>
+                </div>
+              )}
             </div>
 
             </div> {/* end right col */}
@@ -1500,16 +1585,19 @@ export default function AdminWorkbenchPage() {
                 gap: "0.55rem",
               }}
             >
-              <div className="admin-wb-panel">
-                <div className="admin-wb-panel-title">Legacy Note</div>
-                {form.notes ? (
-                  <div style={{ fontSize: "0.8rem", whiteSpace: "pre-wrap", color: "var(--wb-text)" }}>{form.notes}</div>
-                ) : (
-                  <p style={{ color: "var(--wb-muted)", fontSize: "0.75rem", margin: 0 }}>No legacy note on file.</p>
+              <div className={`admin-wb-panel${collapsedPanels.has("legacyNote") ? " collapsed" : ""}`}>
+                {panelHeader("legacyNote", "Legacy Note")}
+                {!collapsedPanels.has("legacyNote") && (
+                  form.notes ? (
+                    <div style={{ fontSize: "0.8rem", whiteSpace: "pre-wrap", color: "var(--wb-text)" }}>{form.notes}</div>
+                  ) : (
+                    <p style={{ color: "var(--wb-muted)", fontSize: "0.75rem", margin: 0 }}>No legacy note on file.</p>
+                  )
                 )}
               </div>
-              <div className="admin-wb-panel">
-                <div className="admin-wb-panel-title">Legacy Profile</div>
+              <div className={`admin-wb-panel${collapsedPanels.has("legacyProfile") ? " collapsed" : ""}`}>
+                {panelHeader("legacyProfile", "Legacy Profile")}
+                {!collapsedPanels.has("legacyProfile") && (
                 <div className="admin-form-grid-4" style={{ fontSize: "0.75rem" }}>
                   <label>Legacy ID<input className="admin-input" readOnly value={legacyValue("legacyId") || "—"} /></label>
                   <label>Record Type<input className="admin-input" readOnly value={legacyValue("recordType") || "—"} /></label>
@@ -1528,6 +1616,7 @@ export default function AdminWorkbenchPage() {
                   <label>Generation 1<input className="admin-input" readOnly value={legacyValue("generation1") || "—"} /></label>
                   <label>Generation 2<input className="admin-input" readOnly value={legacyValue("generation2") || "—"} /></label>
                 </div>
+                )}
               </div>
             </div>
           </div>
