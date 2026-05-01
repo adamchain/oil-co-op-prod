@@ -552,10 +552,18 @@ router.get("/oil-companies", async (_req, res) => {
 const oilCoSchema = z.object({
   name: z.string().min(1),
   contactEmail: z.string().optional().default(""),
-  contactEmails: z.array(z.string().email()).optional().default([]),
+  contactEmails: z.array(z.string()).optional().default([]),
   contactPhone: z.string().optional().default(""),
   notes: z.string().optional().default(""),
 });
+
+function normalizeOilCompanyEmails(contactEmails: string[] | undefined, contactEmail: string | undefined): string[] {
+  const combined = [...(contactEmails || []), contactEmail || ""]
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
+  const uniq = Array.from(new Set(combined));
+  return uniq.filter((email) => z.string().email().safeParse(email).success);
+}
 
 router.post("/oil-companies", async (req, res) => {
   const parsed = oilCoSchema.safeParse(req.body);
@@ -564,16 +572,7 @@ router.post("/oil-companies", async (req, res) => {
     return;
   }
   const body = parsed.data;
-  const normalizedEmails = (body.contactEmails || [])
-    .map((e) => e.trim().toLowerCase())
-    .filter((e, i, arr) => e && arr.indexOf(e) === i);
-  const fallbackSingle = body.contactEmail?.trim().toLowerCase() || "";
-  const contactEmails =
-    normalizedEmails.length > 0
-      ? normalizedEmails
-      : fallbackSingle
-        ? [fallbackSingle]
-        : [];
+  const contactEmails = normalizeOilCompanyEmails(body.contactEmails, body.contactEmail);
   const oc = await OilCompany.create({
     ...body,
     contactEmails,
@@ -600,19 +599,7 @@ router.patch("/oil-companies/:id", async (req, res) => {
   const body = parsed.data;
   if (body.name !== undefined) oc.name = body.name;
   if (body.contactEmail !== undefined || body.contactEmails !== undefined) {
-    const normalizedEmails = (body.contactEmails || [])
-      .map((e) => e.trim().toLowerCase())
-      .filter((e, i, arr) => e && arr.indexOf(e) === i);
-    const fallbackSingle =
-      body.contactEmail !== undefined
-        ? body.contactEmail.trim().toLowerCase()
-        : (oc.contactEmail || "").trim().toLowerCase();
-    const nextEmails =
-      normalizedEmails.length > 0
-        ? normalizedEmails
-        : fallbackSingle
-          ? [fallbackSingle]
-          : [];
+    const nextEmails = normalizeOilCompanyEmails(body.contactEmails, body.contactEmail);
     oc.contactEmails = nextEmails;
     oc.contactEmail = nextEmails[0] || "";
   }
