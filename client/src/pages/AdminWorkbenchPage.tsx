@@ -1157,6 +1157,13 @@ export default function AdminWorkbenchPage() {
                     />
                   </label>
                   <label style={{ flex: "0 0 auto", width: "220px" }}>E Mail<input className="admin-input" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} /></label>
+                  <label
+                    style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", whiteSpace: "nowrap", paddingBottom: "0.15rem" }}
+                    title="Email opt-out"
+                  >
+                    <input type="checkbox" checked={legacyBool("emailOptOut")} onChange={(e) => setLegacy("emailOptOut", e.target.checked)} />
+                    <span style={{ fontSize: "0.62rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "#dc2626" }}>Opted out</span>
+                  </label>
                 </div>
                 <div
                   className="admin-form-span-4"
@@ -1195,13 +1202,6 @@ export default function AdminWorkbenchPage() {
                   className="admin-form-span-4"
                   style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.5rem 1rem", marginTop: "-0.2rem" }}
                 >
-                  <label
-                    style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", whiteSpace: "nowrap" }}
-                    title="Email opt-out"
-                  >
-                    <input type="checkbox" checked={legacyBool("emailOptOut")} onChange={(e) => setLegacy("emailOptOut", e.target.checked)} />
-                    <span style={{ fontSize: "0.62rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "#dc2626" }}>Opted out</span>
-                  </label>
                   <label style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.7rem", fontWeight: 600, whiteSpace: "nowrap" }}>
                     <input type="checkbox" checked={legacyBool("mailAddr")} onChange={(e) => setLegacy("mailAddr", e.target.checked)} />
                     Mail Addr
@@ -1308,41 +1308,44 @@ export default function AdminWorkbenchPage() {
                 </label>
                 <div
                   className="admin-form-span-4"
-                  style={{ display: "flex", flexWrap: "wrap", alignItems: "end", gap: "0.35rem 0.7rem" }}
+                  style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: "0.35rem 1rem", justifyContent: "space-between" }}
                 >
-                  <label style={{ flex: "0 0 auto", width: "120px" }}>
-                    How Joined
-                    <select className="admin-input" value={legacyValue("howJoined") || "WEB"} onChange={(e) => setLegacy("howJoined", e.target.value)}>
-                      {HOW_JOINED.map((s) => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
-                  </label>
-                  <label style={{ flex: "0 0 auto", width: "120px" }}>
-                    Referral
-                    <select className="admin-input" value={legacyValue("referralSource") || "OTHER"} onChange={(e) => setLegacy("referralSource", e.target.value)}>
-                      {REFERRAL_SOURCE.map((s) => (
-                        <option key={s} value={s}>{s}</option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
-                <div
-                  className="admin-form-span-4"
-                  style={{ display: "flex", flexWrap: "wrap", alignItems: "end", gap: "0.35rem 0.7rem" }}
-                >
-                  <label style={{ flex: "0 0 auto", width: "180px" }}>Employer<input className="admin-input" value={legacyValue("employer")} onChange={(e) => setLegacy("employer", e.target.value)} /></label>
-                  <label style={{ flex: "0 0 auto", width: "160px" }}>Company<input className="admin-input" value={legacyValue("company")} onChange={(e) => setLegacy("company", e.target.value)} /></label>
-                  <label style={{ flex: "0 0 auto", width: "120px" }}>
-                    The Next Step?
-                    <select className="admin-input" value={legacyValue("nextStep")} onChange={(e) => setLegacy("nextStep", e.target.value)}>
-                      <option value=""></option>
-                      <option value="YES">YES</option>
-                      <option value="NO">NO</option>
-                    </select>
-                  </label>
-                  <label style={{ flex: "0 0 auto", width: "130px" }}>Referred By ID<input className="admin-input" value={legacyValue("referredById")} onChange={(e) => setLegacy("referredById", e.target.value)} /></label>
-                  <label style={{ flex: "0 0 auto", width: "140px" }}>Date Referred<input className="admin-input" type="date" value={legacyValue("dateReferred")} onChange={(e) => setLegacy("dateReferred", e.target.value)} /></label>
+                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "end", gap: "0.35rem 0.7rem", flex: "1 1 auto" }}>
+                    <label style={{ flex: "0 0 auto", width: "180px" }}>Employer<input className="admin-input" value={legacyValue("employer")} onChange={(e) => setLegacy("employer", e.target.value)} /></label>
+                    <label style={{ flex: "0 0 auto", width: "160px" }}>Company<input className="admin-input" value={legacyValue("company")} onChange={(e) => setLegacy("company", e.target.value)} /></label>
+                    <label style={{ flex: "0 0 auto", width: "120px" }}>
+                      The Next Step?
+                      <select className="admin-input" value={legacyValue("nextStep")} onChange={(e) => setLegacy("nextStep", e.target.value)}>
+                        <option value=""></option>
+                        <option value="YES">YES</option>
+                        <option value="NO">NO</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem", alignItems: "flex-end", flex: "0 0 auto" }}>
+                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "end", gap: "0.35rem 0.7rem", justifyContent: "flex-end" }}>
+                      <label style={{ flex: "0 0 auto", width: "120px" }}>
+                        How Joined
+                        <select className="admin-input" value={legacyValue("howJoined") || "WEB"} onChange={(e) => setLegacy("howJoined", e.target.value)}>
+                          {HOW_JOINED.map((s) => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label style={{ flex: "0 0 auto", width: "120px" }}>
+                        Referral
+                        <select className="admin-input" value={legacyValue("referralSource") || "OTHER"} onChange={(e) => setLegacy("referralSource", e.target.value)}>
+                          {REFERRAL_SOURCE.map((s) => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "end", gap: "0.35rem 0.7rem", justifyContent: "flex-end" }}>
+                      <label style={{ flex: "0 0 auto", width: "130px" }}>Referred By ID<input className="admin-input" value={legacyValue("referredById")} onChange={(e) => setLegacy("referredById", e.target.value)} /></label>
+                      <label style={{ flex: "0 0 auto", width: "140px" }}>Date Referred<input className="admin-input" type="date" value={legacyValue("dateReferred")} onChange={(e) => setLegacy("dateReferred", e.target.value)} /></label>
+                    </div>
+                  </div>
                 </div>
               </div>
               </>)}
@@ -1617,10 +1620,24 @@ export default function AdminWorkbenchPage() {
                   Phone 2 ({legacyValue("typePhone2") || "HOME"})
                   <input className="admin-input" readOnly value={formatPhoneValue(legacyValue("phone2") || "—")} />
                 </label>
-                <label>
-                  E Mail
-                  <input className="admin-input" readOnly value={`${current.email}${legacyBool("emailOptOut") ? " — Opted Out" : ""}`} />
-                </label>
+                <div
+                  className="admin-form-span-2"
+                  style={{ display: "flex", flexDirection: "row", flexWrap: "wrap", alignItems: "end", gap: "0.5rem 1rem" }}
+                >
+                  <label style={{ flex: "1 1 200px", minWidth: 0 }}>
+                    E Mail
+                    <input className="admin-input" readOnly value={current.email || "—"} />
+                  </label>
+                  <div
+                    style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", whiteSpace: "nowrap", opacity: legacyBool("emailOptOut") ? 1 : 0.45 }}
+                    title="Email opt-out (read-only summary)"
+                    role="group"
+                    aria-label="Opted out of email"
+                  >
+                    <input type="checkbox" readOnly checked={legacyBool("emailOptOut")} tabIndex={-1} />
+                    <span style={{ fontSize: "0.62rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "#dc2626" }}>Opted out</span>
+                  </div>
+                </div>
                 <label>Oil Co<input className="admin-input" readOnly value={current.oilCompanyId?.name || "—"} /></label>
                 <label>Oil ID<input className="admin-input" readOnly value={legacyValue("oilId") || "—"} /></label>
                 <label>Propane ID<input className="admin-input" readOnly value={legacyValue("propaneId") || "—"} /></label>
