@@ -1308,12 +1308,28 @@ export default function AdminWorkbenchPage() {
                 </label>
                 <div
                   className="admin-form-span-4"
-                  style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: "0.35rem 1rem", justifyContent: "space-between" }}
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    alignItems: "flex-start",
+                    gap: "0.35rem 1rem",
+                    width: "100%",
+                    minWidth: 0,
+                  }}
                 >
-                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "end", gap: "0.35rem 0.7rem", flex: "1 1 auto" }}>
-                    <label style={{ flex: "0 0 auto", width: "180px" }}>Employer<input className="admin-input" value={legacyValue("employer")} onChange={(e) => setLegacy("employer", e.target.value)} /></label>
-                    <label style={{ flex: "0 0 auto", width: "160px" }}>Company<input className="admin-input" value={legacyValue("company")} onChange={(e) => setLegacy("company", e.target.value)} /></label>
-                    <label style={{ flex: "0 0 auto", width: "120px" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexWrap: "wrap",
+                      alignItems: "end",
+                      gap: "0.35rem 0.7rem",
+                      flex: "1 1 12rem",
+                      minWidth: 0,
+                    }}
+                  >
+                    <label style={{ flex: "1 1 140px", minWidth: 0, maxWidth: "100%" }}>Employer<input className="admin-input" value={legacyValue("employer")} onChange={(e) => setLegacy("employer", e.target.value)} /></label>
+                    <label style={{ flex: "1 1 120px", minWidth: 0, maxWidth: "100%" }}>Company<input className="admin-input" value={legacyValue("company")} onChange={(e) => setLegacy("company", e.target.value)} /></label>
+                    <label style={{ flex: "0 1 120px", minWidth: 0, maxWidth: "100%" }}>
                       The Next Step?
                       <select className="admin-input" value={legacyValue("nextStep")} onChange={(e) => setLegacy("nextStep", e.target.value)}>
                         <option value=""></option>
@@ -1322,9 +1338,30 @@ export default function AdminWorkbenchPage() {
                       </select>
                     </label>
                   </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem", alignItems: "flex-end", flex: "0 0 auto" }}>
-                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "end", gap: "0.35rem 0.7rem", justifyContent: "flex-end" }}>
-                      <label style={{ flex: "0 0 auto", width: "120px" }}>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "0.35rem",
+                      alignItems: "stretch",
+                      flex: "0 1 auto",
+                      marginLeft: "auto",
+                      minWidth: 0,
+                      maxWidth: "100%",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        alignItems: "end",
+                        gap: "0.35rem 0.7rem",
+                        justifyContent: "flex-end",
+                        width: "100%",
+                        minWidth: 0,
+                      }}
+                    >
+                      <label style={{ flex: "0 1 120px", minWidth: 0, maxWidth: "100%" }}>
                         How Joined
                         <select className="admin-input" value={legacyValue("howJoined") || "WEB"} onChange={(e) => setLegacy("howJoined", e.target.value)}>
                           {HOW_JOINED.map((s) => (
@@ -1332,7 +1369,7 @@ export default function AdminWorkbenchPage() {
                           ))}
                         </select>
                       </label>
-                      <label style={{ flex: "0 0 auto", width: "120px" }}>
+                      <label style={{ flex: "0 1 120px", minWidth: 0, maxWidth: "100%" }}>
                         Referral
                         <select className="admin-input" value={legacyValue("referralSource") || "OTHER"} onChange={(e) => setLegacy("referralSource", e.target.value)}>
                           {REFERRAL_SOURCE.map((s) => (
@@ -1341,9 +1378,19 @@ export default function AdminWorkbenchPage() {
                         </select>
                       </label>
                     </div>
-                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "end", gap: "0.35rem 0.7rem", justifyContent: "flex-end" }}>
-                      <label style={{ flex: "0 0 auto", width: "130px" }}>Referred By ID<input className="admin-input" value={legacyValue("referredById")} onChange={(e) => setLegacy("referredById", e.target.value)} /></label>
-                      <label style={{ flex: "0 0 auto", width: "140px" }}>Date Referred<input className="admin-input" type="date" value={legacyValue("dateReferred")} onChange={(e) => setLegacy("dateReferred", e.target.value)} /></label>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        alignItems: "end",
+                        gap: "0.35rem 0.7rem",
+                        justifyContent: "flex-end",
+                        width: "100%",
+                        minWidth: 0,
+                      }}
+                    >
+                      <label style={{ flex: "0 1 130px", minWidth: 0, maxWidth: "100%" }}>Referred By ID<input className="admin-input" value={legacyValue("referredById")} onChange={(e) => setLegacy("referredById", e.target.value)} /></label>
+                      <label style={{ flex: "0 1 140px", minWidth: 0, maxWidth: "100%" }}>Date Referred<input className="admin-input" type="date" value={legacyValue("dateReferred")} onChange={(e) => setLegacy("dateReferred", e.target.value)} /></label>
                     </div>
                   </div>
                 </div>
