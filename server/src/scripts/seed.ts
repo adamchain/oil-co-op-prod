@@ -149,7 +149,7 @@ async function main() {
   await connectDb();
 
   const email = process.env.SEED_ADMIN_EMAIL || "admin@example.com";
-  const password = process.env.SEED_ADMIN_PASSWORD || "ChangeMeAdmin!123";
+  const password = process.env.SEED_ADMIN_PASSWORD || "Admin10..@";
   const passwordHash = await bcrypt.hash(password, 10);
   const adminByEmail = await Member.findOne({ email });
   const adminByNumber = await Member.findOne({ memberNumber: "INTERNAL-ADMIN" });
@@ -392,7 +392,7 @@ async function main() {
   console.info(`Created ${createdMembers.length} sample customers.`);
   console.info(`Linked ${referralLinks} sparse referrals.`);
   console.info(`Assigned all customers across ${existingOilCompanies.length} existing oil companies.`);
-  console.info("Seeded credentials: admin@example.com / ChangeMeAdmin!123");
+  console.info("Seeded credentials: admin@example.com / Admin10..@");
   console.info("Seeded credentials: member emails use password MemberDemo!123");
 
   await mongoose.disconnect();

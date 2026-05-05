@@ -1141,11 +1141,37 @@ export default function AdminWorkbenchPage() {
   };
 
   const memberDisplayName = current ? `${current.firstName} ${current.lastName}` : "";
+  const primaryAddressLine = [
+    current?.addressLine1,
+    legacyValue("aptNo1") ? `Apt ${legacyValue("aptNo1")}` : "",
+  ]
+    .filter(Boolean)
+    .join(", ");
+  const primaryCityStateZip = [current?.city, current?.state, current?.postalCode]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  const mailingAddressLine = [
+    current?.addressLine2,
+    legacyValue("mailApt") ? `Apt ${legacyValue("mailApt")}` : "",
+  ]
+    .filter(Boolean)
+    .join(", ");
+  const mailingCityStateZip = [
+    legacyValue("mailCity") || current?.city || "",
+    legacyValue("mailState") || current?.state || "",
+    legacyValue("mailZip") || current?.postalCode || "",
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  const hasMailingAddress = Boolean(mailingAddressLine || mailingCityStateZip);
+  const useMailingAddress = legacyBool("mailAddr") && hasMailingAddress;
   const mailingMergeData = {
     memberName: memberDisplayName || "Member",
     memberNumber: current?.memberNumber || "—",
-    address: [current?.addressLine1, current?.addressLine2].filter(Boolean).join(", ") || "—",
-    cityStateZip: [current?.city, current?.state, current?.postalCode].filter(Boolean).join(" ").trim() || "—",
+    address: (useMailingAddress ? mailingAddressLine : primaryAddressLine) || "—",
+    cityStateZip: (useMailingAddress ? mailingCityStateZip : primaryCityStateZip) || "—",
     companyName: current?.oilCompanyId?.name || "Assigned Oil Company",
     email: current?.email || "—",
     phone: current?.phone || "—",
@@ -1654,30 +1680,13 @@ export default function AdminWorkbenchPage() {
                   </select>
                 </label>
                 <label style={{ flex: "0 0 auto", width: "100px" }}>Oil ID<input className="admin-input" value={legacyValue("oilId")} onChange={(e) => setLegacy("oilId", e.target.value)} /></label>
-                <label style={{ flex: "0 0 auto" }}>
-                  Oil Co Info
-                  <button
-                    type="button"
-                    className="admin-btn"
-                    style={{fontSize: "0.6rem", padding: "0.2rem 0.5rem"}}
-                    onClick={() => {
-                      const oc = oilCompanies.find((x) => x._id === form.oilCompanyId);
-                      openPrintPreview(
-                        "Oil Company Info",
-                        `<h1>Oil Company Info</h1><pre>${JSON.stringify(oc || { message: "No company selected." }, null, 2)}</pre>`
-                      );
-                    }}
-                  >
-                    OIL CO INFO
-                  </button>
-                </label>
                 <label style={{ flex: "0 0 auto", width: "140px" }}>Oil Start Date<input className="admin-input" type="date" value={legacyValue("oilStartDate")} onChange={(e) => setLegacy("oilStartDate", e.target.value)} /></label>
               </div>
               </>)}
             </div>
 
             <div className={`admin-wb-panel${collapsedPanels.has("propaneInfo") ? " collapsed" : ""}`}>
-              {panelHeader("propaneInfo", "Propane Company Info")}
+              {panelHeader("propaneInfo", "Propane Company Status")}
               {!collapsedPanels.has("propaneInfo") && (<>
               <div className="admin-wb-status-row">
                 {WB_PROPANE_STATUS.map((s) => (
@@ -1701,27 +1710,6 @@ export default function AdminWorkbenchPage() {
                   </select>
                 </label>
                 <label style={{ flex: "0 0 auto", width: "100px" }}>Propane ID<input className="admin-input" value={legacyValue("propaneId")} onChange={(e) => setLegacy("propaneId", e.target.value)} /></label>
-                <label style={{ flex: "0 0 auto" }}>
-                  Prop Co Info
-                  <button
-                    type="button"
-                    className="admin-btn"
-                    style={{fontSize: "0.6rem", padding: "0.2rem 0.5rem", background: "#ea580c", color: "#fff", borderColor: "#c2410c"}}
-                    onClick={() =>
-                      openPrintPreview(
-                        "Propane Company Info",
-                        `<h1>Propane Company Info</h1><p>Propane details are currently maintained in legacy profile fields.</p><pre>${JSON.stringify({
-                          propCoCode: legacyValue("propCoCode"),
-                          propaneId: legacyValue("propaneId"),
-                          propaneStatus: legacyValue("propaneStatus"),
-                          propaneStartDate: legacyValue("propaneStartDate"),
-                        }, null, 2)}</pre>`
-                      )
-                    }
-                  >
-                    PROP CO INFO
-                  </button>
-                </label>
                 <label style={{ flex: "0 0 auto", width: "150px" }}>Propane Start Date<input className="admin-input" type="date" value={legacyValue("propaneStartDate")} onChange={(e) => setLegacy("propaneStartDate", e.target.value)} /></label>
               </div>
               </>)}

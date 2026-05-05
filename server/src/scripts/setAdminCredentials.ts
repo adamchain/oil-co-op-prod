@@ -5,7 +5,7 @@ import { connectDb } from "../db.js";
 import { Member } from "../models/Member.js";
 import { nextJuneFirstAfterSignup } from "../utils/juneBilling.js";
 
-const email = (process.env.SET_ADMIN_EMAIL ?? "admin@oilcoop.com").toLowerCase().trim();
+const email = (process.env.SET_ADMIN_EMAIL ?? "admin@example.com").toLowerCase().trim();
 const password = process.env.SET_ADMIN_PASSWORD ?? "Admin10..@";
 
 async function main() {
