@@ -1,10 +1,31 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
+import DeliveryHistoryModal from "../components/DeliveryHistoryModal";
 import { useAuth } from "../authContext";
 
 type OilCo = { _id: string; name: string };
 type NoteEntry = { _id?: string; text: string; createdAt: string; createdBy: string };
+
+type DeliveryHistoryRow = { dateDelivered: string; deliveryYear: number; fuelType: "OIL" | "PROPANE"; gallons: number };
+
+function parseDeliveryRows(raw: unknown): DeliveryHistoryRow[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((row) => {
+      if (!row || typeof row !== "object") return null;
+      const rec = row as Record<string, unknown>;
+      const dateDelivered = String(rec.dateDelivered || "");
+      const deliveryYear = Number(rec.deliveryYear);
+      const fuelType = String(rec.fuelType || "OIL").toUpperCase();
+      const gallons = Number(rec.gallons);
+      if (!dateDelivered || !Number.isFinite(deliveryYear) || !Number.isFinite(gallons)) return null;
+      if (fuelType !== "OIL" && fuelType !== "PROPANE") return null;
+      return { dateDelivered, deliveryYear, fuelType, gallons };
+    })
+    .filter((v): v is DeliveryHistoryRow => Boolean(v))
+    .sort((a, b) => (a.dateDelivered < b.dateDelivered ? 1 : -1));
+}
 
 export default function AdminMemberPage() {
   const { id } = useParams<{ id: string }>();
@@ -36,6 +57,7 @@ export default function AdminMemberPage() {
   const [msg, setMsg] = useState("");
   const [saving, setSaving] = useState(false);
   const [newNote, setNewNote] = useState("");
+  const [deliveryHistoryOpen, setDeliveryHistoryOpen] = useState(false);
 
   useEffect(() => {
     if (!token || !id) return;
@@ -96,14 +118,16 @@ export default function AdminMemberPage() {
     }
   }
 
-  const lp = data?.member?.legacyProfile || {};
-  const legacyValue = (key: string) => String((lp as Record<string, unknown>)[key] ?? "");
+  const lp = (data?.member?.legacyProfile || {}) as Record<string, unknown>;
+  const legacyValue = (key: string) => String(lp[key] ?? "");
 
   if (!data) {
     return <p style={{ color: "var(--admin-muted)" }}>Loading…</p>;
   }
 
   const m = data.member;
+  const selectedOilCo = oilCos.find((o) => o._id === oilId);
+  const deliveryRows = parseDeliveryRows(lp.deliveryHistoryRows);
 
   return (
     <>
@@ -112,9 +136,14 @@ export default function AdminMemberPage() {
           ← Members
         </Link>
       </p>
-      <h1 style={{ margin: "0 0 0.25rem", fontSize: "1.35rem", fontWeight: 600 }}>
-        {m.firstName} {m.lastName}
-      </h1>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: "0.75rem", margin: "0 0 0.25rem" }}>
+        <h1 style={{ margin: 0, fontSize: "1.35rem", fontWeight: 600 }}>
+          {m.firstName} {m.lastName}
+        </h1>
+        <button type="button" className="admin-btn admin-btn-primary" onClick={() => setDeliveryHistoryOpen(true)}>
+          Delivery history
+        </button>
+      </div>
       <p style={{ color: "var(--admin-muted)", margin: "0 0 1.5rem", fontSize: "0.875rem" }}>
         {m.email} · {m.memberNumber} · Next June bill:{" "}
         {m.nextAnnualBillingDate ? new Date(m.nextAnnualBillingDate).toLocaleDateString() : "—"}
@@ -327,6 +356,30 @@ export default function AdminMemberPage() {
           ))}
         </ul>
       </div>
+
+      <DeliveryHistoryModal
+        open={deliveryHistoryOpen}
+        onClose={() => setDeliveryHistoryOpen(false)}
+        member={{
+          memberNumber: m.memberNumber,
+          createdAt: undefined,
+          firstName: m.firstName,
+          lastName: m.lastName,
+          oilCoCode: String(lp.oilCoCode || ""),
+          oilCompanyName: typeof m.oilCompanyId === "object" && m.oilCompanyId ? m.oilCompanyId.name : selectedOilCo?.name || "",
+          oilId: String(lp.oilId || ""),
+          oilStatus: String(lp.oilWorkbenchStatus || lp.workbenchMemberStatus || "UNKNOWN"),
+          propCoCode: String(lp.propCoCode || ""),
+          propaneCompanyName: String(lp.propaneCompanyName || ""),
+          propaneId: String(lp.propaneId || ""),
+          propaneStatus: String(lp.propaneStatus || "UNKNOWN"),
+          deliveryHistory: Boolean(lp.deliveryHistory),
+          delinquent: Boolean(lp.delinquent),
+          notPaidCurrentYr: Boolean(lp.notPaidCurrentYr),
+          noRecentDels: Boolean(lp.noRecentDels),
+        }}
+        deliveries={deliveryRows}
+      />
     </>
   );
 }

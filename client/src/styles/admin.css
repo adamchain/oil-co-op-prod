@@ -1354,6 +1354,42 @@ button.admin-wb-panel-title.admin-wb-panel-toggle:hover {
   }
 }
 
+.admin-wb-save-toast {
+  position: fixed;
+  bottom: 1.25rem;
+  right: 1.25rem;
+  z-index: 10050;
+  padding: 0.55rem 1.15rem;
+  border-radius: var(--wb-radius-sm);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  box-shadow: 0 6px 28px rgba(15, 23, 42, 0.2);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  animation: admin-wb-toast-in 0.22s ease-out;
+}
+
+.admin-wb-save-toast.ok {
+  background: #15803d;
+}
+
+.admin-wb-save-toast.err {
+  background: #b91c1c;
+}
+
+@keyframes admin-wb-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .admin-payment-compact .admin-card {
   padding: 0.7rem 0.85rem;
 }
@@ -1568,6 +1604,156 @@ button.admin-wb-panel-title.admin-wb-panel-toggle:hover {
 
 @media (max-width: 500px) {
   .admin-minimal-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- Admin modal shell (portaled; same tokens as .admin-app) ---------- */
+
+.admin-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 280;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  box-sizing: border-box;
+  --admin-sidebar: #1c1917;
+  --admin-sidebar-hover: rgba(255, 255, 255, 0.06);
+  --admin-accent: #c2410c;
+  --admin-bg: #fafafa;
+  --admin-surface: #ffffff;
+  --admin-border: rgba(0, 0, 0, 0.08);
+  --admin-text: #0a0a0a;
+  --admin-muted: rgba(0, 0, 0, 0.45);
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--admin-text);
+}
+
+.admin-modal-panel {
+  background: var(--admin-surface);
+  border: 0.5px solid var(--admin-border);
+  border-radius: 16px;
+  padding: 1.25rem 1.5rem;
+  max-width: min(960px, 100%);
+  max-height: min(90vh, 720px);
+  overflow: auto;
+  width: 100%;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.12);
+}
+
+.admin-modal-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.admin-modal-panel-head h2 {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--admin-muted);
+}
+
+.admin-modal-panel-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.admin-modal-body-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.admin-modal-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.admin-modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.admin-modal-field label,
+.admin-modal-field > span:first-child {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--admin-muted);
+}
+
+.admin-modal-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.admin-modal-field-row .admin-modal-field {
+  min-width: 0;
+}
+
+.admin-modal-radio-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem 0.75rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--admin-border);
+  border-bottom: 1px solid var(--admin-border);
+}
+
+.admin-modal-radio-grid label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--admin-muted);
+  cursor: default;
+}
+
+.admin-modal-radio-grid input {
+  width: 0.85rem;
+  height: 0.85rem;
+  margin: 0;
+  accent-color: var(--admin-accent);
+}
+
+.admin-modal-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--admin-muted);
+  font-style: italic;
+}
+
+.admin-modal-table-empty {
+  color: var(--admin-muted);
+  font-size: 0.8125rem;
+  font-style: italic;
+}
+
+@media (max-width: 800px) {
+  .admin-modal-body-grid {
     grid-template-columns: 1fr;
   }
 }

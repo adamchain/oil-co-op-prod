@@ -36,6 +36,7 @@ const updateEmailTemplateSchema = z.object({
   subject: z.string().min(1),
   html: z.string().min(1),
   text: z.string().optional().default(""),
+  enabled: z.boolean().optional(),
 });
 
 router.put("/email-templates/:key", async (req: AuthedRequest, res) => {
@@ -57,6 +58,7 @@ router.put("/email-templates/:key", async (req: AuthedRequest, res) => {
         subject: parsed.data.subject,
         html: parsed.data.html,
         text: parsed.data.text,
+        ...(parsed.data.enabled !== undefined ? { enabled: parsed.data.enabled } : {}),
       },
     },
     { new: true }

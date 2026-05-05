@@ -9,6 +9,7 @@ interface TemplateInfo {
   key: TemplateKey;
   name: string;
   description: string;
+  enabled?: boolean;
   subject: string;
   html: string;
   text: string;
@@ -130,7 +131,12 @@ export default function AdminEmailTemplatesPage() {
       const res = await api<{ template: TemplateInfo }>(`/api/admin/email-templates/${currentTemplate.key}`, {
         method: "PUT",
         token,
-        body: JSON.stringify({ subject, html, text }),
+        body: JSON.stringify({
+          subject,
+          html,
+          text,
+          enabled: currentTemplate.enabled !== false,
+        }),
       });
       setTemplates((prev) =>
         prev ? { ...prev, [res.template.key]: res.template } : prev
@@ -210,6 +216,29 @@ export default function AdminEmailTemplatesPage() {
           <div className="admin-card" style={{ marginBottom: "1rem" }}>
             <h3 style={{ margin: "0 0 0.5rem" }}>{currentTemplate?.name || "Loading..."}</h3>
             <p style={{ color: "#78716c", margin: "0 0 1rem" }}>{currentTemplate?.description || ""}</p>
+            <label
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.5rem",
+                marginBottom: "0.9rem",
+                fontSize: "0.82rem",
+                fontWeight: 600,
+                color: "#57534e",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={currentTemplate?.enabled !== false}
+                onChange={(e) =>
+                  setTemplates((prev) =>
+                    prev && currentTemplate ? { ...prev, [currentTemplate.key]: { ...currentTemplate, enabled: e.target.checked } } : prev
+                  )
+                }
+                disabled={!currentTemplate}
+              />
+              Template enabled (turn off to disable automated sends for this template)
+            </label>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
               <div>

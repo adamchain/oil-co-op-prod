@@ -7,12 +7,18 @@ import { chargeAnnualForCustomer } from "./stripeBilling.js";
 import { chargeCustomerProfile } from "./authorizeNet.js";
 import { sendMemberEmail } from "./mail.js";
 import { logActivity } from "./activity.js";
+import { EmailTemplate } from "../models/EmailTemplate.js";
 
 function reminderYearForJuneBilling(d: Date): number {
   return d.getUTCFullYear();
 }
 
 async function sendJuneReminders() {
+  const renewalTemplate = await EmailTemplate.findOne({ key: "renewalReminder" })
+    .select("enabled")
+    .lean<{ enabled?: boolean } | null>();
+  if (renewalTemplate?.enabled === false) return;
+
   const today = new Date();
   const members = await Member.find({
     role: "member",

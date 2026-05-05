@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../authContext";
+import DeliveryHistoryModal from "../components/DeliveryHistoryModal";
+import PaymentHistoryModal from "../components/PaymentHistoryModal";
 import {
   MemberFilterWidget,
   buildFilterFields,
@@ -56,6 +58,7 @@ type BillingEvent = { _id: string; kind: string; status: string; amountCents: nu
 type Comm = { _id: string; channel: string; subject?: string; status: string; createdAt: string };
 type Referral = { referrerMemberId?: { firstName?: string; lastName?: string; email?: string } };
 type NoteEntry = { _id?: string; text: string; createdAt: string; createdBy: string };
+type DeliveryHistoryRow = { dateDelivered: string; deliveryYear: number; fuelType: "OIL" | "PROPANE"; gallons: number };
 
 type BackupHistoryEntry = {
   id: string;
@@ -175,6 +178,108 @@ function formatPhoneValue(raw: string): string {
   return raw.trim();
 }
 
+function parseDeliveryRows(raw: unknown): DeliveryHistoryRow[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((row) => {
+      if (!row || typeof row !== "object") return null;
+      const rec = row as Record<string, unknown>;
+      const dateDelivered = String(rec.dateDelivered || "");
+      const deliveryYear = Number(rec.deliveryYear);
+      const fuelType = String(rec.fuelType || "OIL").toUpperCase();
+      const gallons = Number(rec.gallons);
+      if (!dateDelivered || !Number.isFinite(deliveryYear) || !Number.isFinite(gallons)) return null;
+      if (fuelType !== "OIL" && fuelType !== "PROPANE") return null;
+      return { dateDelivered, deliveryYear, fuelType, gallons };
+    })
+    .filter((v): v is DeliveryHistoryRow => Boolean(v))
+    .sort((a, b) => {
+      const ta = new Date(a.dateDelivered).getTime();
+      const tb = new Date(b.dateDelivered).getTime();
+      return tb - ta;
+    });
+}
+
+type WorkbenchFormState = {
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  addressLine1: string;
+  addressLine2: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  notes: string;
+  oilCompanyId: string;
+  legacyProfile: Record<string, unknown>;
+};
+
+function sortLegacyProfileKeys(lp: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const k of Object.keys(lp).sort()) out[k] = lp[k];
+  return out;
+}
+
+function serializeWorkbenchForm(f: WorkbenchFormState): string {
+  return JSON.stringify({
+    firstName: f.firstName,
+    lastName: f.lastName,
+    email: f.email,
+    phone: f.phone,
+    addressLine1: f.addressLine1,
+    addressLine2: f.addressLine2,
+    city: f.city,
+    state: f.state,
+    postalCode: f.postalCode,
+    notes: f.notes,
+    oilCompanyId: f.oilCompanyId,
+    legacyProfile: sortLegacyProfileKeys(f.legacyProfile || {}),
+  });
+}
+
+function buildWorkbenchPatchBody(form: WorkbenchFormState) {
+  const ws = String(form.legacyProfile.workbenchMemberStatus ?? "ACTIVE");
+  const status = workbenchStatusToApiStatus(ws);
+  const legacyProfile = { ...form.legacyProfile } as Record<string, unknown>;
+  const newMemberDt = String(legacyProfile.newMemberDt ?? "").trim();
+  if (newMemberDt) legacyProfile.oilStartDate = newMemberDt;
+  return { ...form, legacyProfile, status };
+}
+
+function memberFromApiPatch(prev: Member, raw: Record<string, unknown>, oilCos: OilCompany[]): Member {
+  const next: Member = {
+    ...prev,
+    _id: String(raw._id ?? prev._id),
+    memberNumber: (raw.memberNumber as string | undefined) ?? prev.memberNumber,
+    firstName: (raw.firstName as string) ?? prev.firstName,
+    lastName: (raw.lastName as string) ?? prev.lastName,
+    email: (raw.email as string) ?? prev.email,
+    phone: (raw.phone as string | undefined) ?? prev.phone,
+    addressLine1: (raw.addressLine1 as string | undefined) ?? prev.addressLine1,
+    addressLine2: (raw.addressLine2 as string | undefined) ?? prev.addressLine2,
+    city: (raw.city as string | undefined) ?? prev.city,
+    state: (raw.state as string | undefined) ?? prev.state,
+    postalCode: (raw.postalCode as string | undefined) ?? prev.postalCode,
+    status: (raw.status as Member["status"]) ?? prev.status,
+    notes: (raw.notes as string | undefined) ?? prev.notes,
+    notesHistory: (raw.notesHistory as NoteEntry[] | undefined) ?? prev.notesHistory,
+    createdAt: (raw.createdAt as string | undefined) ?? prev.createdAt,
+    legacyProfile: (raw.legacyProfile as Record<string, unknown> | undefined) ?? prev.legacyProfile,
+  };
+  const oid = raw.oilCompanyId;
+  if (oid == null || oid === "") next.oilCompanyId = null;
+  else if (typeof oid === "string") {
+    const oc = oilCos.find((o) => o._id === oid);
+    next.oilCompanyId = oc ? { _id: oc._id, name: oc.name } : { _id: oid, name: prev.oilCompanyId?.name || "—" };
+  } else if (typeof oid === "object" && oid && "name" in oid) {
+    next.oilCompanyId = oid as { _id: string; name: string };
+  }
+  return next;
+}
+
+const WORKBENCH_AUTOSAVE_MS = 2200;
+
 function oilCoCode(notes?: string): string {
   if (!notes) return "";
   const match = notes.split("|").map((p) => p.trim()).find((p) => p.startsWith("Code: "));
@@ -233,6 +338,8 @@ export default function AdminWorkbenchPage() {
   const [mailFooter, setMailFooter] = useState<string>(DEFAULT_MAIL_FOOTER);
   const [mailToEmail, setMailToEmail] = useState("");
   const [mailSending, setMailSending] = useState(false);
+  const [deliveryHistoryOpen, setDeliveryHistoryOpen] = useState(false);
+  const [paymentHistoryOpen, setPaymentHistoryOpen] = useState(false);
 
   const [collapsedPanels, setCollapsedPanels] = useState<Set<string>>(loadCollapsedPanels);
 
@@ -268,7 +375,7 @@ export default function AdminWorkbenchPage() {
     );
   }
 
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<WorkbenchFormState>({
     firstName: "",
     lastName: "",
     email: "",
@@ -280,8 +387,15 @@ export default function AdminWorkbenchPage() {
     postalCode: "",
     notes: "",
     oilCompanyId: "",
-    legacyProfile: {} as Record<string, unknown>,
+    legacyProfile: {},
   });
+  const formRef = useRef(form);
+  formRef.current = form;
+  const baselineSerializedRef = useRef("");
+  const formAppliesToMemberIdRef = useRef<string | null>(null);
+  const saveInFlightRef = useRef(false);
+  const [saveToast, setSaveToast] = useState<{ message: string; ok: boolean } | null>(null);
+  const saveToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   async function loadMembers() {
     if (!token) return;
@@ -443,12 +557,18 @@ export default function AdminWorkbenchPage() {
   }, []);
 
   const current = filteredMembers[index] || null;
+  const deliveryRows = useMemo(
+    () => parseDeliveryRows((form.legacyProfile || {})["deliveryHistoryRows"]),
+    [form.legacyProfile]
+  );
 
   useEffect(() => {
     if (!token || !current) {
       setBilling([]);
       setCommunications([]);
       setReferral(null);
+      formAppliesToMemberIdRef.current = null;
+      baselineSerializedRef.current = "";
       return;
     }
     const lp = { ...(current.legacyProfile || {}) } as Record<string, unknown>;
@@ -457,7 +577,7 @@ export default function AdminWorkbenchPage() {
     }
     if (typeof lp.phone2 === "string" && lp.phone2) lp.phone2 = formatPhoneValue(lp.phone2);
     if (typeof lp.phone3 === "string" && lp.phone3) lp.phone3 = formatPhoneValue(lp.phone3);
-    setForm({
+    const nextForm: WorkbenchFormState = {
       firstName: current.firstName || "",
       lastName: current.lastName || "",
       email: current.email || "",
@@ -470,7 +590,11 @@ export default function AdminWorkbenchPage() {
       notes: current.notes || "",
       oilCompanyId: current.oilCompanyId?._id || "",
       legacyProfile: lp,
-    });
+    };
+    formAppliesToMemberIdRef.current = current._id;
+    baselineSerializedRef.current = serializeWorkbenchForm(nextForm);
+    formRef.current = nextForm;
+    setForm(nextForm);
     api<{ billing: BillingEvent[]; communications: Comm[]; referral: Referral | null }>(
       `/api/admin/members/${current._id}`,
       { token }
@@ -496,6 +620,20 @@ export default function AdminWorkbenchPage() {
   useEffect(() => {
     setMailToEmail(current?.email || "");
   }, [current?.email]);
+
+  useEffect(() => {
+    if (!current) {
+      setDeliveryHistoryOpen(false);
+      setPaymentHistoryOpen(false);
+    }
+  }, [current?._id]);
+
+  useEffect(() => {
+    if (activeTab !== "PAYMENT HISTORY") return;
+    if (!current) return;
+    setPaymentHistoryOpen(true);
+    setActiveTab("Data Entry");
+  }, [activeTab, current]);
 
   const worksheetMembers = useMemo(() => {
     const getValue = (m: Member, key: "memberNumber" | "name" | "address" | "city" | "phone" | "oilCompany" | "notes" | "status") => {
@@ -572,6 +710,68 @@ export default function AdminWorkbenchPage() {
   }
 
   const recordCount = `${filteredMembers.length ? Math.min(index + 1, filteredMembers.length) : 0}`;
+
+  const selectedOilCompanyRecord = useMemo(
+    () => oilCompanies.find((oc) => oc._id === form.oilCompanyId) || null,
+    [oilCompanies, form.oilCompanyId]
+  );
+  const selectedOilCompanyName = selectedOilCompanyRecord?.name || current?.oilCompanyId?.name || "";
+
+  const deliveryModalMember = useMemo(
+    () => ({
+      memberNumber: current?.memberNumber || String(form.legacyProfile.legacyId || ""),
+      createdAt: current?.createdAt,
+      firstName: form.firstName,
+      lastName: form.lastName,
+      oilCoCode: oilCoCode(selectedOilCompanyRecord?.notes),
+      oilCompanyName: selectedOilCompanyName,
+      oilId: String(form.legacyProfile.oilId || ""),
+      oilStatus: String(form.legacyProfile.oilWorkbenchStatus || form.legacyProfile.workbenchMemberStatus || "UNKNOWN"),
+      propCoCode: String(form.legacyProfile.propCoCode || ""),
+      propaneCompanyName: String(form.legacyProfile.propaneCompanyName || ""),
+      propaneId: String(form.legacyProfile.propaneId || ""),
+      propaneStatus: String(form.legacyProfile.propaneStatus || "UNKNOWN"),
+      deliveryHistory: Boolean(form.legacyProfile.deliveryHistory),
+      delinquent: Boolean(form.legacyProfile.delinquent),
+      notPaidCurrentYr: Boolean(form.legacyProfile.notPaidCurrentYr),
+      noRecentDels: Boolean(form.legacyProfile.noRecentDels),
+    }),
+    [current?.memberNumber, current?.createdAt, form, selectedOilCompanyRecord?.notes, selectedOilCompanyName]
+  );
+
+  const paymentModalMember = useMemo(
+    () => ({
+      memberNumber: current?.memberNumber || String(form.legacyProfile.legacyId || ""),
+      createdAt: current?.createdAt,
+      firstName: form.firstName,
+      lastName: form.lastName,
+      email: form.email,
+      phone: form.phone,
+      phone2: String(form.legacyProfile.phone2 || ""),
+      typePhone1: String(form.legacyProfile.typePhone1 || "HOME"),
+      typePhone2: String(form.legacyProfile.typePhone2 || "HOME"),
+      addressLine1: form.addressLine1,
+      addressLine2: form.addressLine2,
+      city: form.city,
+      state: form.state,
+      postalCode: form.postalCode,
+      oilCompanyName: selectedOilCompanyName,
+      oilId: String(form.legacyProfile.oilId || ""),
+      propaneId: String(form.legacyProfile.propaneId || ""),
+      registrationFee: String(form.legacyProfile.registrationFee || ""),
+      regDtPaid: String(form.legacyProfile.regDtPaid || ""),
+      regCheckCredit: String(form.legacyProfile.regCheckCredit || ""),
+      registrationPaymentStatus: String(form.legacyProfile.registrationPaymentStatus || ""),
+      ccType: String(form.legacyProfile.ccType || ""),
+      ccLast4: String(form.legacyProfile.ccLast4 || ""),
+      ccExp: String(form.legacyProfile.ccExp || ""),
+      ccName: String(form.legacyProfile.ccName || ""),
+      deliveryHistory: Boolean(form.legacyProfile.deliveryHistory),
+      delinquent: Boolean(form.legacyProfile.delinquent),
+      notPaidCurrentYr: Boolean(form.legacyProfile.notPaidCurrentYr),
+    }),
+    [current?.memberNumber, current?.createdAt, form, selectedOilCompanyName]
+  );
 
   const downloadText = (filename: string, content: string, mime = "text/plain;charset=utf-8") => {
     const blob = new Blob([content], { type: mime });
@@ -650,20 +850,70 @@ export default function AdminWorkbenchPage() {
     if (kind === "next") setIndex((i) => Math.min(filteredMembers.length - 1, i + 1));
   };
 
+  const flashSaveToast = useCallback((message: string, ok: boolean) => {
+    if (saveToastTimerRef.current) clearTimeout(saveToastTimerRef.current);
+    setSaveToast({ message, ok });
+    saveToastTimerRef.current = setTimeout(() => {
+      setSaveToast(null);
+      saveToastTimerRef.current = null;
+    }, 3200);
+  }, []);
+
+  const persistWorkbench = useCallback(
+    async (f: WorkbenchFormState, memberId: string) => {
+      if (!token) return false;
+      if (saveInFlightRef.current) return false;
+      const body = buildWorkbenchPatchBody(f);
+      saveInFlightRef.current = true;
+      try {
+        const { member: raw } = await api<{ member: Record<string, unknown> }>(`/api/admin/members/${memberId}`, {
+          method: "PATCH",
+          token,
+          body: JSON.stringify(body),
+        });
+        setMembers((prev) =>
+          prev.map((m) => (m._id === memberId ? memberFromApiPatch(m, raw, oilCompanies) : m))
+        );
+        baselineSerializedRef.current = serializeWorkbenchForm({
+          ...f,
+          legacyProfile: sortLegacyProfileKeys(body.legacyProfile as Record<string, unknown>),
+        });
+        return true;
+      } catch {
+        return false;
+      } finally {
+        saveInFlightRef.current = false;
+      }
+    },
+    [token, oilCompanies]
+  );
+
   const saveCurrent = async () => {
     if (!token || !current) return;
-    const ws = String(form.legacyProfile.workbenchMemberStatus ?? "ACTIVE");
-    const status = workbenchStatusToApiStatus(ws);
-    const legacyProfile = { ...form.legacyProfile } as Record<string, unknown>;
-    const newMemberDt = String(legacyProfile.newMemberDt ?? "").trim();
-    if (newMemberDt) legacyProfile.oilStartDate = newMemberDt;
-    await api(`/api/admin/members/${current._id}`, {
-      method: "PATCH",
-      token,
-      body: JSON.stringify({ ...form, legacyProfile, status }),
-    });
-    await loadMembers();
+    const ok = await persistWorkbench(form, current._id);
+    if (ok) flashSaveToast("Saved", true);
+    else flashSaveToast("Save failed", false);
   };
+
+  useEffect(() => {
+    if (!token || !current) return;
+    if (formAppliesToMemberIdRef.current !== current._id) return;
+    if (!baselineSerializedRef.current) return;
+    if (serializeWorkbenchForm(formRef.current) === baselineSerializedRef.current) return;
+    const memberId = current._id;
+    const t = window.setTimeout(() => {
+      void (async () => {
+        if (formAppliesToMemberIdRef.current !== memberId) return;
+        const f = formRef.current;
+        if (serializeWorkbenchForm(f) === baselineSerializedRef.current) return;
+        if (saveInFlightRef.current) return;
+        const ok = await persistWorkbench(f, memberId);
+        if (ok) flashSaveToast("Saved", true);
+        else flashSaveToast("Save failed", false);
+      })();
+    }, WORKBENCH_AUTOSAVE_MS);
+    return () => clearTimeout(t);
+  }, [form, current?._id, token, persistWorkbench, flashSaveToast]);
 
   const setLegacy = (key: string, value: string | boolean) =>
     setForm((f) => {
@@ -1010,7 +1260,13 @@ export default function AdminWorkbenchPage() {
           <button
             key={tab}
             className={`admin-wb-tab${tab === activeTab ? " active" : ""}`}
-            onClick={() => setActiveTab(tab)}
+            onClick={() => {
+              if (tab === "PAYMENT HISTORY") {
+                if (current) setPaymentHistoryOpen(true);
+                return;
+              }
+              setActiveTab(tab);
+            }}
           >
             {tab}
           </button>
@@ -1024,6 +1280,11 @@ export default function AdminWorkbenchPage() {
         <button className="admin-wb-btn admin-wb-btn-success" type="button" onClick={() => void saveCurrent()}>Save Changes</button>
       </div>
       {actionMessage && <div className="admin-meta" style={{ padding: "0.35rem 0.9rem" }}>{actionMessage}</div>}
+      {saveToast && (
+        <div className={`admin-wb-save-toast${saveToast.ok ? " ok" : " err"}`} role="status" aria-live="polite">
+          {saveToast.message}
+        </div>
+      )}
 
       <div className="admin-wb-body">
         {activeTab === "Data Entry" && current && (
@@ -1118,12 +1379,17 @@ export default function AdminWorkbenchPage() {
                   className="admin-form-span-4"
                   style={{ display: "flex", flexWrap: "wrap", alignItems: "end", gap: "0.35rem 0.7rem" }}
                 >
-                  <label style={{ flex: "0 0 auto", width: "210px", whiteSpace: "nowrap" }}>Street<input className="admin-input" value={form.addressLine1} onChange={(e) => setForm((f) => ({ ...f, addressLine1: e.target.value }))} /></label>
+                  <label style={{ flex: "0 0 auto", width: "370px", whiteSpace: "nowrap" }}>Address 1<input className="admin-input" value={form.addressLine1} onChange={(e) => setForm((f) => ({ ...f, addressLine1: e.target.value }))} /></label>
                   <label style={{ flex: "0 0 auto", width: "60px", whiteSpace: "nowrap" }}>Apt<input className="admin-input" value={legacyValue("aptNo1")} onChange={(e) => setLegacy("aptNo1", e.target.value)} /></label>
-                  <label style={{ flex: "0 0 auto", width: "160px", whiteSpace: "nowrap" }}>Address 2<input className="admin-input" value={form.addressLine2} onChange={(e) => setForm((f) => ({ ...f, addressLine2: e.target.value }))} /></label>
                   <label style={{ flex: "0 0 auto", width: "140px", whiteSpace: "nowrap" }}>City<input className="admin-input" value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} /></label>
                   <label style={{ flex: "0 0 auto", width: "50px", whiteSpace: "nowrap" }}>State<input className="admin-input" maxLength={2} value={form.state} onChange={(e) => setForm((f) => ({ ...f, state: e.target.value.toUpperCase().slice(0, 2) }))} /></label>
                   <label style={{ flex: "0 0 auto", width: "80px", whiteSpace: "nowrap" }}>Zip<input className="admin-input" maxLength={10} value={form.postalCode} onChange={(e) => setForm((f) => ({ ...f, postalCode: e.target.value }))} /></label>
+                </div>
+                <div
+                  className="admin-form-span-4"
+                  style={{ display: "flex", flexWrap: "wrap", alignItems: "end", gap: "0.35rem 0.7rem" }}
+                >
+                  <label style={{ flex: "0 0 auto", width: "370px", whiteSpace: "nowrap" }}>Mailing Address<input className="admin-input" value={form.addressLine2} onChange={(e) => setForm((f) => ({ ...f, addressLine2: e.target.value }))} /></label>
                 </div>
                 <div
                   className="admin-form-span-4"
@@ -1478,16 +1744,7 @@ export default function AdminWorkbenchPage() {
                 type="button"
                 className="admin-btn"
                 style={{fontSize: "0.6rem", padding: "0.2rem 0.5rem", background: "#dc2626", color: "#fff", borderColor: "#b91c1c"}}
-                onClick={() =>
-                  openPrintPreview(
-                    "Delivery History",
-                    `<h1>Delivery History</h1><p>No dedicated delivery ledger exists yet. Current flags:</p><pre>${JSON.stringify({
-                      deliveryHistory: legacyBool("deliveryHistory"),
-                      nrdOil: legacyBool("nrdOil"),
-                      nrdProp: legacyBool("nrdProp"),
-                    }, null, 2)}</pre>`
-                  )
-                }
+                onClick={() => setDeliveryHistoryOpen(true)}
               >
                 DELIVERY HISTORY
               </button>
@@ -1588,158 +1845,7 @@ export default function AdminWorkbenchPage() {
         )}
 
         {activeTab === "PAYMENT HISTORY" && current && (
-          <div className="admin-workbench-data-entry admin-payment-compact">
-            <div className="admin-card admin-workbench-section">
-              <h2>Payment History</h2>
-              <div className="admin-form-grid-4">
-                <label>ID<input className="admin-input" readOnly value={current.memberNumber || legacyValue("legacyId") || "—"} /></label>
-                <label>New Member Dt<input className="admin-input" readOnly value={current.createdAt ? new Date(current.createdAt).toLocaleDateString() : "—"} /></label>
-                <label>F Name 1<input className="admin-input" readOnly value={current.firstName} /></label>
-                <label>L Name 1<input className="admin-input" readOnly value={current.lastName} /></label>
-                <label className="admin-form-span-2">
-                  Full Address
-                  <input
-                    className="admin-input"
-                    readOnly
-                    value={[current.addressLine1, current.addressLine2].filter(Boolean).join(", ") || "—"}
-                  />
-                </label>
-                <label>
-                  City / State / Zip
-                  <input
-                    className="admin-input"
-                    readOnly
-                    value={[current.city, current.state, current.postalCode].filter(Boolean).join(" ").trim() || "—"}
-                  />
-                </label>
-                <label>
-                  Phone 1 ({legacyValue("typePhone1") || "HOME"})
-                  <input className="admin-input" readOnly value={formatPhoneValue(current.phone || "—")} />
-                </label>
-                <label>
-                  Phone 2 ({legacyValue("typePhone2") || "HOME"})
-                  <input className="admin-input" readOnly value={formatPhoneValue(legacyValue("phone2") || "—")} />
-                </label>
-                <div
-                  className="admin-form-span-2"
-                  style={{ display: "flex", flexDirection: "row", flexWrap: "wrap", alignItems: "end", gap: "0.5rem 1rem" }}
-                >
-                  <label style={{ flex: "1 1 200px", minWidth: 0 }}>
-                    E Mail
-                    <input className="admin-input" readOnly value={current.email || "—"} />
-                  </label>
-                  <div
-                    style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", whiteSpace: "nowrap", opacity: legacyBool("emailOptOut") ? 1 : 0.45 }}
-                    title="Email opt-out (read-only summary)"
-                    role="group"
-                    aria-label="Opted out of email"
-                  >
-                    <input type="checkbox" readOnly checked={legacyBool("emailOptOut")} tabIndex={-1} />
-                    <span style={{ fontSize: "0.62rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "#dc2626" }}>Opted out</span>
-                  </div>
-                </div>
-                <label>Oil Co<input className="admin-input" readOnly value={current.oilCompanyId?.name || "—"} /></label>
-                <label>Oil ID<input className="admin-input" readOnly value={legacyValue("oilId") || "—"} /></label>
-                <label>Propane ID<input className="admin-input" readOnly value={legacyValue("propaneId") || "—"} /></label>
-              </div>
-              <div className="admin-status-pill-row">
-                <span className="admin-pill">O I L — {legacyValue("oilWorkbenchStatus") || legacyValue("workbenchMemberStatus") || "—"}</span>
-                <span className="admin-pill">P R O P — {legacyValue("propaneStatus") || "—"}</span>
-                {isLifetime && <span className="admin-pill ok">Lifetime Member</span>}
-                {isWaived && <span className="admin-pill">Waived</span>}
-                {isSenior && <span className="admin-pill">Senior</span>}
-                {isLowVolume && <span className="admin-pill">Low Volume</span>}
-              </div>
-            </div>
-
-            <div className="admin-card admin-workbench-section">
-              <h3>Registration Fee</h3>
-              <div className="admin-form-grid-4">
-                <label>Cluster<input className="admin-input" value={legacyValue("regCluster")} onChange={(e) => setLegacy("regCluster", e.target.value)} /></label>
-                <label>Registration Fee<input className="admin-input" value={legacyValue("registrationFee")} onChange={(e) => setLegacy("registrationFee", e.target.value)} /></label>
-                <label>Dt Paid<input className="admin-input" value={legacyValue("regDtPaid")} onChange={(e) => setLegacy("regDtPaid", e.target.value)} /></label>
-                <label>Check / Credit<input className="admin-input" value={legacyValue("regCheckCredit")} onChange={(e) => setLegacy("regCheckCredit", e.target.value)} /></label>
-                <div className="admin-checkbox-grid">
-                  <label>
-                    <input type="checkbox" checked={legacyBool("waiveFeeSenior")} onChange={(e) => setLegacy("waiveFeeSenior", e.target.checked)} />
-                    Waive fee — Senior
-                  </label>
-                  <label>
-                    <input type="checkbox" checked={legacyBool("waiveFeeLifetime")} onChange={(e) => setLegacy("waiveFeeLifetime", e.target.checked)} />
-                    Lifetime Member
-                  </label>
-                </div>
-                <label className="admin-form-span-2">
-                  Registration status
-                  <select className="admin-input" value={legacyValue("registrationPaymentStatus") || ""} onChange={(e) => setLegacy("registrationPaymentStatus", e.target.value)}>
-                    <option value="">—</option>
-                    <option value="paid">Registration PAID</option>
-                    <option value="waived">Registration WAIVED</option>
-                    <option value="not_paid">Not Paid Current Yr</option>
-                  </select>
-                </label>
-                <label className="admin-form-span-2 admin-note-field">
-                  Payment notes
-                  <textarea className="admin-input admin-note-input" value={legacyValue("paymentNotes")} onChange={(e) => setLegacy("paymentNotes", e.target.value)} />
-                </label>
-              </div>
-            </div>
-
-            <div className="admin-card admin-workbench-section">
-              <h3>Credit Card Information</h3>
-              <div className="admin-form-grid-4">
-                <label>
-                  Card Type
-                  <select className="admin-input" value={legacyValue("ccType") || ""} onChange={(e) => setLegacy("ccType", e.target.value)}>
-                    <option value="">—</option>
-                    <option value="visa">VISA</option>
-                    <option value="mastercard">MasterCard</option>
-                    <option value="amex">AMEX</option>
-                  </select>
-                </label>
-                <label># Last 4 (only)<input className="admin-input" value={legacyValue("ccLast4")} onChange={(e) => setLegacy("ccLast4", e.target.value)} placeholder="Never store full PAN" /></label>
-                <label>Expiration<input className="admin-input" value={legacyValue("ccExp")} onChange={(e) => setLegacy("ccExp", e.target.value)} /></label>
-                <label>Name on Card<input className="admin-input" value={legacyValue("ccName")} onChange={(e) => setLegacy("ccName", e.target.value)} /></label>
-              </div>
-            </div>
-
-            <div className="admin-card admin-workbench-section">
-              <h3>Renewal Fee — Billing</h3>
-              <p className="admin-readonly-hint">Live billing events from the database. Edit payment worksheet fields above as needed for legacy notes.</p>
-              <div className="admin-table-wrap">
-                <table className="admin-table">
-                  <thead>
-                    <tr>
-                      <th>Billing Year</th>
-                      <th>Fee Waived</th>
-                      <th>Date Received</th>
-                      <th>Amount Received</th>
-                      <th>Payment Method</th>
-                      <th>New / Renew</th>
-                      <th>Ref / Check</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {billing.length === 0 ? (
-                      <tr><td colSpan={7}>No billing rows yet.</td></tr>
-                    ) : (
-                      billing.map((b) => (
-                        <tr key={b._id}>
-                          <td>{b.billingYear ?? "—"}</td>
-                          <td>{b.status === "waived" ? "Yes" : "No"}</td>
-                          <td>{new Date(b.createdAt).toLocaleDateString()}</td>
-                          <td>${(b.amountCents / 100).toFixed(2)}</td>
-                          <td>{b.kind === "registration" ? "Registration" : b.kind === "annual" ? "Annual" : b.kind}</td>
-                          <td>{b.kind === "registration" ? "New" : "Renew"}</td>
-                          <td>{b.status}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
+          <p className="admin-meta">Payment History opens in a modal for the selected member.</p>
         )}
 
         {activeTab === "PAYMENT HISTORY" && !current && (
@@ -2462,6 +2568,18 @@ export default function AdminWorkbenchPage() {
           </div>
         )}
       </div>
+      <DeliveryHistoryModal
+        open={deliveryHistoryOpen}
+        onClose={() => setDeliveryHistoryOpen(false)}
+        member={deliveryModalMember}
+        deliveries={deliveryRows}
+      />
+      <PaymentHistoryModal
+        open={paymentHistoryOpen}
+        onClose={() => setPaymentHistoryOpen(false)}
+        member={paymentModalMember}
+        billing={billing}
+      />
     </div>
   );
 }
