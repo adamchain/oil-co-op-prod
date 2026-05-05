@@ -1390,6 +1390,10 @@ export default function AdminWorkbenchPage() {
                   style={{ display: "flex", flexWrap: "wrap", alignItems: "end", gap: "0.35rem 0.7rem" }}
                 >
                   <label style={{ flex: "0 0 auto", width: "370px", whiteSpace: "nowrap" }}>Mailing Address<input className="admin-input" value={form.addressLine2} onChange={(e) => setForm((f) => ({ ...f, addressLine2: e.target.value }))} /></label>
+                  <label style={{ flex: "0 0 auto", width: "60px", whiteSpace: "nowrap" }}>Apt<input className="admin-input" value={legacyValue("mailApt")} onChange={(e) => setLegacy("mailApt", e.target.value)} /></label>
+                  <label style={{ flex: "0 0 auto", width: "140px", whiteSpace: "nowrap" }}>City<input className="admin-input" value={legacyValue("mailCity")} onChange={(e) => setLegacy("mailCity", e.target.value)} /></label>
+                  <label style={{ flex: "0 0 auto", width: "50px", whiteSpace: "nowrap" }}>State<input className="admin-input" maxLength={2} value={legacyValue("mailState")} onChange={(e) => setLegacy("mailState", e.target.value.toUpperCase().slice(0, 2))} /></label>
+                  <label style={{ flex: "0 0 auto", width: "80px", whiteSpace: "nowrap" }}>Zip<input className="admin-input" maxLength={10} value={legacyValue("mailZip")} onChange={(e) => setLegacy("mailZip", e.target.value)} /></label>
                 </div>
                 <div
                   className="admin-form-span-4"
