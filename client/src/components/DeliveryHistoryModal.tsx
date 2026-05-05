@@ -43,6 +43,12 @@ export type DeliveryHistoryModalProps = {
  */
 export default function DeliveryHistoryModal({ open, onClose, member, deliveries = [] }: DeliveryHistoryModalProps) {
   const titleId = useId();
+  const formatDeliveryDate = (raw: string) => {
+    const d = new Date(raw);
+    const day = String(d.getDate()).padStart(2, "0");
+    const month = d.toLocaleDateString(undefined, { month: "long" }).toUpperCase();
+    return `${day}-${month}`;
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -209,7 +215,7 @@ export default function DeliveryHistoryModal({ open, onClose, member, deliveries
                   ) : (
                     deliveries.map((row, idx) => (
                       <tr key={`${row.dateDelivered}-${row.deliveryYear}-${idx}`}>
-                        <td>{new Date(row.dateDelivered).toLocaleDateString(undefined, { month: "long", day: "numeric" }).toUpperCase()}</td>
+                        <td>{formatDeliveryDate(row.dateDelivered)}</td>
                         <td>{row.deliveryYear}</td>
                         <td>{row.fuelType}</td>
                         <td>{row.gallons.toFixed(1)}</td>

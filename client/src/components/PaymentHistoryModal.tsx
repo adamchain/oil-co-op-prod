@@ -82,7 +82,7 @@ export default function PaymentHistoryModal({ open, onClose, member, billing }: 
       }}
     >
       <div
-        className="admin-modal-panel"
+        className="admin-modal-panel admin-modal-panel-wide"
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -224,6 +224,9 @@ export default function PaymentHistoryModal({ open, onClose, member, billing }: 
           </div>
 
           <div className="admin-modal-stack">
+            <div className="admin-modal-field">
+              <span>Renewal fee history</span>
+            </div>
             <div className="admin-table-wrap">
               <table className="admin-table">
                 <thead>

@@ -1646,6 +1646,10 @@ button.admin-wb-panel-title.admin-wb-panel-toggle:hover {
   box-shadow: 0 24px 48px rgba(0, 0, 0, 0.12);
 }
 
+.admin-modal-panel.admin-modal-panel-wide {
+  max-width: min(1160px, 100%);
+}
+
 .admin-modal-panel-head {
   display: flex;
   align-items: center;
