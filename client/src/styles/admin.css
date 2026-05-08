@@ -1752,6 +1752,66 @@ button.admin-wb-panel-title.admin-wb-panel-toggle:hover {
   letter-spacing: 0;
 }
 
+.admin-modal-deliveries-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+  padding: 0.1rem 0 0.2rem;
+}
+
+.admin-delivery-search-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 0.55rem 0.65rem;
+}
+
+.admin-delivery-search-grid .admin-input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.admin-modal-row-error {
+  color: #b91c1c;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.admin-modal-row-editing td {
+  background: #fef3c7 !important;
+}
+
+.admin-modal-row-input {
+  width: 100%;
+  min-width: 0;
+  font-size: 0.78rem;
+  padding: 0.18rem 0.36rem;
+  border-radius: 6px;
+  box-sizing: border-box;
+}
+
+.admin-modal-row-actions {
+  display: inline-flex;
+  gap: 0.3rem;
+  flex-wrap: nowrap;
+}
+
+.admin-modal-row-actions .admin-btn {
+  padding: 0.18rem 0.5rem;
+  font-size: 0.7rem;
+  border-radius: 6px;
+}
+
+.admin-modal-row-actions .admin-btn-danger {
+  color: #b91c1c;
+  border-color: rgba(185, 28, 28, 0.3);
+}
+
+.admin-modal-row-actions .admin-btn-danger:hover:not(:disabled) {
+  background: rgba(185, 28, 28, 0.08);
+}
+
 .admin-modal-save-btn {
   background: var(--admin-accent) !important;
   border-color: var(--admin-accent) !important;

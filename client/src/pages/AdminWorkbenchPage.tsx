@@ -58,7 +58,14 @@ type BillingEvent = { _id: string; kind: string; status: string; amountCents: nu
 type Comm = { _id: string; channel: string; subject?: string; status: string; createdAt: string };
 type Referral = { referrerMemberId?: { firstName?: string; lastName?: string; email?: string } };
 type NoteEntry = { _id?: string; text: string; createdAt: string; createdBy: string };
-type DeliveryHistoryRow = { dateDelivered: string; deliveryYear: number; fuelType: "OIL" | "PROPANE"; gallons: number };
+type DeliveryHistoryRow = {
+  _id?: string;
+  dateDelivered: string;
+  deliveryYear: number;
+  fuelType: "OIL" | "PROPANE";
+  gallons: number;
+  source?: "manual" | "import" | "legacy";
+};
 
 type BackupHistoryEntry = {
   id: string;
@@ -910,6 +917,23 @@ export default function AdminWorkbenchPage() {
     if (ok) flashSaveToast("Saved", true);
     else flashSaveToast("Save failed", false);
   };
+
+  /**
+   * Replace the delivery rows in the in-memory form after a CRUD op against
+   * /api/admin/deliveries. Re-baseline so the unrelated workbench Save button
+   * doesn't think the form is dirty just because rows changed on the server.
+   */
+  const applyDeliveryRows = useCallback((rows: DeliveryHistoryRow[]) => {
+    setForm((prev) => {
+      const lp = { ...(prev.legacyProfile || {}) } as Record<string, unknown>;
+      lp.deliveryHistoryRows = rows;
+      const next = { ...prev, legacyProfile: lp };
+      formRef.current = next;
+      baselineSerializedRef.current = serializeWorkbenchForm(next);
+      return next;
+    });
+    setSaveTick((t) => t + 1);
+  }, []);
 
   useEffect(() => {
     if (!token || !current) return;
@@ -2632,6 +2656,42 @@ export default function AdminWorkbenchPage() {
             return next;
           });
         }}
+        onAddDelivery={
+          current && token
+            ? async (d) => {
+                const r = await api<{ rows: DeliveryHistoryRow[] }>(
+                  `/api/admin/deliveries/members/${current._id}`,
+                  { method: "POST", token, body: JSON.stringify(d) }
+                );
+                applyDeliveryRows(r.rows);
+                return r.rows;
+              }
+            : undefined
+        }
+        onUpdateDelivery={
+          current && token
+            ? async (rowId, d) => {
+                const r = await api<{ rows: DeliveryHistoryRow[] }>(
+                  `/api/admin/deliveries/members/${current._id}/${rowId}`,
+                  { method: "PUT", token, body: JSON.stringify(d) }
+                );
+                applyDeliveryRows(r.rows);
+                return r.rows;
+              }
+            : undefined
+        }
+        onDeleteDelivery={
+          current && token
+            ? async (rowId) => {
+                const r = await api<{ rows: DeliveryHistoryRow[] }>(
+                  `/api/admin/deliveries/members/${current._id}/${rowId}`,
+                  { method: "DELETE", token }
+                );
+                applyDeliveryRows(r.rows);
+                return r.rows;
+              }
+            : undefined
+        }
       />
       <PaymentHistoryModal
         open={paymentHistoryOpen}

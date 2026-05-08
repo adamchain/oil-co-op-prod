@@ -17,6 +17,8 @@ import AdminEmailTemplatesPage from "./pages/AdminEmailTemplatesPage";
 import AdminAgentsPage from "./pages/AdminAgentsPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 import AdminOilCompaniesPage from "./pages/AdminOilCompaniesPage";
+import AdminDeliveryImportPage from "./pages/AdminDeliveryImportPage";
+import AdminDeliverySearchPage from "./pages/AdminDeliverySearchPage";
 
 function RequireAuth({ admin }: { admin?: boolean }) {
   const { token, member } = useAuth();
@@ -49,6 +51,8 @@ export default function App() {
             <Route path="oil-companies" element={<AdminOilCompaniesPage />} />
             <Route path="members" element={<AdminMembersPage />} />
             <Route path="members/:id" element={<AdminMemberPage />} />
+            <Route path="deliveries/import" element={<AdminDeliveryImportPage />} />
+            <Route path="deliveries/search" element={<AdminDeliverySearchPage />} />
             <Route path="renewals" element={<AdminRenewalsPage />} />
             <Route path="communications" element={<AdminCommunicationsPage />} />
             <Route path="exceptions" element={<AdminExceptionsPage />} />

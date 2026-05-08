@@ -5,8 +5,16 @@ const OIL_STATUS = ["ACTIVE", "PROSPECTIVE", "NO OIL", "INACTIVE", "RESIDENT", "
 const PROP_STATUS = ["ACTIVE", "NO PROPANE", "RESIDENT", "INACTIVE", "PROSPECTIVE", "UNKNOWN"] as const;
 
 type DeliveryHistoryRow = {
+  _id?: string;
   dateDelivered: string;
   deliveryYear: number;
+  fuelType: "OIL" | "PROPANE";
+  gallons: number;
+  source?: "manual" | "import" | "legacy";
+};
+
+export type DeliveryRowDraft = {
+  dateDelivered: string;
   fuelType: "OIL" | "PROPANE";
   gallons: number;
 };
@@ -48,6 +56,15 @@ export type DeliveryHistoryModalProps = {
   isDirty?: boolean;
   isSaving?: boolean;
   onSave?: () => void | Promise<void>;
+  /**
+   * Manual CRUD callbacks for delivery rows. When provided, the modal renders
+   * Add/Edit/Delete affordances on the deliveries grid and calls these to
+   * persist. The parent should perform the API call and return the canonical
+   * updated row list which the modal will use to refresh the grid.
+   */
+  onAddDelivery?: (draft: DeliveryRowDraft) => Promise<DeliveryHistoryRow[] | void> | DeliveryHistoryRow[] | void;
+  onUpdateDelivery?: (rowId: string, draft: DeliveryRowDraft) => Promise<DeliveryHistoryRow[] | void> | DeliveryHistoryRow[] | void;
+  onDeleteDelivery?: (rowId: string) => Promise<DeliveryHistoryRow[] | void> | DeliveryHistoryRow[] | void;
 };
 
 /**
@@ -64,6 +81,9 @@ export default function DeliveryHistoryModal({
   isDirty = false,
   isSaving = false,
   onSave,
+  onAddDelivery,
+  onUpdateDelivery,
+  onDeleteDelivery,
 }: DeliveryHistoryModalProps) {
   const titleId = useId();
   const [findYear, setFindYear] = useState(() => String(new Date().getFullYear()));
@@ -73,12 +93,29 @@ export default function DeliveryHistoryModal({
   const [findTriggered, setFindTriggered] = useState(false);
   const [selectedFindMemberId, setSelectedFindMemberId] = useState<string | null>(null);
 
+  // Local override of deliveries used after CRUD ops. Falls back to props.
+  const [rowsOverride, setRowsOverride] = useState<DeliveryHistoryRow[] | null>(null);
+  // Inline editor state.
+  const [editingRowId, setEditingRowId] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [rowDraft, setRowDraft] = useState<{ year: string; month: string; day: string; fuelType: "OIL" | "PROPANE"; gallons: string }>({
+    year: String(new Date().getFullYear()),
+    month: String(new Date().getMonth() + 1).padStart(2, "0"),
+    day: "01",
+    fuelType: "OIL",
+    gallons: "",
+  });
+  const [rowError, setRowError] = useState<string | null>(null);
+  const [rowBusy, setRowBusy] = useState(false);
+
   const formatDeliveryDate = (raw: string) => {
     const d = new Date(raw);
     const month = d.toLocaleDateString(undefined, { month: "long" }).toUpperCase();
     const year = d.getFullYear();
     return `${month} ${year}`;
   };
+
+  const monthNames = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
 
   const parseRowsFromLegacy = (raw: unknown): DeliveryHistoryRow[] => {
     if (!Array.isArray(raw)) return [];
@@ -128,9 +165,11 @@ export default function DeliveryHistoryModal({
   }, [findSelectedMember, member]);
 
   const displayedDeliveries = useMemo<DeliveryHistoryRow[]>(() => {
-    if (!findSelectedMember) return deliveries;
-    return parseRowsFromLegacy((findSelectedMember.legacyProfile || {}).deliveryHistoryRows);
-  }, [findSelectedMember, deliveries]);
+    if (findSelectedMember) {
+      return parseRowsFromLegacy((findSelectedMember.legacyProfile || {}).deliveryHistoryRows);
+    }
+    return rowsOverride ?? deliveries;
+  }, [findSelectedMember, deliveries, rowsOverride]);
 
   // Editing only flows through to the workbench when we're viewing the original member.
   const editable = Boolean(onMemberPatch) && !isViewingFind;
@@ -140,21 +179,137 @@ export default function DeliveryHistoryModal({
     setDraft(displayedMember || {});
   }, [displayedMember?.memberNumber, open]);
 
-  // Reset find selection when the modal closes or the underlying member changes.
+  // Reset find selection / row override when the modal closes or the underlying member changes.
   useEffect(() => {
     if (!open) {
       setSelectedFindMemberId(null);
       setFindTriggered(false);
+      setEditingRowId(null);
+      setAdding(false);
+      setRowsOverride(null);
+      setRowError(null);
     }
   }, [open]);
 
   useEffect(() => {
     setSelectedFindMemberId(null);
+    setRowsOverride(null);
+    setEditingRowId(null);
+    setAdding(false);
   }, [member?.memberNumber]);
+
+  // When parent passes a fresh deliveries array, clear our override so we display canonical data.
+  useEffect(() => {
+    setRowsOverride(null);
+  }, [deliveries]);
 
   const patch = (next: DeliveryMemberPatch) => {
     setDraft((prev) => ({ ...prev, ...next }));
     if (editable) onMemberPatch?.(next);
+  };
+
+  const rowsEditable = !isViewingFind && Boolean(onAddDelivery || onUpdateDelivery || onDeleteDelivery);
+
+  const resetDraftForAdd = () => {
+    const now = new Date();
+    setRowDraft({
+      year: String(now.getFullYear()),
+      month: String(now.getMonth() + 1).padStart(2, "0"),
+      day: String(now.getDate()).padStart(2, "0"),
+      fuelType: "OIL",
+      gallons: "",
+    });
+  };
+
+  const beginAdd = () => {
+    if (!onAddDelivery) return;
+    setEditingRowId(null);
+    resetDraftForAdd();
+    setAdding(true);
+    setRowError(null);
+  };
+
+  const beginEdit = (row: DeliveryHistoryRow) => {
+    if (!onUpdateDelivery || !row._id) return;
+    setAdding(false);
+    setEditingRowId(row._id);
+    setRowDraft({
+      year: row.dateDelivered.slice(0, 4),
+      month: row.dateDelivered.slice(5, 7),
+      day: row.dateDelivered.slice(8, 10),
+      fuelType: row.fuelType,
+      gallons: String(row.gallons),
+    });
+    setRowError(null);
+  };
+
+  const cancelRowEdit = () => {
+    setEditingRowId(null);
+    setAdding(false);
+    setRowError(null);
+  };
+
+  const validateAndBuildDraft = (): DeliveryRowDraft | null => {
+    const y = Number(rowDraft.year);
+    const m = Number(rowDraft.month);
+    const d = Number(rowDraft.day);
+    const g = Number(rowDraft.gallons);
+    if (!Number.isFinite(y) || y < 1900 || y > 2200) {
+      setRowError("Year must be a 4-digit number");
+      return null;
+    }
+    if (!Number.isFinite(m) || m < 1 || m > 12) {
+      setRowError("Month must be 1–12");
+      return null;
+    }
+    if (!Number.isFinite(d) || d < 1 || d > 31) {
+      setRowError("Day must be 1–31");
+      return null;
+    }
+    if (!Number.isFinite(g) || g < 0) {
+      setRowError("Gallons must be a non-negative number");
+      return null;
+    }
+    return {
+      dateDelivered: `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`,
+      fuelType: rowDraft.fuelType,
+      gallons: g,
+    };
+  };
+
+  const handleSaveRow = async () => {
+    const built = validateAndBuildDraft();
+    if (!built) return;
+    setRowBusy(true);
+    setRowError(null);
+    try {
+      let result: DeliveryHistoryRow[] | void;
+      if (adding && onAddDelivery) result = await onAddDelivery(built);
+      else if (editingRowId && onUpdateDelivery) result = await onUpdateDelivery(editingRowId, built);
+      else return;
+      if (Array.isArray(result)) setRowsOverride(result);
+      setEditingRowId(null);
+      setAdding(false);
+    } catch (err) {
+      setRowError(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setRowBusy(false);
+    }
+  };
+
+  const handleDeleteRow = async (row: DeliveryHistoryRow) => {
+    if (!onDeleteDelivery || !row._id) return;
+    if (!window.confirm(`Delete this ${row.fuelType.toLowerCase()} delivery (${row.gallons.toFixed(1)} gal)?`)) return;
+    setRowBusy(true);
+    setRowError(null);
+    try {
+      const result = await onDeleteDelivery(row._id);
+      if (Array.isArray(result)) setRowsOverride(result);
+    } catch (err) {
+      setRowError(err instanceof Error ? err.message : "Delete failed");
+    } finally {
+      setRowBusy(false);
+    }
   };
   const findResults = useMemo(() => {
     if (!findTriggered) return [];
@@ -440,36 +595,101 @@ export default function DeliveryHistoryModal({
           </div>
 
           <div className="admin-modal-stack admin-modal-deliveries-col">
+            {rowsEditable && (
+              <div className="admin-modal-deliveries-toolbar">
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-primary"
+                  onClick={beginAdd}
+                  disabled={adding || rowBusy}
+                >
+                  + Add delivery
+                </button>
+                {rowError && <span className="admin-modal-row-error">{rowError}</span>}
+              </div>
+            )}
             <div className="admin-table-wrap admin-modal-deliveries-scroll">
               <table className="admin-table">
                 <thead>
                   <tr>
-                    <th>Delivery month/year</th>
-                    <th>Oil / propane</th>
+                    <th>Month</th>
+                    <th>Year</th>
+                    <th>Type</th>
                     <th>Gallons</th>
-                    <th aria-label="Delete" />
+                    {rowsEditable && <th aria-label="Actions" style={{ width: "1%", whiteSpace: "nowrap" }} />}
                   </tr>
                 </thead>
                 <tbody>
-                  {displayedDeliveries.length === 0 ? (
+                  {adding && rowsEditable && (
+                    <DeliveryEditorRow
+                      draft={rowDraft}
+                      setDraft={setRowDraft}
+                      monthNames={monthNames}
+                      onSave={handleSaveRow}
+                      onCancel={cancelRowEdit}
+                      busy={rowBusy}
+                    />
+                  )}
+                  {displayedDeliveries.length === 0 && !adding ? (
                     <tr>
-                      <td colSpan={4} className="admin-modal-table-empty">
+                      <td colSpan={rowsEditable ? 5 : 4} className="admin-modal-table-empty">
                         No deliveries loaded yet.
                       </td>
                     </tr>
                   ) : (
-                    displayedDeliveries.map((row, idx) => (
-                      <tr key={`${row.dateDelivered}-${row.deliveryYear}-${idx}`}>
-                        <td>{formatDeliveryDate(row.dateDelivered)}</td>
-                        <td>{row.fuelType}</td>
-                        <td>{row.gallons.toFixed(1)}</td>
-                        <td>
-                          <button type="button" className="admin-btn admin-btn-ghost" disabled>
-                            DEL
-                          </button>
-                        </td>
-                      </tr>
-                    ))
+                    displayedDeliveries.map((row, idx) => {
+                      const isEditing = rowsEditable && row._id != null && editingRowId === row._id;
+                      if (isEditing) {
+                        return (
+                          <DeliveryEditorRow
+                            key={row._id}
+                            draft={rowDraft}
+                            setDraft={setRowDraft}
+                            monthNames={monthNames}
+                            onSave={handleSaveRow}
+                            onCancel={cancelRowEdit}
+                            busy={rowBusy}
+                          />
+                        );
+                      }
+                      const monthIdx = Number(row.dateDelivered.slice(5, 7)) - 1;
+                      const monthLabel = monthIdx >= 0 && monthIdx < 12 ? monthNames[monthIdx] : formatDeliveryDate(row.dateDelivered);
+                      const year = row.dateDelivered.slice(0, 4);
+                      return (
+                        <tr key={row._id || `${row.dateDelivered}-${row.deliveryYear}-${idx}`}>
+                          <td>{monthLabel}</td>
+                          <td>{year}</td>
+                          <td>{row.fuelType}</td>
+                          <td>{row.gallons.toFixed(1)}</td>
+                          {rowsEditable && (
+                            <td>
+                              <div className="admin-modal-row-actions">
+                                {onUpdateDelivery && row._id && (
+                                  <button
+                                    type="button"
+                                    className="admin-btn admin-btn-ghost"
+                                    onClick={() => beginEdit(row)}
+                                    disabled={rowBusy || adding || editingRowId !== null}
+                                  >
+                                    Edit
+                                  </button>
+                                )}
+                                {onDeleteDelivery && row._id && (
+                                  <button
+                                    type="button"
+                                    className="admin-btn admin-btn-ghost admin-btn-danger"
+                                    onClick={() => handleDeleteRow(row)}
+                                    disabled={rowBusy || adding || editingRowId !== null}
+                                  >
+                                    DEL
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -605,4 +825,81 @@ export default function DeliveryHistoryModal({
   );
 
   return createPortal(node, document.body);
+}
+
+type DeliveryEditorRowProps = {
+  draft: { year: string; month: string; day: string; fuelType: "OIL" | "PROPANE"; gallons: string };
+  setDraft: (next: DeliveryEditorRowProps["draft"]) => void;
+  monthNames: string[];
+  onSave: () => void;
+  onCancel: () => void;
+  busy: boolean;
+};
+
+function DeliveryEditorRow({ draft, setDraft, monthNames, onSave, onCancel, busy }: DeliveryEditorRowProps) {
+  const update = (next: Partial<DeliveryEditorRowProps["draft"]>) => setDraft({ ...draft, ...next });
+  return (
+    <tr className="admin-modal-row-editing">
+      <td>
+        <select
+          className="admin-input admin-modal-row-input"
+          value={draft.month}
+          onChange={(e) => update({ month: e.target.value })}
+          disabled={busy}
+        >
+          {monthNames.map((m, i) => (
+            <option key={m} value={String(i + 1).padStart(2, "0")}>
+              {m}
+            </option>
+          ))}
+        </select>
+      </td>
+      <td>
+        <input
+          className="admin-input admin-modal-row-input"
+          value={draft.year}
+          onChange={(e) => update({ year: e.target.value.replace(/[^\d]/g, "").slice(0, 4) })}
+          placeholder="YYYY"
+          inputMode="numeric"
+          disabled={busy}
+        />
+      </td>
+      <td>
+        <select
+          className="admin-input admin-modal-row-input"
+          value={draft.fuelType}
+          onChange={(e) => update({ fuelType: e.target.value as "OIL" | "PROPANE" })}
+          disabled={busy}
+        >
+          <option value="OIL">OIL</option>
+          <option value="PROPANE">PROPANE</option>
+        </select>
+      </td>
+      <td>
+        <input
+          className="admin-input admin-modal-row-input"
+          value={draft.gallons}
+          onChange={(e) => update({ gallons: e.target.value.replace(/[^\d.]/g, "") })}
+          placeholder="0.0"
+          inputMode="decimal"
+          disabled={busy}
+        />
+      </td>
+      <td>
+        <div className="admin-modal-row-actions">
+          <button
+            type="button"
+            className="admin-btn admin-btn-primary"
+            onClick={onSave}
+            disabled={busy}
+          >
+            {busy ? "…" : "Save"}
+          </button>
+          <button type="button" className="admin-btn admin-btn-ghost" onClick={onCancel} disabled={busy}>
+            Cancel
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
 }

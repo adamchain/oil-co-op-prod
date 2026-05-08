@@ -7,24 +7,36 @@ import { useAuth } from "../authContext";
 type OilCo = { _id: string; name: string };
 type NoteEntry = { _id?: string; text: string; createdAt: string; createdBy: string };
 
-type DeliveryHistoryRow = { dateDelivered: string; deliveryYear: number; fuelType: "OIL" | "PROPANE"; gallons: number };
+type DeliveryHistoryRow = {
+  _id?: string;
+  dateDelivered: string;
+  deliveryYear: number;
+  fuelType: "OIL" | "PROPANE";
+  gallons: number;
+  source?: "manual" | "import" | "legacy";
+};
 
 function parseDeliveryRows(raw: unknown): DeliveryHistoryRow[] {
   if (!Array.isArray(raw)) return [];
-  return raw
-    .map((row) => {
-      if (!row || typeof row !== "object") return null;
-      const rec = row as Record<string, unknown>;
-      const dateDelivered = String(rec.dateDelivered || "");
-      const deliveryYear = Number(rec.deliveryYear);
-      const fuelType = String(rec.fuelType || "OIL").toUpperCase();
-      const gallons = Number(rec.gallons);
-      if (!dateDelivered || !Number.isFinite(deliveryYear) || !Number.isFinite(gallons)) return null;
-      if (fuelType !== "OIL" && fuelType !== "PROPANE") return null;
-      return { dateDelivered, deliveryYear, fuelType, gallons };
-    })
-    .filter((v): v is DeliveryHistoryRow => Boolean(v))
-    .sort((a, b) => (a.dateDelivered < b.dateDelivered ? 1 : -1));
+  const out: DeliveryHistoryRow[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== "object") continue;
+    const rec = row as Record<string, unknown>;
+    const dateDelivered = String(rec.dateDelivered || "");
+    const deliveryYear = Number(rec.deliveryYear);
+    const fuelTypeRaw = String(rec.fuelType || "OIL").toUpperCase();
+    const gallons = Number(rec.gallons);
+    if (!dateDelivered || !Number.isFinite(deliveryYear) || !Number.isFinite(gallons)) continue;
+    if (fuelTypeRaw !== "OIL" && fuelTypeRaw !== "PROPANE") continue;
+    const _id = typeof rec._id === "string" ? rec._id : undefined;
+    const sourceRaw = String(rec.source || "");
+    const source: DeliveryHistoryRow["source"] =
+      sourceRaw === "manual" || sourceRaw === "import" || sourceRaw === "legacy"
+        ? (sourceRaw as DeliveryHistoryRow["source"])
+        : undefined;
+    out.push({ _id, dateDelivered, deliveryYear, fuelType: fuelTypeRaw as "OIL" | "PROPANE", gallons, source });
+  }
+  return out.sort((a, b) => (a.dateDelivered < b.dateDelivered ? 1 : -1));
 }
 
 export default function AdminMemberPage() {
@@ -128,6 +140,12 @@ export default function AdminMemberPage() {
   const m = data.member;
   const selectedOilCo = oilCos.find((o) => o._id === oilId);
   const deliveryRows = parseDeliveryRows(lp.deliveryHistoryRows);
+
+  async function refreshMember() {
+    if (!token || !id) return;
+    const d = await api<NonNullable<typeof data>>(`/api/admin/members/${id}`, { token });
+    setData(d);
+  }
 
   return (
     <>
@@ -379,6 +397,42 @@ export default function AdminMemberPage() {
           noRecentDels: Boolean(lp.noRecentDels),
         }}
         deliveries={deliveryRows}
+        onAddDelivery={
+          token
+            ? async (d) => {
+                const r = await api<{ rows: DeliveryHistoryRow[] }>(
+                  `/api/admin/deliveries/members/${m._id}`,
+                  { method: "POST", token, body: JSON.stringify(d) }
+                );
+                await refreshMember();
+                return r.rows;
+              }
+            : undefined
+        }
+        onUpdateDelivery={
+          token
+            ? async (rowId, d) => {
+                const r = await api<{ rows: DeliveryHistoryRow[] }>(
+                  `/api/admin/deliveries/members/${m._id}/${rowId}`,
+                  { method: "PUT", token, body: JSON.stringify(d) }
+                );
+                await refreshMember();
+                return r.rows;
+              }
+            : undefined
+        }
+        onDeleteDelivery={
+          token
+            ? async (rowId) => {
+                const r = await api<{ rows: DeliveryHistoryRow[] }>(
+                  `/api/admin/deliveries/members/${m._id}/${rowId}`,
+                  { method: "DELETE", token }
+                );
+                await refreshMember();
+                return r.rows;
+              }
+            : undefined
+        }
       />
     </>
   );
