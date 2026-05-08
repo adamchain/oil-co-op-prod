@@ -1650,6 +1650,248 @@ button.admin-wb-panel-title.admin-wb-panel-toggle:hover {
   max-width: min(1160px, 100%);
 }
 
+/* Dense variant for history modals that need legacy-like compactness. */
+.admin-modal-panel.admin-modal-panel-compact {
+  padding: 0.7rem 0.8rem;
+  max-width: min(1120px, 100%);
+  height: min(90vh, 720px);
+  max-height: min(90vh, 720px);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.admin-modal-panel-compact .admin-modal-panel-head {
+  flex-shrink: 0;
+}
+
+.admin-modal-panel-compact .admin-modal-body-grid {
+  flex: 1;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.admin-modal-panel-compact .admin-modal-form-col {
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  padding-right: 0.3rem;
+}
+
+.admin-modal-panel-compact .admin-modal-deliveries-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-height: 0;
+  min-width: 0;
+}
+
+.admin-modal-panel-compact .admin-modal-deliveries-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: auto;
+}
+
+.admin-modal-panel-compact .admin-modal-deliveries-scroll .admin-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #eef2f7;
+}
+
+.admin-modal-panel-compact .admin-modal-deliveries-scroll .admin-table tbody tr:nth-child(odd) td {
+  background: #dbe3ee;
+}
+
+.admin-modal-panel-compact .admin-modal-deliveries-scroll .admin-table tbody tr:nth-child(even) td {
+  background: #ffffff;
+}
+
+.admin-modal-panel-compact .admin-modal-deliveries-scroll .admin-table tbody tr:hover td {
+  background: rgba(194, 65, 12, 0.08);
+}
+
+.admin-modal-panel-compact .admin-modal-find-row {
+  flex-shrink: 0;
+}
+
+.admin-modal-panel-compact .admin-modal-find-results {
+  flex-shrink: 0;
+  max-height: 30vh;
+  overflow-y: auto;
+}
+
+.admin-modal-panel-compact .admin-modal-find-results .admin-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #eef2f7;
+}
+
+.admin-modal-find-result-row {
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.admin-modal-find-result-row:hover td,
+.admin-modal-find-result-row:focus-visible td {
+  background: rgba(194, 65, 12, 0.1) !important;
+}
+
+.admin-modal-find-result-row.is-active td {
+  background: rgba(194, 65, 12, 0.18) !important;
+  font-weight: 600;
+}
+
+.admin-modal-find-viewing {
+  color: var(--admin-accent);
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.admin-modal-save-btn {
+  background: var(--admin-accent) !important;
+  border-color: var(--admin-accent) !important;
+  color: #fff !important;
+  box-shadow: 0 0 0 0 rgba(194, 65, 12, 0.5);
+  animation: admin-modal-save-pulse 1.6s ease-out infinite;
+}
+
+.admin-modal-save-btn:hover {
+  background: #9a3412 !important;
+  border-color: #9a3412 !important;
+}
+
+.admin-modal-save-btn:disabled {
+  animation: none;
+  opacity: 0.7;
+  cursor: progress;
+}
+
+@keyframes admin-modal-save-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(194, 65, 12, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(194, 65, 12, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(194, 65, 12, 0);
+  }
+}
+
+.admin-modal-panel-compact .admin-modal-panel-head {
+  margin-bottom: 0.45rem;
+  padding-bottom: 0.4rem;
+  gap: 0.45rem;
+}
+
+.admin-modal-panel-compact .admin-modal-panel-head h2 {
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+}
+
+.admin-modal-panel-compact .admin-modal-panel-actions {
+  gap: 0.3rem;
+}
+
+.admin-modal-panel-compact .admin-btn {
+  padding: 0.24rem 0.58rem;
+  font-size: 0.72rem;
+  border-radius: 6px;
+}
+
+.admin-modal-panel-compact .admin-modal-body-grid {
+  gap: 0.7rem;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+}
+
+.admin-modal-panel-compact .admin-modal-stack {
+  gap: 0.3rem;
+}
+
+.admin-modal-panel-compact .admin-modal-field {
+  gap: 0.14rem;
+  min-width: 0;
+}
+
+.admin-modal-panel-compact .admin-modal-row {
+  gap: 0.4rem;
+}
+
+.admin-modal-panel-compact .admin-modal-field label,
+.admin-modal-panel-compact .admin-modal-field > span:first-child {
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+}
+
+.admin-modal-panel-compact .admin-modal-field-row {
+  gap: 0.45rem;
+}
+
+.admin-modal-panel-compact .admin-input {
+  min-width: 0;
+  border-radius: 6px;
+  padding: 0.28rem 0.5rem;
+  font-size: 0.8rem;
+  line-height: 1.25;
+}
+
+.admin-modal-panel-compact .admin-modal-radio-grid {
+  gap: 0.22rem 0.55rem;
+  padding: 0.18rem 0;
+}
+
+.admin-modal-panel-compact .admin-modal-radio-grid label {
+  font-size: 0.62rem;
+}
+
+.admin-modal-panel-compact .admin-modal-radio-grid input {
+  width: 0.78rem;
+  height: 0.78rem;
+}
+
+.admin-modal-panel-compact .admin-modal-checkbox-stack {
+  gap: 0.2rem;
+}
+
+.admin-modal-panel-compact .admin-modal-checkbox-stack label {
+  font-size: 0.66rem;
+}
+
+.admin-modal-panel-compact .admin-modal-checkbox-stack input[type="checkbox"] {
+  width: 0.78rem;
+  height: 0.78rem;
+}
+
+.admin-modal-panel-compact .admin-modal-find-row {
+  gap: 0.35rem;
+}
+
+.admin-modal-panel-compact .admin-table-wrap {
+  border-radius: 8px;
+}
+
+.admin-modal-panel-compact .admin-table {
+  font-size: 0.73rem;
+}
+
+.admin-modal-panel-compact .admin-table th {
+  padding: 0.24rem 0.36rem;
+  font-size: 0.58rem;
+}
+
+.admin-modal-panel-compact .admin-table td {
+  padding: 0.2rem 0.36rem;
+}
+
+.admin-modal-panel-compact .admin-modal-hint {
+  font-size: 0.64rem;
+}
+
 .admin-modal-panel-head {
   display: flex;
   align-items: center;
@@ -1719,9 +1961,100 @@ button.admin-wb-panel-title.admin-wb-panel-toggle:hover {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.35rem 0.75rem;
-  padding: 0.5rem 0;
-  border-top: 1px solid var(--admin-border);
-  border-bottom: 1px solid var(--admin-border);
+  padding: 0.4rem 0;
+}
+
+.admin-modal-radio-grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.3rem 0.5rem;
+  padding: 0.25rem 0;
+}
+
+.admin-modal-form-col {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.admin-modal-form-col .admin-modal-field {
+  min-width: 0;
+}
+
+.admin-modal-form-col .admin-input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.admin-modal-row {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.admin-modal-row-id {
+  grid-template-columns: 90px minmax(0, 1fr);
+}
+
+.admin-modal-row-2 {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.admin-modal-row-co {
+  grid-template-columns: minmax(0, 0.55fr) minmax(0, 1fr);
+}
+
+.admin-modal-checkbox-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin: 0.2rem 0;
+}
+
+.admin-modal-checkbox-stack label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--admin-text);
+  cursor: default;
+}
+
+.admin-modal-checkbox-stack input[type="checkbox"] {
+  width: 0.9rem;
+  height: 0.9rem;
+  margin: 0;
+  accent-color: var(--admin-accent);
+}
+
+.admin-modal-find-row {
+  display: grid;
+  grid-template-columns: 80px 1.2fr 60px 1fr auto auto;
+  gap: 0.45rem;
+  align-items: end;
+}
+
+.admin-modal-find-row .admin-input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.admin-modal-find-btn {
+  height: fit-content;
+  align-self: end;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .admin-modal-find-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .admin-modal-find-btn {
+    grid-column: span 2;
+  }
 }
 
 .admin-modal-radio-grid label {

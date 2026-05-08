@@ -396,6 +396,8 @@ export default function AdminWorkbenchPage() {
   const saveInFlightRef = useRef(false);
   const [saveToast, setSaveToast] = useState<{ message: string; ok: boolean } | null>(null);
   const saveToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveTick, setSaveTick] = useState(0);
 
   async function loadMembers() {
     if (!token) return;
@@ -595,6 +597,7 @@ export default function AdminWorkbenchPage() {
     baselineSerializedRef.current = serializeWorkbenchForm(nextForm);
     formRef.current = nextForm;
     setForm(nextForm);
+    setSaveTick((t) => t + 1);
     api<{ billing: BillingEvent[]; communications: Comm[]; referral: Referral | null }>(
       `/api/admin/members/${current._id}`,
       { token }
@@ -739,6 +742,16 @@ export default function AdminWorkbenchPage() {
     [current?.memberNumber, current?.createdAt, form, selectedOilCompanyRecord?.notes, selectedOilCompanyName]
   );
 
+  const formIsDirty = useMemo(
+    () =>
+      Boolean(current) &&
+      formAppliesToMemberIdRef.current === current?._id &&
+      Boolean(baselineSerializedRef.current) &&
+      serializeWorkbenchForm(form) !== baselineSerializedRef.current,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [form, current?._id, saveTick]
+  );
+
   const paymentModalMember = useMemo(
     () => ({
       memberNumber: current?.memberNumber || String(form.legacyProfile.legacyId || ""),
@@ -865,6 +878,7 @@ export default function AdminWorkbenchPage() {
       if (saveInFlightRef.current) return false;
       const body = buildWorkbenchPatchBody(f);
       saveInFlightRef.current = true;
+      setIsSaving(true);
       try {
         const { member: raw } = await api<{ member: Record<string, unknown> }>(`/api/admin/members/${memberId}`, {
           method: "PATCH",
@@ -878,11 +892,13 @@ export default function AdminWorkbenchPage() {
           ...f,
           legacyProfile: sortLegacyProfileKeys(body.legacyProfile as Record<string, unknown>),
         });
+        setSaveTick((t) => t + 1);
         return true;
       } catch {
         return false;
       } finally {
         saveInFlightRef.current = false;
+        setIsSaving(false);
       }
     },
     [token, oilCompanies]
@@ -927,6 +943,18 @@ export default function AdminWorkbenchPage() {
   const legacyValue = (key: string) => String(form.legacyProfile[key] ?? "");
 
   const legacyBool = (key: string) => Boolean(form.legacyProfile[key]);
+  const membershipCheckboxStyle = (checked: boolean) => ({
+    appearance: "none" as const,
+    WebkitAppearance: "none" as const,
+    width: "12px",
+    height: "12px",
+    margin: 0,
+    border: "1px solid #94a3b8",
+    borderRadius: "3px",
+    background: checked ? "var(--wb-accent)" : "transparent",
+    boxShadow: checked ? "inset 0 0 0 2px #ffffff" : "none",
+    cursor: "pointer",
+  });
 
   const isSenior = legacyBool("seniorMember");
   const isLifetime = legacyBool("waiveFeeLifetime");
@@ -1359,19 +1387,19 @@ export default function AdminWorkbenchPage() {
                     }}
                   >
                     <label style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.7rem", fontWeight: 600, whiteSpace: "nowrap" }}>
-                      <input type="checkbox" checked={legacyBool("standardMembership")} onChange={(e) => setLegacy("standardMembership", e.target.checked)} />
+                      <input type="checkbox" checked={legacyBool("standardMembership")} onChange={(e) => setLegacy("standardMembership", e.target.checked)} style={membershipCheckboxStyle(legacyBool("standardMembership"))} />
                       Standard
                     </label>
                     <label style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.7rem", fontWeight: 600, whiteSpace: "nowrap" }}>
-                      <input type="checkbox" checked={legacyBool("seniorMember")} onChange={(e) => setLegacy("seniorMember", e.target.checked)} />
+                      <input type="checkbox" checked={legacyBool("seniorMember")} onChange={(e) => setLegacy("seniorMember", e.target.checked)} style={membershipCheckboxStyle(legacyBool("seniorMember"))} />
                       Senior
                     </label>
                     <label style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.7rem", fontWeight: 600, whiteSpace: "nowrap" }}>
-                      <input type="checkbox" checked={legacyBool("lowVolume")} onChange={(e) => setLegacy("lowVolume", e.target.checked)} />
+                      <input type="checkbox" checked={legacyBool("lowVolume")} onChange={(e) => setLegacy("lowVolume", e.target.checked)} style={membershipCheckboxStyle(legacyBool("lowVolume"))} />
                       Low Volume
                     </label>
                     <label style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.7rem", fontWeight: 600, whiteSpace: "nowrap" }}>
-                      <input type="checkbox" checked={legacyBool("waiveFeeLifetime")} onChange={(e) => setLegacy("waiveFeeLifetime", e.target.checked)} />
+                      <input type="checkbox" checked={legacyBool("waiveFeeLifetime")} onChange={(e) => setLegacy("waiveFeeLifetime", e.target.checked)} style={membershipCheckboxStyle(legacyBool("waiveFeeLifetime"))} />
                       Lifetime
                     </label>
                   </div>
@@ -1388,7 +1416,7 @@ export default function AdminWorkbenchPage() {
                     style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.7rem", fontWeight: 600, paddingBottom: "0.32rem", whiteSpace: "nowrap" }}
                     title="Address letters and emails to both names"
                   >
-                    <input type="checkbox" checked={legacyBool("useBothNames")} onChange={(e) => setLegacy("useBothNames", e.target.checked)} />
+                    <input type="checkbox" checked={legacyBool("useBothNames")} onChange={(e) => setLegacy("useBothNames", e.target.checked)} style={membershipCheckboxStyle(legacyBool("useBothNames"))} />
                     Use Both Names
                   </label>
                 </div>
@@ -1405,7 +1433,7 @@ export default function AdminWorkbenchPage() {
                   className="admin-form-span-4"
                   style={{ display: "flex", flexWrap: "wrap", alignItems: "end", gap: "0.35rem 0.7rem" }}
                 >
-                  <label style={{ flex: "0 0 auto", width: "370px", whiteSpace: "nowrap" }}>Address 1<input className="admin-input" value={form.addressLine1} onChange={(e) => setForm((f) => ({ ...f, addressLine1: e.target.value }))} /></label>
+                  <label style={{ flex: "0 0 auto", width: "220px", whiteSpace: "nowrap" }}>Address 1<input className="admin-input" value={form.addressLine1} onChange={(e) => setForm((f) => ({ ...f, addressLine1: e.target.value }))} /></label>
                   <label style={{ flex: "0 0 auto", width: "60px", whiteSpace: "nowrap" }}>Apt<input className="admin-input" value={legacyValue("aptNo1")} onChange={(e) => setLegacy("aptNo1", e.target.value)} /></label>
                   <label style={{ flex: "0 0 auto", width: "140px", whiteSpace: "nowrap" }}>City<input className="admin-input" value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} /></label>
                   <label style={{ flex: "0 0 auto", width: "50px", whiteSpace: "nowrap" }}>State<input className="admin-input" maxLength={2} value={form.state} onChange={(e) => setForm((f) => ({ ...f, state: e.target.value.toUpperCase().slice(0, 2) }))} /></label>
@@ -1415,11 +1443,25 @@ export default function AdminWorkbenchPage() {
                   className="admin-form-span-4"
                   style={{ display: "flex", flexWrap: "wrap", alignItems: "end", gap: "0.35rem 0.7rem" }}
                 >
-                  <label style={{ flex: "0 0 auto", width: "370px", whiteSpace: "nowrap" }}>Mailing Address<input className="admin-input" value={form.addressLine2} onChange={(e) => setForm((f) => ({ ...f, addressLine2: e.target.value }))} /></label>
+                  <label style={{ flex: "0 0 auto", width: "220px", whiteSpace: "nowrap" }}>Mailing Address<input className="admin-input" value={form.addressLine2} onChange={(e) => setForm((f) => ({ ...f, addressLine2: e.target.value }))} /></label>
                   <label style={{ flex: "0 0 auto", width: "60px", whiteSpace: "nowrap" }}>Apt<input className="admin-input" value={legacyValue("mailApt")} onChange={(e) => setLegacy("mailApt", e.target.value)} /></label>
                   <label style={{ flex: "0 0 auto", width: "140px", whiteSpace: "nowrap" }}>City<input className="admin-input" value={legacyValue("mailCity")} onChange={(e) => setLegacy("mailCity", e.target.value)} /></label>
                   <label style={{ flex: "0 0 auto", width: "50px", whiteSpace: "nowrap" }}>State<input className="admin-input" maxLength={2} value={legacyValue("mailState")} onChange={(e) => setLegacy("mailState", e.target.value.toUpperCase().slice(0, 2))} /></label>
                   <label style={{ flex: "0 0 auto", width: "80px", whiteSpace: "nowrap" }}>Zip<input className="admin-input" maxLength={10} value={legacyValue("mailZip")} onChange={(e) => setLegacy("mailZip", e.target.value)} /></label>
+                  <label style={{ flex: "0 0 auto", width: "100px", whiteSpace: "nowrap" }}>
+                    Mail Addr
+                    <span
+                      className="admin-input"
+                      style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", minHeight: "24px", padding: "0.08rem 0.25rem", border: "none", background: "transparent", boxShadow: "none" }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={legacyBool("mailAddr")}
+                        onChange={(e) => setLegacy("mailAddr", e.target.checked)}
+                        style={membershipCheckboxStyle(legacyBool("mailAddr"))}
+                      />
+                    </span>
+                  </label>
                 </div>
                 <div
                   className="admin-form-span-4"
@@ -1453,12 +1495,19 @@ export default function AdminWorkbenchPage() {
                     />
                   </label>
                   <label style={{ flex: "0 0 auto", width: "220px" }}>E Mail<input className="admin-input" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} /></label>
-                  <label
-                    style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", whiteSpace: "nowrap", paddingBottom: "0.15rem" }}
-                    title="Email opt-out"
-                  >
-                    <input type="checkbox" checked={legacyBool("emailOptOut")} onChange={(e) => setLegacy("emailOptOut", e.target.checked)} />
-                    <span style={{ fontSize: "0.62rem", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: "#dc2626" }}>Opted out</span>
+                  <label style={{ flex: "0 0 auto", width: "100px", whiteSpace: "nowrap" }} title="Email opt-out">
+                    Opted out
+                    <span
+                      className="admin-input"
+                      style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", minHeight: "24px", padding: "0.08rem 0.25rem", border: "none", background: "transparent", boxShadow: "none" }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={legacyBool("emailOptOut")}
+                        onChange={(e) => setLegacy("emailOptOut", e.target.checked)}
+                        style={membershipCheckboxStyle(legacyBool("emailOptOut"))}
+                      />
+                    </span>
                   </label>
                 </div>
                 <div
@@ -1493,25 +1542,6 @@ export default function AdminWorkbenchPage() {
                     />
                   </label>
                   <label style={{ flex: "0 0 auto", width: "220px" }}>E Mail 2<input className="admin-input" value={legacyValue("email2")} onChange={(e) => setLegacy("email2", e.target.value)} /></label>
-                </div>
-                <div
-                  className="admin-form-span-4"
-                  style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.5rem 1rem", marginTop: "-0.2rem" }}
-                >
-                  <label style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.7rem", fontWeight: 600, whiteSpace: "nowrap" }}>
-                    <input type="checkbox" checked={legacyBool("mailAddr")} onChange={(e) => setLegacy("mailAddr", e.target.checked)} />
-                    Mail Addr
-                  </label>
-                  <button
-                    type="button"
-                    className="admin-wb-btn admin-wb-btn-primary"
-                    style={{ fontSize: "0.62rem", padding: "0.18rem 0.5rem", fontWeight: 700 }}
-                    onClick={() => setActiveTab("MAILINGS")}
-                    disabled={!legacyBool("mailAddr")}
-                    title={legacyBool("mailAddr") ? "Open Mail Manager" : "Check Mail Addr first to enable"}
-                  >
-                    Mail Manager
-                  </button>
                 </div>
                 <div
                   className="admin-form-span-4"
@@ -1604,9 +1634,9 @@ export default function AdminWorkbenchPage() {
                 </label>
                 <div
                   className="admin-form-span-4"
-                  style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: "0.35rem 1rem", justifyContent: "space-between" }}
+                  style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}
                 >
-                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "end", gap: "0.35rem 0.7rem", flex: "1 1 auto" }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "end", gap: "0.35rem 0.7rem" }}>
                     <label style={{ flex: "0 0 auto", width: "180px" }}>Employer<input className="admin-input" value={legacyValue("employer")} onChange={(e) => setLegacy("employer", e.target.value)} /></label>
                     <label style={{ flex: "0 0 auto", width: "160px" }}>Company<input className="admin-input" value={legacyValue("company")} onChange={(e) => setLegacy("company", e.target.value)} /></label>
                     <label style={{ flex: "0 0 auto", width: "120px" }}>
@@ -1617,26 +1647,34 @@ export default function AdminWorkbenchPage() {
                         <option value="NO">NO</option>
                       </select>
                     </label>
+                    <label style={{ flex: "0 0 auto", width: "120px" }}>
+                      How Joined
+                      <select className="admin-input" value={legacyValue("howJoined") || "WEB"} onChange={(e) => setLegacy("howJoined", e.target.value)}>
+                        {HOW_JOINED.map((s) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label style={{ flex: "0 0 auto", width: "120px" }}>
+                      Referral
+                      <select className="admin-input" value={legacyValue("referralSource") || "OTHER"} onChange={(e) => setLegacy("referralSource", e.target.value)}>
+                        {REFERRAL_SOURCE.map((s) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                    </label>
                   </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem", alignItems: "flex-end", flex: "0 0 auto" }}>
-                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "end", gap: "0.35rem 0.7rem", justifyContent: "flex-end" }}>
-                      <label style={{ flex: "0 0 auto", width: "120px" }}>
-                        How Joined
-                        <select className="admin-input" value={legacyValue("howJoined") || "WEB"} onChange={(e) => setLegacy("howJoined", e.target.value)}>
-                          {HOW_JOINED.map((s) => (
-                            <option key={s} value={s}>{s}</option>
-                          ))}
-                        </select>
-                      </label>
-                      <label style={{ flex: "0 0 auto", width: "120px" }}>
-                        Referral
-                        <select className="admin-input" value={legacyValue("referralSource") || "OTHER"} onChange={(e) => setLegacy("referralSource", e.target.value)}>
-                          {REFERRAL_SOURCE.map((s) => (
-                            <option key={s} value={s}>{s}</option>
-                          ))}
-                        </select>
-                      </label>
-                    </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "end", gap: "0.35rem 0.7rem", justifyContent: "space-between", width: "100%" }}>
+                    <button
+                      type="button"
+                      className="admin-wb-btn admin-wb-btn-primary"
+                      style={{ width: "130px", minHeight: "32px", fontSize: "0.7rem", fontWeight: 700 }}
+                      onClick={() => setActiveTab("MAILINGS")}
+                      disabled={!legacyBool("mailAddr")}
+                      title={legacyBool("mailAddr") ? "Open Mail Manager" : "Check Mail Addr first to enable"}
+                    >
+                      Mail Manager
+                    </button>
                     <div style={{ display: "flex", flexWrap: "wrap", alignItems: "end", gap: "0.35rem 0.7rem", justifyContent: "flex-end" }}>
                       <label style={{ flex: "0 0 auto", width: "130px" }}>Referred By ID<input className="admin-input" value={legacyValue("referredById")} onChange={(e) => setLegacy("referredById", e.target.value)} /></label>
                       <label style={{ flex: "0 0 auto", width: "140px" }}>Date Referred<input className="admin-input" type="date" value={legacyValue("dateReferred")} onChange={(e) => setLegacy("dateReferred", e.target.value)} /></label>
@@ -2565,6 +2603,35 @@ export default function AdminWorkbenchPage() {
         onClose={() => setDeliveryHistoryOpen(false)}
         member={deliveryModalMember}
         deliveries={deliveryRows}
+        searchableMembers={members}
+        isDirty={formIsDirty}
+        isSaving={isSaving}
+        onSave={async () => {
+          await saveCurrent();
+        }}
+        onMemberPatch={(p) => {
+          setForm((prev) => {
+            const lp: Record<string, unknown> = { ...(prev.legacyProfile || {}) };
+            const next: WorkbenchFormState = { ...prev };
+            if (p.firstName !== undefined) next.firstName = p.firstName;
+            if (p.lastName !== undefined) next.lastName = p.lastName;
+            if (p.oilCoCode !== undefined) lp.oilCoCode = p.oilCoCode;
+            if (p.oilCompanyName !== undefined) lp.oilCompanyName = p.oilCompanyName;
+            if (p.oilId !== undefined) lp.oilId = p.oilId;
+            if (p.oilStatus !== undefined) lp.oilWorkbenchStatus = p.oilStatus;
+            if (p.propCoCode !== undefined) lp.propCoCode = p.propCoCode;
+            if (p.propaneCompanyName !== undefined) lp.propaneCompanyName = p.propaneCompanyName;
+            if (p.propaneId !== undefined) lp.propaneId = p.propaneId;
+            if (p.propaneStatus !== undefined) lp.propaneStatus = p.propaneStatus;
+            if (p.deliveryHistory !== undefined) lp.deliveryHistory = p.deliveryHistory;
+            if (p.delinquent !== undefined) lp.delinquent = p.delinquent;
+            if (p.notPaidCurrentYr !== undefined) lp.notPaidCurrentYr = p.notPaidCurrentYr;
+            if (p.noRecentDels !== undefined) lp.noRecentDels = p.noRecentDels;
+            next.legacyProfile = lp;
+            formRef.current = next;
+            return next;
+          });
+        }}
       />
       <PaymentHistoryModal
         open={paymentHistoryOpen}
