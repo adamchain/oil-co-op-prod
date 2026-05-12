@@ -7,8 +7,8 @@ type OilCompany = { _id: string; name: string };
 const CUSTOM_COMPANY = "__custom__";
 
 /**
- * Import delivery summaries from Excel/CSV. The file must be exactly six
- * columns (A–F), in order:
+ * Import delivery summaries from Excel/CSV. The **first six columns (A–F)** are
+ * always read in fixed order; any extra columns (G onward) are ignored.
  *   1) Product (OIL or PROP)  2) OIL ID / PROP ID  3) GAL  4) Month  5) Year  6) Name (reference only)
  * Row 1 is headers; data starts row 2. Name is not used for matching.
  * Default company (whole file) is required when there is no company column.
@@ -53,11 +53,13 @@ const STRICT_SIX_MAPPING: Record<string, SemanticField> = Object.fromEntries(
   IMPORT_COL_KEYS.map((k, i) => [k, STANDARD_SIX_FIELDS[i]])
 ) as Record<string, SemanticField>;
 
-function maxUsedColumnIndex(grid: unknown[][]): number {
+/** Highest 1-based column index ≤ n that has a non-empty cell in columns 0..n-1 (only A–F when n=6). */
+function maxUsedColumnIndexFirstN(grid: unknown[][], n: number): number {
   let max = 0;
   for (const row of grid) {
     if (!Array.isArray(row)) continue;
-    for (let i = 0; i < row.length; i++) {
+    const limit = Math.min(n, row.length);
+    for (let i = 0; i < limit; i++) {
       if (String(row[i] ?? "").trim() !== "") max = Math.max(max, i + 1);
     }
   }
@@ -221,13 +223,11 @@ export default function AdminDeliveryImportPage() {
           return;
         }
 
-        const usedCols = maxUsedColumnIndex(grid);
-        if (usedCols !== 6) {
-          const msg =
-            usedCols < 6
-              ? `This import requires exactly 6 columns (A–F), in order: (1) Product, (2) OIL ID / PROP ID, (3) GAL, (4) Month, (5) Year, (6) Name. Only ${usedCols} column(s) contain data.`
-              : `This import allows only 6 columns (A–F). Your file uses ${usedCols} columns — remove everything past column F.`;
-          setParseError(msg);
+        const usedInAF = maxUsedColumnIndexFirstN(grid, 6);
+        if (usedInAF < 1) {
+          setParseError(
+            "No data found in columns A–F. Put the six required fields in the first columns: (1) Product, (2) OIL ID / PROP ID, (3) GAL, (4) Month, (5) Year, (6) Name. Extra columns past F are ignored."
+          );
           setSheet(null);
           return;
         }
@@ -371,10 +371,10 @@ export default function AdminDeliveryImportPage() {
         )}
       </div>
       <p style={{ color: "var(--admin-muted)", fontSize: "0.875rem", margin: "0.25rem 0 1.25rem" }}>
-        Files must be exactly <strong>six columns (A–F)</strong>, row 1 = headers, row 2+ = data:{" "}
+        The <strong>first six columns (A–F)</strong> are always used, in order (row 1 = headers, row 2+ = data):{" "}
         <strong>Product</strong> (OIL or PROP), <strong>OIL ID / PROP ID</strong>, <strong>GAL</strong>,{" "}
         <strong>Month</strong>, <strong>Year</strong>, <strong>Name</strong> (reference only; not used for matching).
-        There is no company column in this layout — choose a <strong>default company</strong> below for matching.
+        Additional columns past F are ignored. Choose a <strong>default company</strong> below for matching.
         Validate first, then apply.
       </p>
 
@@ -401,8 +401,9 @@ export default function AdminDeliveryImportPage() {
           <div className="admin-card">
             <h2>2. Column layout &amp; defaults</h2>
             <p style={{ color: "var(--admin-muted)", fontSize: "0.8rem", marginTop: 0 }}>
-              Columns are fixed by position (A–F). Header text in row 1 is for your reference only. Month + Year are
-              combined as the first day of that month. Default fuel is optional if every row has Product filled.
+              Columns are fixed by position (A–F). Anything in column G or beyond is not imported. Header text in row 1
+              is for your reference only. Month + Year are combined as the first day of that month. Default fuel is
+              optional if every row has Product filled.
             </p>
             <div className="admin-table-wrap" style={{ marginBottom: "0.75rem" }}>
               <table className="admin-table">
