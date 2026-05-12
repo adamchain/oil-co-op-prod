@@ -789,7 +789,8 @@ export default function AdminWorkbenchPage() {
       deliveryHistory: Boolean(form.legacyProfile.deliveryHistory),
       delinquent: Boolean(form.legacyProfile.delinquent),
       notPaidCurrentYr: Boolean(form.legacyProfile.notPaidCurrentYr),
-      noRecentDels: Boolean(form.legacyProfile.noRecentDels),
+      nrdOil: Boolean(form.legacyProfile.nrdOil),
+      nrdProp: Boolean(form.legacyProfile.nrdProp),
     }),
     [current?.memberNumber, current?.createdAt, form, selectedOilCompanyRecord?.notes, selectedOilCompanyName]
   );
@@ -2750,7 +2751,8 @@ export default function AdminWorkbenchPage() {
             if (p.deliveryHistory !== undefined) lp.deliveryHistory = p.deliveryHistory;
             if (p.delinquent !== undefined) lp.delinquent = p.delinquent;
             if (p.notPaidCurrentYr !== undefined) lp.notPaidCurrentYr = p.notPaidCurrentYr;
-            if (p.noRecentDels !== undefined) lp.noRecentDels = p.noRecentDels;
+            if (p.nrdOil !== undefined) lp.nrdOil = p.nrdOil;
+            if (p.nrdProp !== undefined) lp.nrdProp = p.nrdProp;
             next.legacyProfile = lp;
             formRef.current = next;
             return next;

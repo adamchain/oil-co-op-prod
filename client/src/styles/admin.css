@@ -2095,6 +2095,31 @@ button.admin-wb-panel-title.admin-wb-panel-toggle:hover {
   gap: 0.4rem;
 }
 
+.admin-modal-find-checks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 1rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--admin-text, #1e293b);
+}
+
+.admin-modal-find-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.admin-modal-find-check input[type="checkbox"] {
+  width: 0.85rem;
+  height: 0.85rem;
+  margin: 0;
+  accent-color: var(--admin-accent);
+}
+
 .admin-modal-find-row {
   display: grid;
   grid-template-columns: 72px 1.05fr 1fr 1.35fr auto auto;

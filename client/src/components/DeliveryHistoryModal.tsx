@@ -35,7 +35,8 @@ type DeliveryMemberSnapshot = {
   deliveryHistory?: boolean;
   delinquent?: boolean;
   notPaidCurrentYr?: boolean;
-  noRecentDels?: boolean;
+  nrdOil?: boolean;
+  nrdProp?: boolean;
 };
 
 export type DeliveryMemberPatch = Partial<Omit<DeliveryMemberSnapshot, "memberNumber" | "createdAt">>;
@@ -91,6 +92,8 @@ export default function DeliveryHistoryModal({
   const [findMonth, setFindMonth] = useState("");
   const [findFuel, setFindFuel] = useState<"" | "OIL" | "PROPANE" | "NRD_OIL" | "NRD_PROP">("");
   const [findCompany, setFindCompany] = useState<string>("");
+  const [findDelinquent, setFindDelinquent] = useState(false);
+  const [findNotPaidCurrentYr, setFindNotPaidCurrentYr] = useState(false);
   const [findTriggered, setFindTriggered] = useState(false);
   const [selectedFindMemberId, setSelectedFindMemberId] = useState<string | null>(null);
 
@@ -181,7 +184,8 @@ export default function DeliveryHistoryModal({
       deliveryHistory: Boolean(lp.deliveryHistory),
       delinquent: Boolean(lp.delinquent),
       notPaidCurrentYr: Boolean(lp.notPaidCurrentYr),
-      noRecentDels: Boolean(lp.noRecentDels),
+      nrdOil: Boolean(lp.nrdOil),
+      nrdProp: Boolean(lp.nrdProp),
     };
   }, [findSelectedMember, member]);
 
@@ -198,7 +202,27 @@ export default function DeliveryHistoryModal({
 
   useEffect(() => {
     setDraft(displayedMember || {});
-  }, [displayedMember?.memberNumber, open]);
+  }, [displayedMember?.memberNumber, selectedFindMemberId, open]);
+
+  /** Same legacy fields as Delivery Status on the workbench — keep checkboxes aligned when either surface updates. */
+  useEffect(() => {
+    if (!open || !displayedMember) return;
+    setDraft((prev) => ({
+      ...prev,
+      nrdOil: displayedMember.nrdOil,
+      nrdProp: displayedMember.nrdProp,
+      deliveryHistory: displayedMember.deliveryHistory,
+      delinquent: displayedMember.delinquent,
+      notPaidCurrentYr: displayedMember.notPaidCurrentYr,
+    }));
+  }, [
+    open,
+    displayedMember?.nrdOil,
+    displayedMember?.nrdProp,
+    displayedMember?.deliveryHistory,
+    displayedMember?.delinquent,
+    displayedMember?.notPaidCurrentYr,
+  ]);
 
   // Reset find selection / row override when the modal closes or the underlying member changes.
   useEffect(() => {
@@ -206,6 +230,8 @@ export default function DeliveryHistoryModal({
       setSelectedFindMemberId(null);
       setFindTriggered(false);
       setFindCompany("");
+      setFindDelinquent(false);
+      setFindNotPaidCurrentYr(false);
       setEditingRowId(null);
       setAdding(false);
       setRowsOverride(null);
@@ -344,12 +370,16 @@ export default function DeliveryHistoryModal({
       hasYear ||
       hasMonth ||
       findFuel !== "" ||
-      Boolean(companyKey);
+      Boolean(companyKey) ||
+      findDelinquent ||
+      findNotPaidCurrentYr;
     if (!hasAnyFilter) return [];
 
     return searchableMembers
       .map((m) => {
         const lp = (m.legacyProfile || {}) as Record<string, unknown>;
+        if (findDelinquent && !Boolean(lp.delinquent)) return null;
+        if (findNotPaidCurrentYr && !Boolean(lp.notPaidCurrentYr)) return null;
         if (companyKey) {
           const oc = String(lp.oilCompanyName || "").trim().toLowerCase();
           const pc = String(lp.propaneCompanyName || "").trim().toLowerCase();
@@ -390,6 +420,8 @@ export default function DeliveryHistoryModal({
     findYear,
     findFuel,
     findCompany,
+    findDelinquent,
+    findNotPaidCurrentYr,
     searchableMembers,
   ]);
 
@@ -632,11 +664,20 @@ export default function DeliveryHistoryModal({
               <label>
                 <input
                   type="checkbox"
-                  checked={Boolean(draft.noRecentDels)}
-                  onChange={(e) => patch({ noRecentDels: e.target.checked })}
+                  checked={Boolean(draft.nrdOil)}
+                  onChange={(e) => patch({ nrdOil: e.target.checked })}
                   disabled={!editable}
                 />
-                No recent dels
+                NRD-Oil
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={Boolean(draft.nrdProp)}
+                  onChange={(e) => patch({ nrdProp: e.target.checked })}
+                  disabled={!editable}
+                />
+                NRD-Prop
               </label>
             </div>
 
@@ -827,11 +868,27 @@ export default function DeliveryHistoryModal({
                       setFindFuel("");
                       setFindCompany("");
                       setFindMonth("");
+                      setFindDelinquent(false);
+                      setFindNotPaidCurrentYr(false);
                     }}
                   >
                     Reset
                   </button>
                 )}
+              </div>
+              <div className="admin-modal-find-checks">
+                <label className="admin-modal-find-check">
+                  <input
+                    type="checkbox"
+                    checked={findNotPaidCurrentYr}
+                    onChange={(e) => setFindNotPaidCurrentYr(e.target.checked)}
+                  />
+                  Not paid current year
+                </label>
+                <label className="admin-modal-find-check">
+                  <input type="checkbox" checked={findDelinquent} onChange={(e) => setFindDelinquent(e.target.checked)} />
+                  Delinquent
+                </label>
               </div>
             </div>
             {findTriggered && (

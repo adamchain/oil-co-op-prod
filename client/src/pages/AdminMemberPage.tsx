@@ -394,7 +394,8 @@ export default function AdminMemberPage() {
           deliveryHistory: Boolean(lp.deliveryHistory),
           delinquent: Boolean(lp.delinquent),
           notPaidCurrentYr: Boolean(lp.notPaidCurrentYr),
-          noRecentDels: Boolean(lp.noRecentDels),
+          nrdOil: Boolean(lp.nrdOil),
+          nrdProp: Boolean(lp.nrdProp),
         }}
         deliveries={deliveryRows}
         onAddDelivery={

@@ -7,16 +7,12 @@ type OilCompany = { _id: string; name: string };
 const CUSTOM_COMPANY = "__custom__";
 
 /**
- * Import delivery summaries from Excel/CSV files emailed by oil & propane
- * companies. Workflow:
- *   1) User picks a file. We parse it client-side and show a preview.
- *   2) User maps each spreadsheet column to a semantic field.
- *      Default co-op layout is 6 columns: Product, OIL ID / PROP ID, GAL, Month, Year, Name (ignored).
- *      Default values can be supplied for whole-file constants (e.g. company when not in the sheet).
- *   3) "Validate" runs a dry-run on the server: per-row matching against
- *      members by (fuel, account, company), with detailed error report.
- *   4) "Apply" actually appends rows to matched members. Duplicates
- *      (same date+fuel+gallons) are skipped, surfaced in the report.
+ * Import delivery summaries from Excel/CSV. The file must be exactly six
+ * columns (A–F), in order:
+ *   1) Product (OIL or PROP)  2) OIL ID / PROP ID  3) GAL  4) Month  5) Year  6) Name (reference only)
+ * Row 1 is headers; data starts row 2. Name is not used for matching.
+ * Default company (whole file) is required when there is no company column.
+ * Validate → dry-run; Apply → append rows (deduped by date+fuel+gallons).
  */
 
 type SemanticField =
@@ -29,10 +25,44 @@ type SemanticField =
   | "gallons"
   | "ignore";
 
+/**
+ * Standard co-op delivery spreadsheet: 6 columns A–F in order —
+ * Product, OIL ID / PROP ID, GAL, Month, Year, Name (reference; not used for matching).
+ */
+const STANDARD_SIX_FIELDS: SemanticField[] = [
+  "fuelType",
+  "account",
+  "gallons",
+  "month",
+  "year",
+  "ignore",
+];
+
+/** Stable keys for the six required columns (positional A–F). */
+const IMPORT_COL_KEYS = ["__c0", "__c1", "__c2", "__c3", "__c4", "__c5"] as const;
+
 type ParsedSheet = {
+  /** Header text from row 1, columns A–F (for display). */
   headers: string[];
+  /** Data rows; each record uses IMPORT_COL_KEYS only. */
   rows: Array<Record<string, unknown>>;
 };
+
+/** Fixed mapping: column index → semantic field (never user-edited). */
+const STRICT_SIX_MAPPING: Record<string, SemanticField> = Object.fromEntries(
+  IMPORT_COL_KEYS.map((k, i) => [k, STANDARD_SIX_FIELDS[i]])
+) as Record<string, SemanticField>;
+
+function maxUsedColumnIndex(grid: unknown[][]): number {
+  let max = 0;
+  for (const row of grid) {
+    if (!Array.isArray(row)) continue;
+    for (let i = 0; i < row.length; i++) {
+      if (String(row[i] ?? "").trim() !== "") max = Math.max(max, i + 1);
+    }
+  }
+  return max;
+}
 
 type ServerImportResponse = {
   importBatchId: string;
@@ -78,78 +108,14 @@ const FIELD_LABELS: Record<SemanticField, string> = {
   ignore: "Ignore (e.g. Name — reference only)",
 };
 
-/**
- * Standard co-op delivery spreadsheet: 6 columns in order —
- * Product, OIL ID / PROP ID, GAL, Month, Year, Name (reference; not used for matching).
- */
-const STANDARD_SIX_FIELDS: SemanticField[] = [
-  "fuelType",
-  "account",
-  "gallons",
-  "month",
-  "year",
-  "ignore",
-];
-
-/** When there are exactly 6 columns and each header matches this layout, map by position. */
-function columnMatchesStandardSixSlot(header: string, slotIndex: number): boolean {
-  const t = header.toLowerCase();
-  switch (slotIndex) {
-    case 0:
-      return /\bproduct\b|\bfuel\b/.test(t);
-    case 1:
-      return (
-        /\b(oil|prop(ane)?)\s*id\b/.test(t) ||
-        /oil\s*id\s*\/\s*prop/i.test(t) ||
-        /\bprop\s*id\b/.test(t)
-      );
-    case 2:
-      return /^\s*gal(s)?\s*$/i.test(header.trim()) || /\bgal(lons)?\b/.test(t);
-    case 3:
-      return /\bmonth\b/.test(t);
-    case 4:
-      return /\byear\b/.test(t) && !/\bmonth\b/.test(t);
-    case 5:
-      return /\bname\b/.test(t) && !/\bcompany\b/.test(t);
-    default:
-      return false;
-  }
-}
-
-function buildInitialColumnMapping(headers: string[]): Record<string, SemanticField> {
-  const out: Record<string, SemanticField> = {};
-  for (const h of headers) {
-    out[h] = autoMapHeader(h);
-  }
-  if (headers.length === 6 && headers.every((h, i) => columnMatchesStandardSixSlot(h, i))) {
-    for (let i = 0; i < 6; i++) {
-      out[headers[i]] = STANDARD_SIX_FIELDS[i];
-    }
-  }
-  return out;
-}
-
-function autoMapHeader(header: string): SemanticField {
-  const h = header.toLowerCase().trim();
-  // Column 6 in the standard layout: person name for cross-check only (not "company name").
-  if (/^name\b/i.test(h) && !/company/.test(h)) return "ignore";
-  if (/^year\b|\byear$/.test(h) || /\byear\s*\(/i.test(h)) return "year";
-  if (/^month\b|\bmonth$/.test(h) || /\bmonth\s*\(/i.test(h)) return "month";
-  if (/^\s*product\b/i.test(h) || /\bproduct\s*\(/i.test(h) || /^(fuel|type)\b/i.test(h)) return "fuelType";
-  if (
-    /\b(oil|prop(ane)?)\s*id\b/i.test(h) ||
-    /oil\s*id\s*\/\s*prop/i.test(h) ||
-    /\bprop\s*\/\s*oil\s*id\b/i.test(h)
-  ) {
-    return "account";
-  }
-  if (/(fuel|product)\b/i.test(h) && /\b(oil|prop)/i.test(h)) return "fuelType";
-  if (/(acct|account|customer\s*#|cust\s*#|member\s*#)/i.test(h)) return "account";
-  if (/(company|vendor|dealer|supplier|broker)/i.test(h)) return "companyName";
-  if (/(date|delivered|delv|d\/l)/i.test(h)) return "dateDelivered";
-  if (/(gal|gallon|qty|quantity|amount)/i.test(h)) return "gallons";
-  return "ignore";
-}
+const SIX_COLUMN_GUIDE = [
+  "Product (OIL or PROP)",
+  "OIL ID / PROP ID",
+  "GAL",
+  "Month (e.g. MARCH)",
+  "Year",
+  "Name (reference only — not matched)",
+] as const;
 
 const MONTH_NAMES_TO_NUM: Record<string, number> = {
   jan: 1, january: 1,
@@ -204,7 +170,6 @@ export default function AdminDeliveryImportPage() {
 
   const [fileName, setFileName] = useState("");
   const [sheet, setSheet] = useState<ParsedSheet | null>(null);
-  const [mapping, setMapping] = useState<Record<string, SemanticField>>({});
   // companySelection: "" (none), an OilCompany _id, or CUSTOM_COMPANY
   const [defaults, setDefaults] = useState({
     fuelType: "" as "" | "OIL" | "PROP" | "PROPANE",
@@ -250,24 +215,43 @@ export default function AdminDeliveryImportPage() {
         const wsName = wb.SheetNames[0];
         if (!wsName) throw new Error("no sheets in workbook");
         const ws = wb.Sheets[wsName];
-        const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, {
-          defval: "",
-          raw: false,
-        });
-        if (json.length === 0) {
+        const grid = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: "", raw: false });
+        if (!grid || grid.length === 0) {
           setSheet({ headers: [], rows: [] });
-          setMapping({});
           return;
         }
-        const headerSet = new Set<string>();
-        for (const r of json) for (const k of Object.keys(r)) headerSet.add(k);
-        const headers = [...headerSet];
-        setSheet({ headers, rows: json });
-        setMapping(buildInitialColumnMapping(headers));
+
+        const usedCols = maxUsedColumnIndex(grid);
+        if (usedCols !== 6) {
+          const msg =
+            usedCols < 6
+              ? `This import requires exactly 6 columns (A–F), in order: (1) Product, (2) OIL ID / PROP ID, (3) GAL, (4) Month, (5) Year, (6) Name. Only ${usedCols} column(s) contain data.`
+              : `This import allows only 6 columns (A–F). Your file uses ${usedCols} columns — remove everything past column F.`;
+          setParseError(msg);
+          setSheet(null);
+          return;
+        }
+
+        const row0 = [...(grid[0] ?? [])];
+        while (row0.length < 6) row0.push("");
+        const headers = row0.slice(0, 6).map((c, i) => {
+          const t = String(c ?? "").trim();
+          return t || SIX_COLUMN_GUIDE[i];
+        });
+
+        const rows: Array<Record<string, unknown>> = [];
+        for (let r = 1; r < grid.length; r++) {
+          const cells = [...(grid[r] ?? [])];
+          while (cells.length < 6) cells.push("");
+          const o: Record<string, unknown> = {};
+          for (let i = 0; i < 6; i++) o[IMPORT_COL_KEYS[i]] = cells[i] ?? "";
+          rows.push(o);
+        }
+
+        setSheet({ headers, rows });
       } catch (err) {
         setParseError(err instanceof Error ? err.message : "Failed to parse file");
         setSheet(null);
-        setMapping({});
       }
     };
     reader.onerror = () => setParseError("Could not read file");
@@ -290,7 +274,7 @@ export default function AdminDeliveryImportPage() {
       };
 
     const colByField = (field: SemanticField) =>
-      Object.entries(mapping).find(([, f]) => f === field)?.[0] ?? null;
+      Object.entries(STRICT_SIX_MAPPING).find(([, f]) => f === field)?.[0] ?? null;
     const cols = {
       fuelType: colByField("fuelType"),
       account: colByField("account"),
@@ -339,7 +323,7 @@ export default function AdminDeliveryImportPage() {
       };
     });
     return { rows, missingFields, dateMode };
-  }, [sheet, mapping, defaults, resolvedDefaultCompanyName]);
+  }, [sheet, defaults, resolvedDefaultCompanyName]);
 
   async function postImport(dryRun: boolean) {
     if (!token || builtRows.rows.length === 0) return;
@@ -366,7 +350,6 @@ export default function AdminDeliveryImportPage() {
   function reset() {
     setFileName("");
     setSheet(null);
-    setMapping({});
     setReport(null);
     setReportMode(null);
     setParseError(null);
@@ -388,11 +371,11 @@ export default function AdminDeliveryImportPage() {
         )}
       </div>
       <p style={{ color: "var(--admin-muted)", fontSize: "0.875rem", margin: "0.25rem 0 1.25rem" }}>
-        Upload an Excel or CSV file. The usual co-op layout is six columns:{" "}
+        Files must be exactly <strong>six columns (A–F)</strong>, row 1 = headers, row 2+ = data:{" "}
         <strong>Product</strong> (OIL or PROP), <strong>OIL ID / PROP ID</strong>, <strong>GAL</strong>,{" "}
-        <strong>Month</strong>, <strong>Year</strong>, and <strong>Name</strong> (reference only; not used for matching).
-        Each row is matched to a member by fuel type, account number, and company name — set a default company below
-        when the sheet has no company column. Validate first to review matches before applying.
+        <strong>Month</strong>, <strong>Year</strong>, <strong>Name</strong> (reference only; not used for matching).
+        There is no company column in this layout — choose a <strong>default company</strong> below for matching.
+        Validate first, then apply.
       </p>
 
       <div className="admin-card">
@@ -413,42 +396,31 @@ export default function AdminDeliveryImportPage() {
         {parseError && <p style={{ color: "#b91c1c", fontSize: "0.85rem", marginTop: "0.5rem" }}>{parseError}</p>}
       </div>
 
-      {sheet && sheet.headers.length > 0 && (
+      {sheet && sheet.headers.length === 6 && (
         <>
           <div className="admin-card">
-            <h2>2. Map columns</h2>
+            <h2>2. Column layout &amp; defaults</h2>
             <p style={{ color: "var(--admin-muted)", fontSize: "0.8rem", marginTop: 0 }}>
-              Column targets are guessed from headers (six-column co-op files map automatically). Required: account,
-              gallons, month + year or a full date, and fuel unless you set a default. Company: map a column or choose
-              a default for the whole file.
+              Columns are fixed by position (A–F). Header text in row 1 is for your reference only. Month + Year are
+              combined as the first day of that month. Default fuel is optional if every row has Product filled.
             </p>
             <div className="admin-table-wrap" style={{ marginBottom: "0.75rem" }}>
               <table className="admin-table">
                 <thead>
                   <tr>
-                    <th style={{ width: "40%" }}>Spreadsheet column</th>
-                    <th>Maps to</th>
+                    <th>Col</th>
+                    <th>Your header (row 1)</th>
+                    <th>Import as</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {sheet.headers.map((h) => (
-                    <tr key={h}>
+                  {IMPORT_COL_KEYS.map((_, i) => (
+                    <tr key={IMPORT_COL_KEYS[i]}>
                       <td>
-                        <strong>{h}</strong>
+                        <strong>{String.fromCharCode(65 + i)}</strong>
                       </td>
-                      <td>
-                        <select
-                          className="admin-input"
-                          value={mapping[h] || "ignore"}
-                          onChange={(e) => setMapping((m) => ({ ...m, [h]: e.target.value as SemanticField }))}
-                        >
-                          {(Object.keys(FIELD_LABELS) as SemanticField[]).map((f) => (
-                            <option key={f} value={f}>
-                              {FIELD_LABELS[f]}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
+                      <td>{sheet.headers[i]}</td>
+                      <td>{FIELD_LABELS[STANDARD_SIX_FIELDS[i]]}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -470,7 +442,7 @@ export default function AdminDeliveryImportPage() {
                   }
                   style={{ width: "100%" }}
                 >
-                  <option value="">— none (use column) —</option>
+                  <option value="">— use Product column —</option>
                   <option value="OIL">OIL</option>
                   <option value="PROP">PROP</option>
                   <option value="PROPANE">PROPANE</option>
@@ -492,7 +464,7 @@ export default function AdminDeliveryImportPage() {
                   }
                   style={{ width: "100%" }}
                 >
-                  <option value="">— none (use column) —</option>
+                  <option value="">— choose company (required) —</option>
                   {oilCompanies.map((c) => (
                     <option key={c._id} value={c._id}>
                       {c.name}
@@ -542,16 +514,16 @@ export default function AdminDeliveryImportPage() {
               <table className="admin-table">
                 <thead>
                   <tr>
-                    {sheet.headers.map((h) => (
-                      <th key={h}>{h}</th>
+                    {sheet.headers.map((h, i) => (
+                      <th key={i}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {previewRows.map((r, i) => (
                     <tr key={i}>
-                      {sheet.headers.map((h) => (
-                        <td key={h}>{String(r[h] ?? "")}</td>
+                      {IMPORT_COL_KEYS.map((k, j) => (
+                        <td key={j}>{String(r[k] ?? "")}</td>
                       ))}
                     </tr>
                   ))}
