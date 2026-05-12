@@ -2089,11 +2089,21 @@ button.admin-wb-panel-title.admin-wb-panel-toggle:hover {
   accent-color: var(--admin-accent);
 }
 
+.admin-modal-find-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
 .admin-modal-find-row {
   display: grid;
-  grid-template-columns: 80px 1.2fr 60px 1fr auto auto;
+  grid-template-columns: 72px 1.05fr 1fr 1.35fr auto auto;
   gap: 0.45rem;
   align-items: end;
+}
+
+.admin-modal-find-row .admin-modal-field-company select {
+  text-overflow: ellipsis;
 }
 
 .admin-modal-find-row .admin-input {

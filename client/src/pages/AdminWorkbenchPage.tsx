@@ -301,7 +301,12 @@ function loadCollapsedPanels(): Set<string> {
     const raw = window.localStorage.getItem(COLLAPSED_PANELS_KEY);
     if (!raw) return new Set();
     const arr = JSON.parse(raw);
-    if (Array.isArray(arr)) return new Set(arr.filter((v) => typeof v === "string"));
+    if (Array.isArray(arr)) {
+      const ids = arr.filter((v) => typeof v === "string") as string[];
+      // Renamed panel: preserve collapse preference from "Delinquent / Payment Status".
+      const mapped = ids.map((id) => (id === "delinquent" ? "nrdFilters" : id));
+      return new Set(mapped);
+    }
   } catch {
     // ignore corrupted storage
   }
@@ -347,6 +352,9 @@ export default function AdminWorkbenchPage() {
   const [mailSending, setMailSending] = useState(false);
   const [deliveryHistoryOpen, setDeliveryHistoryOpen] = useState(false);
   const [paymentHistoryOpen, setPaymentHistoryOpen] = useState(false);
+  /** Narrow the workbench member list to records flagged NRD-Oil / NRD-Prop on legacy profile. */
+  const [filterListNrdOil, setFilterListNrdOil] = useState(false);
+  const [filterListNrdProp, setFilterListNrdProp] = useState(false);
 
   const [collapsedPanels, setCollapsedPanels] = useState<Set<string>>(loadCollapsedPanels);
 
@@ -470,8 +478,11 @@ export default function AdminWorkbenchPage() {
 
   const filteredMembers = useMemo(() => {
     const q = quickSearch.trim().toLowerCase();
-    if (filters.length === 0 && !q) return members;
     return members.filter((m) => {
+      const lp = (m.legacyProfile || {}) as Record<string, unknown>;
+      if (filterListNrdOil && !Boolean(lp.nrdOil)) return false;
+      if (filterListNrdProp && !Boolean(lp.nrdProp)) return false;
+
       if (filters.length > 0) {
         const allFiltersMatch = filters.every((f) => {
           const def = filterFields.find((x) => x.key === f.field);
@@ -518,7 +529,7 @@ export default function AdminWorkbenchPage() {
       }
       return true;
     });
-  }, [members, filters, filterFields, quickSearch]);
+  }, [members, filters, filterFields, quickSearch, filterListNrdOil, filterListNrdProp]);
 
   /** Select member from `?member=` or load that record if it is outside the current result set. */
   useEffect(() => {
@@ -726,6 +737,40 @@ export default function AdminWorkbenchPage() {
     [oilCompanies, form.oilCompanyId]
   );
   const selectedOilCompanyName = selectedOilCompanyRecord?.name || current?.oilCompanyId?.name || "";
+
+  /** Full oil-company catalog for workbench code dropdowns (sorted for scanning). */
+  const workbenchOilCompanyRows = useMemo(
+    () =>
+      [...oilCompanies]
+        .map((oc) => ({ oc, code: oilCoCode(oc.notes).trim() }))
+        .sort((a, b) => {
+          const ak = (a.code || a.oc.name).toLowerCase();
+          const bk = (b.code || b.oc.name).toLowerCase();
+          const c = ak.localeCompare(bk, undefined, { sensitivity: "base", numeric: true });
+          return c !== 0 ? c : a.oc.name.localeCompare(b.oc.name, undefined, { sensitivity: "base" });
+        }),
+    [oilCompanies]
+  );
+
+  /** Prop co dropdown value is oil company id; legacy still stores short code + company name. */
+  const propCoSelectCompanyId = useMemo(() => {
+    const lp = form.legacyProfile || {};
+    const pc = String(lp.propCoCode ?? "").trim();
+    const pname = String(lp.propaneCompanyName ?? "").trim().toLowerCase();
+    if (!pc && !pname) return "";
+    for (const { oc, code } of workbenchOilCompanyRows) {
+      if (code && code === pc) return oc._id;
+    }
+    for (const { oc } of workbenchOilCompanyRows) {
+      if (pname && oc.name.trim().toLowerCase() === pname) return oc._id;
+    }
+    return "";
+  }, [form.legacyProfile, workbenchOilCompanyRows]);
+
+  const propCoLegacyUnmatched = useMemo(() => {
+    const pc = String(form.legacyProfile?.propCoCode ?? "").trim();
+    return Boolean(pc) && !propCoSelectCompanyId;
+  }, [form.legacyProfile, propCoSelectCompanyId]);
 
   const deliveryModalMember = useMemo(
     () => ({
@@ -1728,17 +1773,31 @@ export default function AdminWorkbenchPage() {
                 ))}
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", alignItems: "end", gap: "0.35rem 0.7rem" }}>
-                <label style={{ flex: "0 0 auto", width: "180px" }}>
+                <label style={{ flex: "0 0 auto", width: "200px" }}>
                   Oil Co Code
-                  <select className="admin-input" value={form.oilCompanyId} onChange={(e) => setForm((f) => ({ ...f, oilCompanyId: e.target.value }))}>
+                  <select
+                    className="admin-input"
+                    value={form.oilCompanyId}
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      setForm((f) => {
+                        const oc = oilCompanies.find((o) => o._id === id);
+                        const lp = { ...f.legacyProfile } as Record<string, unknown>;
+                        if (!id || !oc) {
+                          lp.oilCoCode = "";
+                          return { ...f, oilCompanyId: id, legacyProfile: lp };
+                        }
+                        lp.oilCoCode = oilCoCode(oc.notes).trim();
+                        return { ...f, oilCompanyId: id, legacyProfile: lp };
+                      });
+                    }}
+                  >
                     <option value="">—</option>
-                    {oilCompanies
-                      .map((oc) => ({ oc, code: oilCoCode(oc.notes) }))
-                      .filter(({ code }) => code)
-                      .sort((a, b) => a.code.localeCompare(b.code))
-                      .map(({ oc, code }) => (
-                        <option key={oc._id} value={oc._id}>{code}</option>
-                      ))}
+                    {workbenchOilCompanyRows.map(({ oc, code }) => (
+                      <option key={oc._id} value={oc._id}>
+                        {code ? `${code} — ${oc.name}` : oc.name}
+                      </option>
+                    ))}
                   </select>
                 </label>
                 <label style={{ flex: "0 0 auto", width: "100px" }}>Oil ID<input className="admin-input" value={legacyValue("oilId")} onChange={(e) => setLegacy("oilId", e.target.value)} /></label>
@@ -1764,11 +1823,39 @@ export default function AdminWorkbenchPage() {
                 ))}
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", alignItems: "end", gap: "0.35rem 0.7rem" }}>
-                <label style={{ flex: "0 0 auto", width: "120px" }}>
+                <label style={{ flex: "0 0 auto", width: "200px" }}>
                   Prop Co Code
-                  <select className="admin-input" value={legacyValue("propCoCode")} onChange={(e) => setLegacy("propCoCode", e.target.value)}>
+                  <select
+                    className="admin-input"
+                    value={propCoSelectCompanyId}
+                    title={
+                      propCoLegacyUnmatched
+                        ? `Legacy prop code not in Oil Companies list: ${String(form.legacyProfile?.propCoCode ?? "").trim()}`
+                        : "Same company list as Oil Co Code; sets propane company name and short code"
+                    }
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      setForm((f) => {
+                        const lp = { ...f.legacyProfile } as Record<string, unknown>;
+                        if (!id) {
+                          lp.propCoCode = "";
+                          lp.propaneCompanyName = "";
+                          return { ...f, legacyProfile: lp };
+                        }
+                        const oc = oilCompanies.find((o) => o._id === id);
+                        if (!oc) return f;
+                        lp.propCoCode = oilCoCode(oc.notes).trim();
+                        lp.propaneCompanyName = oc.name;
+                        return { ...f, legacyProfile: lp };
+                      });
+                    }}
+                  >
                     <option value="">—</option>
-                    <option value="THOM">THOM</option>
+                    {workbenchOilCompanyRows.map(({ oc, code }) => (
+                      <option key={oc._id} value={oc._id}>
+                        {code ? `${code} — ${oc.name}` : oc.name}
+                      </option>
+                    ))}
                   </select>
                 </label>
                 <label style={{ flex: "0 0 auto", width: "100px" }}>Propane ID<input className="admin-input" value={legacyValue("propaneId")} onChange={(e) => setLegacy("propaneId", e.target.value)} /></label>
@@ -1878,18 +1965,31 @@ export default function AdminWorkbenchPage() {
               </>)}
             </div>
 
-            <div className={`admin-wb-panel${collapsedPanels.has("delinquent") ? " collapsed" : ""}`}>
-              {panelHeader("delinquent", "Delinquent / Payment Status")}
-              {!collapsedPanels.has("delinquent") && (
-                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.5rem 1rem" }}>
-                  <label style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.7rem", fontWeight: 600, whiteSpace: "nowrap" }}>
-                    <input type="checkbox" checked={legacyBool("delinquent")} onChange={(e) => setLegacy("delinquent", e.target.checked)} />
-                    Delinquent
-                  </label>
-                  <label style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.7rem", fontWeight: 600, whiteSpace: "nowrap" }}>
-                    <input type="checkbox" checked={legacyBool("notPaidCurrentYr")} onChange={(e) => setLegacy("notPaidCurrentYr", e.target.checked)} />
-                    Not Paid Current Yr
-                  </label>
+            <div className={`admin-wb-panel${collapsedPanels.has("nrdFilters") ? " collapsed" : ""}`}>
+              {panelHeader("nrdFilters", "NRD filters")}
+              {!collapsedPanels.has("nrdFilters") && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+                  <p className="admin-meta" style={{ margin: 0, fontSize: "0.65rem", lineHeight: 1.35 }}>
+                    Narrows the member list, worksheet, and exports. NRD flags are still set under Delivery Status.
+                  </p>
+                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.5rem 1rem" }}>
+                    <label style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.7rem", fontWeight: 600, whiteSpace: "nowrap" }}>
+                      <input
+                        type="checkbox"
+                        checked={filterListNrdOil}
+                        onChange={(e) => setFilterListNrdOil(e.target.checked)}
+                      />
+                      NRD-Oil
+                    </label>
+                    <label style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.7rem", fontWeight: 600, whiteSpace: "nowrap" }}>
+                      <input
+                        type="checkbox"
+                        checked={filterListNrdProp}
+                        onChange={(e) => setFilterListNrdProp(e.target.checked)}
+                      />
+                      NRD-Prop
+                    </label>
+                  </div>
                 </div>
               )}
             </div>

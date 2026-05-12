@@ -51,6 +51,7 @@ export type DeliveryHistoryModalProps = {
     firstName?: string;
     lastName?: string;
     legacyProfile?: Record<string, unknown>;
+    oilCompanyId?: { name?: string } | null;
   }>;
   onMemberPatch?: (patch: DeliveryMemberPatch) => void;
   isDirty?: boolean;
@@ -87,11 +88,31 @@ export default function DeliveryHistoryModal({
 }: DeliveryHistoryModalProps) {
   const titleId = useId();
   const [findYear, setFindYear] = useState(() => String(new Date().getFullYear()));
-  const [findMonth, setFindMonth] = useState(() => String(new Date().getMonth() + 1).padStart(2, "0"));
-  const [findDay, setFindDay] = useState("");
-  const [findFuel, setFindFuel] = useState<"" | "OIL" | "PROPANE">("");
+  const [findMonth, setFindMonth] = useState("");
+  const [findFuel, setFindFuel] = useState<"" | "OIL" | "PROPANE" | "NRD_OIL" | "NRD_PROP">("");
+  const [findCompany, setFindCompany] = useState<string>("");
   const [findTriggered, setFindTriggered] = useState(false);
   const [selectedFindMemberId, setSelectedFindMemberId] = useState<string | null>(null);
+
+  // Unique, sorted list of company names found across the searchable members
+  // (both oil and propane). Used to populate the Find > Company dropdown so
+  // staff can filter delivery searches to a single supplier.
+  const findCompanyOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const m of searchableMembers) {
+      const lp = (m.legacyProfile || {}) as Record<string, unknown>;
+      const oc = String(lp.oilCompanyName || "").trim();
+      const pc = String(lp.propaneCompanyName || "").trim();
+      if (oc) set.add(oc);
+      if (pc) set.add(pc);
+      const linked =
+        m.oilCompanyId && typeof m.oilCompanyId === "object" && "name" in (m.oilCompanyId as { name?: string })
+          ? String((m.oilCompanyId as { name?: string }).name || "").trim()
+          : "";
+      if (linked) set.add(linked);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [searchableMembers]);
 
   // Local override of deliveries used after CRUD ops. Falls back to props.
   const [rowsOverride, setRowsOverride] = useState<DeliveryHistoryRow[] | null>(null);
@@ -184,6 +205,7 @@ export default function DeliveryHistoryModal({
     if (!open) {
       setSelectedFindMemberId(null);
       setFindTriggered(false);
+      setFindCompany("");
       setEditingRowId(null);
       setAdding(false);
       setRowsOverride(null);
@@ -315,20 +337,40 @@ export default function DeliveryHistoryModal({
     if (!findTriggered) return [];
     const yearNum = Number(findYear);
     const monthNum = Number(findMonth);
-    const dayNum = findDay ? Number(findDay) : NaN;
     const hasYear = Number.isFinite(yearNum) && yearNum > 0;
     const hasMonth = Number.isFinite(monthNum) && monthNum >= 1 && monthNum <= 12;
-    const hasDay = Number.isFinite(dayNum) && dayNum >= 1 && dayNum <= 31;
-    if (!hasYear && !hasMonth && !hasDay && !findFuel) return [];
+    const companyKey = findCompany.trim().toLowerCase();
+    const hasAnyFilter =
+      hasYear ||
+      hasMonth ||
+      findFuel !== "" ||
+      Boolean(companyKey);
+    if (!hasAnyFilter) return [];
+
     return searchableMembers
       .map((m) => {
-        const rows = parseRowsFromLegacy((m.legacyProfile || {}).deliveryHistoryRows);
+        const lp = (m.legacyProfile || {}) as Record<string, unknown>;
+        if (companyKey) {
+          const oc = String(lp.oilCompanyName || "").trim().toLowerCase();
+          const pc = String(lp.propaneCompanyName || "").trim().toLowerCase();
+          const linked =
+            m.oilCompanyId && typeof m.oilCompanyId === "object" && "name" in (m.oilCompanyId as { name?: string })
+              ? String((m.oilCompanyId as { name?: string }).name || "").trim().toLowerCase()
+              : "";
+          if (oc !== companyKey && pc !== companyKey && linked !== companyKey) return null;
+        }
+        if (findFuel === "NRD_OIL" && !Boolean(lp.nrdOil)) return null;
+        if (findFuel === "NRD_PROP" && !Boolean(lp.nrdProp)) return null;
+
+        const rows = parseRowsFromLegacy(lp.deliveryHistoryRows);
         const matches = rows.filter((row) => {
           const d = new Date(row.dateDelivered);
           if (hasYear && d.getFullYear() !== yearNum) return false;
           if (hasMonth && d.getMonth() + 1 !== monthNum) return false;
-          if (hasDay && d.getDate() !== dayNum) return false;
-          if (findFuel && row.fuelType !== findFuel) return false;
+          if (findFuel === "OIL" && row.fuelType !== "OIL") return false;
+          if (findFuel === "PROPANE" && row.fuelType !== "PROPANE") return false;
+          if (findFuel === "NRD_OIL" && row.fuelType !== "OIL") return false;
+          if (findFuel === "NRD_PROP" && row.fuelType !== "PROPANE") return false;
           return true;
         });
         if (matches.length === 0) return null;
@@ -342,7 +384,14 @@ export default function DeliveryHistoryModal({
       })
       .filter((v): v is { id: string; memberNumber: string; name: string; deliveries: number; gallons: number } => Boolean(v))
       .sort((a, b) => b.deliveries - a.deliveries || a.name.localeCompare(b.name));
-  }, [findTriggered, findMonth, findYear, findDay, findFuel, searchableMembers]);
+  }, [
+    findTriggered,
+    findMonth,
+    findYear,
+    findFuel,
+    findCompany,
+    searchableMembers,
+  ]);
 
   useEffect(() => {
     if (!open) return;
@@ -694,78 +743,96 @@ export default function DeliveryHistoryModal({
                 </tbody>
               </table>
             </div>
-            <div className="admin-modal-find-row">
-              <div className="admin-modal-field">
-                <span>Year</span>
-                <input
-                  className="admin-input"
-                  value={findYear}
-                  onChange={(e) => setFindYear(e.target.value.replace(/[^\d]/g, "").slice(0, 4))}
-                  placeholder="YYYY"
-                  inputMode="numeric"
-                />
-              </div>
-              <div className="admin-modal-field">
-                <span>Month</span>
-                <select className="admin-input" value={findMonth} onChange={(e) => setFindMonth(e.target.value)}>
-                  <option value="">Any</option>
-                  <option value="01">January</option>
-                  <option value="02">February</option>
-                  <option value="03">March</option>
-                  <option value="04">April</option>
-                  <option value="05">May</option>
-                  <option value="06">June</option>
-                  <option value="07">July</option>
-                  <option value="08">August</option>
-                  <option value="09">September</option>
-                  <option value="10">October</option>
-                  <option value="11">November</option>
-                  <option value="12">December</option>
-                </select>
-              </div>
-              <div className="admin-modal-field">
-                <span>Day</span>
-                <input
-                  className="admin-input"
-                  value={findDay}
-                  onChange={(e) => setFindDay(e.target.value.replace(/[^\d]/g, "").slice(0, 2))}
-                  placeholder="DD"
-                  inputMode="numeric"
-                />
-              </div>
-              <div className="admin-modal-field">
-                <span>Fuel</span>
-                <select
-                  className="admin-input"
-                  value={findFuel}
-                  onChange={(e) => setFindFuel(e.target.value as "" | "OIL" | "PROPANE")}
-                >
-                  <option value="">Any</option>
-                  <option value="OIL">Oil</option>
-                  <option value="PROPANE">Propane</option>
-                </select>
-              </div>
-              <button
-                type="button"
-                className="admin-btn admin-btn-primary admin-modal-find-btn"
-                onClick={() => setFindTriggered(true)}
-                disabled={searchableMembers.length === 0}
-              >
-                Find
-              </button>
-              {findTriggered && (
+            <div className="admin-modal-find-stack">
+              <div className="admin-modal-find-row">
+                <div className="admin-modal-field">
+                  <span>Year</span>
+                  <input
+                    className="admin-input"
+                    value={findYear}
+                    onChange={(e) => setFindYear(e.target.value.replace(/[^\d]/g, "").slice(0, 4))}
+                    placeholder="YYYY"
+                    inputMode="numeric"
+                  />
+                </div>
+                <div className="admin-modal-field">
+                  <span>Month</span>
+                  <select className="admin-input" value={findMonth} onChange={(e) => setFindMonth(e.target.value)}>
+                    <option value="">Any</option>
+                    <option value="01">January</option>
+                    <option value="02">February</option>
+                    <option value="03">March</option>
+                    <option value="04">April</option>
+                    <option value="05">May</option>
+                    <option value="06">June</option>
+                    <option value="07">July</option>
+                    <option value="08">August</option>
+                    <option value="09">September</option>
+                    <option value="10">October</option>
+                    <option value="11">November</option>
+                    <option value="12">December</option>
+                  </select>
+                </div>
+                <div className="admin-modal-field">
+                  <span>Fuel / NRD</span>
+                  <select
+                    className="admin-input"
+                    value={findFuel}
+                    onChange={(e) =>
+                      setFindFuel(e.target.value as "" | "OIL" | "PROPANE" | "NRD_OIL" | "NRD_PROP")
+                    }
+                  >
+                    <option value="">Any</option>
+                    <option value="OIL">Oil</option>
+                    <option value="PROPANE">Propane</option>
+                    <option value="NRD_OIL">NRD-Oil</option>
+                    <option value="NRD_PROP">NRD-Prop</option>
+                  </select>
+                </div>
+                <div className="admin-modal-field admin-modal-field-company">
+                  <span>Company</span>
+                  <select
+                    className="admin-input"
+                    value={findCompany}
+                    onChange={(e) => setFindCompany(e.target.value)}
+                    disabled={findCompanyOptions.length === 0}
+                    title={
+                      findCompanyOptions.length === 0
+                        ? "No companies found on loaded members"
+                        : "Oil or propane company (one list)"
+                    }
+                  >
+                    <option value="">Any</option>
+                    {findCompanyOptions.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <button
                   type="button"
-                  className="admin-btn admin-modal-find-btn"
-                  onClick={() => {
-                    setFindTriggered(false);
-                    setFindDay("");
-                    setFindFuel("");
-                  }}
+                  className="admin-btn admin-btn-primary admin-modal-find-btn"
+                  onClick={() => setFindTriggered(true)}
+                  disabled={searchableMembers.length === 0}
                 >
-                  Reset
+                  Find
                 </button>
-              )}
+                {findTriggered && (
+                  <button
+                    type="button"
+                    className="admin-btn admin-modal-find-btn"
+                    onClick={() => {
+                      setFindTriggered(false);
+                      setFindFuel("");
+                      setFindCompany("");
+                      setFindMonth("");
+                    }}
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
             </div>
             {findTriggered && (
               <div className="admin-table-wrap admin-modal-find-results">
@@ -782,7 +849,7 @@ export default function DeliveryHistoryModal({
                     {findResults.length === 0 ? (
                       <tr>
                         <td colSpan={4} className="admin-modal-table-empty">
-                          No customers found for that delivery month.
+                          No customers matched these find criteria.
                         </td>
                       </tr>
                     ) : (

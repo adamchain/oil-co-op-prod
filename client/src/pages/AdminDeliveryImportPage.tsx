@@ -10,10 +10,9 @@ const CUSTOM_COMPANY = "__custom__";
  * Import delivery summaries from Excel/CSV files emailed by oil & propane
  * companies. Workflow:
  *   1) User picks a file. We parse it client-side and show a preview.
- *   2) User maps each spreadsheet column to a semantic field
- *      (Fuel, Account, Company name, Date delivered, Gallons).
- *      Default values can be supplied for whole-file constants
- *      (e.g. a single-company propane summary may not have a company column).
+ *   2) User maps each spreadsheet column to a semantic field.
+ *      Default co-op layout is 6 columns: Product, OIL ID / PROP ID, GAL, Month, Year, Name (ignored).
+ *      Default values can be supplied for whole-file constants (e.g. company when not in the sheet).
  *   3) "Validate" runs a dry-run on the server: per-row matching against
  *      members by (fuel, account, company), with detailed error report.
  *   4) "Apply" actually appends rows to matched members. Duplicates
@@ -69,22 +68,83 @@ type ServerImportResponse = {
 };
 
 const FIELD_LABELS: Record<SemanticField, string> = {
-  fuelType: "Fuel type (OIL / PROPANE)",
+  fuelType: "Fuel type (OIL / PROP / PROPANE)",
   account: "Account # (oil ID or propane ID)",
   companyName: "Company name",
   dateDelivered: "Date delivered (full date)",
   month: "Month (1–12 or name; pair with Year)",
   year: "Year (YYYY; pair with Month)",
-  gallons: "Gallons",
-  ignore: "Ignore this column",
+  gallons: "Gallons (GAL)",
+  ignore: "Ignore (e.g. Name — reference only)",
 };
+
+/**
+ * Standard co-op delivery spreadsheet: 6 columns in order —
+ * Product, OIL ID / PROP ID, GAL, Month, Year, Name (reference; not used for matching).
+ */
+const STANDARD_SIX_FIELDS: SemanticField[] = [
+  "fuelType",
+  "account",
+  "gallons",
+  "month",
+  "year",
+  "ignore",
+];
+
+/** When there are exactly 6 columns and each header matches this layout, map by position. */
+function columnMatchesStandardSixSlot(header: string, slotIndex: number): boolean {
+  const t = header.toLowerCase();
+  switch (slotIndex) {
+    case 0:
+      return /\bproduct\b|\bfuel\b/.test(t);
+    case 1:
+      return (
+        /\b(oil|prop(ane)?)\s*id\b/.test(t) ||
+        /oil\s*id\s*\/\s*prop/i.test(t) ||
+        /\bprop\s*id\b/.test(t)
+      );
+    case 2:
+      return /^\s*gal(s)?\s*$/i.test(header.trim()) || /\bgal(lons)?\b/.test(t);
+    case 3:
+      return /\bmonth\b/.test(t);
+    case 4:
+      return /\byear\b/.test(t) && !/\bmonth\b/.test(t);
+    case 5:
+      return /\bname\b/.test(t) && !/\bcompany\b/.test(t);
+    default:
+      return false;
+  }
+}
+
+function buildInitialColumnMapping(headers: string[]): Record<string, SemanticField> {
+  const out: Record<string, SemanticField> = {};
+  for (const h of headers) {
+    out[h] = autoMapHeader(h);
+  }
+  if (headers.length === 6 && headers.every((h, i) => columnMatchesStandardSixSlot(h, i))) {
+    for (let i = 0; i < 6; i++) {
+      out[headers[i]] = STANDARD_SIX_FIELDS[i];
+    }
+  }
+  return out;
+}
 
 function autoMapHeader(header: string): SemanticField {
   const h = header.toLowerCase().trim();
-  if (/^year\b|\byear$/.test(h)) return "year";
-  if (/^month\b|\bmonth$/.test(h)) return "month";
-  if (/(fuel|product|type)/i.test(h)) return "fuelType";
-  if (/(acct|account|customer\s*#|cust\s*#|oil\s*id|prop(ane)?\s*id|member\s*#)/i.test(h)) return "account";
+  // Column 6 in the standard layout: person name for cross-check only (not "company name").
+  if (/^name\b/i.test(h) && !/company/.test(h)) return "ignore";
+  if (/^year\b|\byear$/.test(h) || /\byear\s*\(/i.test(h)) return "year";
+  if (/^month\b|\bmonth$/.test(h) || /\bmonth\s*\(/i.test(h)) return "month";
+  if (/^\s*product\b/i.test(h) || /\bproduct\s*\(/i.test(h) || /^(fuel|type)\b/i.test(h)) return "fuelType";
+  if (
+    /\b(oil|prop(ane)?)\s*id\b/i.test(h) ||
+    /oil\s*id\s*\/\s*prop/i.test(h) ||
+    /\bprop\s*\/\s*oil\s*id\b/i.test(h)
+  ) {
+    return "account";
+  }
+  if (/(fuel|product)\b/i.test(h) && /\b(oil|prop)/i.test(h)) return "fuelType";
+  if (/(acct|account|customer\s*#|cust\s*#|member\s*#)/i.test(h)) return "account";
   if (/(company|vendor|dealer|supplier|broker)/i.test(h)) return "companyName";
   if (/(date|delivered|delv|d\/l)/i.test(h)) return "dateDelivered";
   if (/(gal|gallon|qty|quantity|amount)/i.test(h)) return "gallons";
@@ -147,7 +207,7 @@ export default function AdminDeliveryImportPage() {
   const [mapping, setMapping] = useState<Record<string, SemanticField>>({});
   // companySelection: "" (none), an OilCompany _id, or CUSTOM_COMPANY
   const [defaults, setDefaults] = useState({
-    fuelType: "" as "" | "OIL" | "PROPANE",
+    fuelType: "" as "" | "OIL" | "PROP" | "PROPANE",
     companySelection: "",
     customCompanyName: "",
   });
@@ -202,10 +262,8 @@ export default function AdminDeliveryImportPage() {
         const headerSet = new Set<string>();
         for (const r of json) for (const k of Object.keys(r)) headerSet.add(k);
         const headers = [...headerSet];
-        const auto: Record<string, SemanticField> = {};
-        for (const h of headers) auto[h] = autoMapHeader(h);
         setSheet({ headers, rows: json });
-        setMapping(auto);
+        setMapping(buildInitialColumnMapping(headers));
       } catch (err) {
         setParseError(err instanceof Error ? err.message : "Failed to parse file");
         setSheet(null);
@@ -330,9 +388,11 @@ export default function AdminDeliveryImportPage() {
         )}
       </div>
       <p style={{ color: "var(--admin-muted)", fontSize: "0.875rem", margin: "0.25rem 0 1.25rem" }}>
-        Upload an Excel or CSV summary from an oil or propane company. Each row is matched to a member by
-        fuel type + account number + company name. You can validate first to see matched/unmatched/duplicate
-        rows before applying.
+        Upload an Excel or CSV file. The usual co-op layout is six columns:{" "}
+        <strong>Product</strong> (OIL or PROP), <strong>OIL ID / PROP ID</strong>, <strong>GAL</strong>,{" "}
+        <strong>Month</strong>, <strong>Year</strong>, and <strong>Name</strong> (reference only; not used for matching).
+        Each row is matched to a member by fuel type, account number, and company name — set a default company below
+        when the sheet has no company column. Validate first to review matches before applying.
       </p>
 
       <div className="admin-card">
@@ -358,8 +418,9 @@ export default function AdminDeliveryImportPage() {
           <div className="admin-card">
             <h2>2. Map columns</h2>
             <p style={{ color: "var(--admin-muted)", fontSize: "0.8rem", marginTop: 0 }}>
-              We guessed mappings by header name. Adjust as needed. Required: account, date, gallons. Either map a
-              fuel/company column or set a default for the whole file.
+              Column targets are guessed from headers (six-column co-op files map automatically). Required: account,
+              gallons, month + year or a full date, and fuel unless you set a default. Company: map a column or choose
+              a default for the whole file.
             </p>
             <div className="admin-table-wrap" style={{ marginBottom: "0.75rem" }}>
               <table className="admin-table">
@@ -401,11 +462,17 @@ export default function AdminDeliveryImportPage() {
                 <select
                   className="admin-input"
                   value={defaults.fuelType}
-                  onChange={(e) => setDefaults((d) => ({ ...d, fuelType: e.target.value as "" | "OIL" | "PROPANE" }))}
+                  onChange={(e) =>
+                    setDefaults((d) => ({
+                      ...d,
+                      fuelType: e.target.value as "" | "OIL" | "PROP" | "PROPANE",
+                    }))
+                  }
                   style={{ width: "100%" }}
                 >
                   <option value="">— none (use column) —</option>
                   <option value="OIL">OIL</option>
+                  <option value="PROP">PROP</option>
                   <option value="PROPANE">PROPANE</option>
                 </select>
               </div>
