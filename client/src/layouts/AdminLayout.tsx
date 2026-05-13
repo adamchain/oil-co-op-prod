@@ -21,7 +21,7 @@ export default function AdminLayout() {
             Dashboard
           </NavLink>
           <NavLink to="/admin/oil-companies" className={linkClass} onClick={() => setSidebarOpen(false)}>
-            Oil Companies
+            Companies
           </NavLink>
           <NavLink to="/admin/members" className={linkClass} onClick={() => setSidebarOpen(false)}>
             Members
