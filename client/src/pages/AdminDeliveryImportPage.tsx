@@ -50,10 +50,14 @@ const IMPORT_AS_OPTION_ORDER: SemanticField[] = [
 const IMPORT_COL_KEYS = ["__c0", "__c1", "__c2", "__c3", "__c4", "__c5"] as const;
 
 type ParsedSheet = {
-  /** Header text from row 1, columns A–F (for display). */
+  /** Row-1 label for every column in the file (width = widest row, at least 6 for A–F). */
+  allHeaders: string[];
+  /** First six headers (same as allHeaders.slice(0, 6) when padded). */
   headers: string[];
-  /** Data rows; each record uses IMPORT_COL_KEYS only. */
+  /** Data rows; each record uses IMPORT_COL_KEYS for columns A–F only. */
   rows: Array<Record<string, unknown>>;
+  /** Parallel to rows: full-width cell values for preview (length matches allHeaders). */
+  rowCellsWide: unknown[][];
 };
 
 /** If user picks a non-ignore field already used on another column, swap assignments. */
@@ -72,6 +76,27 @@ function applyColumnMappingChange(prev: SemanticField[], colIndex: number, field
   }
   next[colIndex] = field;
   return next;
+}
+
+/** Highest column count present in any row of the sheet. */
+function gridMaxColumns(grid: unknown[][]): number {
+  let w = 0;
+  for (const row of grid) {
+    if (Array.isArray(row) && row.length > w) w = row.length;
+  }
+  return w;
+}
+
+/** 0-based column index to Excel-style letter(s): 0→A, 25→Z, 26→AA. */
+function columnIndexToLetter(index: number): string {
+  let n = index + 1;
+  let s = "";
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    s = String.fromCharCode(65 + rem) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
 }
 
 /** Highest 1-based column index ≤ n that has a non-empty cell in columns 0..n-1 (only A–F when n=6). */
@@ -243,7 +268,7 @@ export default function AdminDeliveryImportPage() {
         const ws = wb.Sheets[wsName];
         const grid = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: "", raw: false });
         if (!grid || grid.length === 0) {
-          setSheet({ headers: [], rows: [] });
+          setSheet({ allHeaders: [], headers: [], rows: [], rowCellsWide: [] });
           setColumnMapping([...STANDARD_SIX_FIELDS]);
           return;
         }
@@ -257,23 +282,29 @@ export default function AdminDeliveryImportPage() {
           return;
         }
 
+        const maxCol = Math.max(gridMaxColumns(grid), 6);
         const row0 = [...(grid[0] ?? [])];
-        while (row0.length < 6) row0.push("");
-        const headers = row0.slice(0, 6).map((c, i) => {
+        while (row0.length < maxCol) row0.push("");
+        const allHeaders = row0.map((c, i) => {
           const t = String(c ?? "").trim();
-          return t || SIX_COLUMN_TYPICAL_HEADERS[i];
+          if (t) return t;
+          if (i < 6) return SIX_COLUMN_TYPICAL_HEADERS[i];
+          return "";
         });
+        const headers = allHeaders.slice(0, 6);
 
         const rows: Array<Record<string, unknown>> = [];
+        const rowCellsWide: unknown[][] = [];
         for (let r = 1; r < grid.length; r++) {
           const cells = [...(grid[r] ?? [])];
-          while (cells.length < 6) cells.push("");
+          while (cells.length < maxCol) cells.push("");
           const o: Record<string, unknown> = {};
           for (let i = 0; i < 6; i++) o[IMPORT_COL_KEYS[i]] = cells[i] ?? "";
           rows.push(o);
+          rowCellsWide.push(cells.slice(0, maxCol));
         }
 
-        setSheet({ headers, rows });
+        setSheet({ allHeaders, headers, rows, rowCellsWide });
         setColumnMapping([...STANDARD_SIX_FIELDS]);
       } catch (err) {
         setParseError(err instanceof Error ? err.message : "Failed to parse file");
@@ -398,7 +429,7 @@ export default function AdminDeliveryImportPage() {
     if (inputRef.current) inputRef.current.value = "";
   }
 
-  const previewRows = sheet?.rows.slice(0, 8) ?? [];
+  const previewWideRows = sheet?.rowCellsWide.slice(0, 8) ?? [];
   const canRun =
     sheet &&
     sheet.rows.length > 0 &&
@@ -416,10 +447,10 @@ export default function AdminDeliveryImportPage() {
         )}
       </div>
       <p style={{ color: "var(--admin-muted)", fontSize: "0.875rem", margin: "0.25rem 0 1.25rem" }}>
-        Only the <strong>first six columns (A–F)</strong> are read; column <strong>G</strong> onward is ignored. Row 1 is
-        treated as reference headers — use <strong>Import as</strong> below to map each column to the field stored with
-        delivery history (same shape as the workbench delivery modal). Choose a <strong>default company</strong> when no
-        column maps to company name. Validate first, then apply.
+        Only the <strong>first six columns (A–F)</strong> are read for import; column <strong>G</strong> onward appears
+        in the table for reference only. Row 1 shows as <strong>Your header</strong> for every column in the file. Use{" "}
+        <strong>Import as</strong> on A–F to map into delivery history fields. Choose a <strong>default company</strong>{" "}
+        when no column maps to company name. Validate first, then apply.
       </p>
 
       <div className="admin-card">
@@ -440,16 +471,17 @@ export default function AdminDeliveryImportPage() {
         {parseError && <p style={{ color: "#b91c1c", fontSize: "0.85rem", marginTop: "0.5rem" }}>{parseError}</p>}
       </div>
 
-      {sheet && sheet.headers.length === 6 && (
+      {sheet && sheet.rows.length > 0 && (
         <>
           <div className="admin-card">
             <h2>2. Column layout &amp; defaults</h2>
             <p style={{ color: "var(--admin-muted)", fontSize: "0.8rem", marginTop: 0 }}>
-              Columns are fixed by position (A–F). Anything in column G or beyond is not imported. Row-1 header text is
-              for your reference only — assign each column’s meaning with <strong>Import as</strong>. Month + Year are
-              combined as the first day of that month. Default fuel is optional if every data row has fuel type in the
-              column you map to fuel type. If you pick an import target that is already used on another column, the two
-              columns swap assignments (except <strong>Ignore</strong>, which any column can use).
+              <strong>Your header (row 1)</strong> lists every column detected in the file (widest row sets the count).
+              Only columns <strong>A–F</strong> can be mapped for import; column <strong>G</strong> onward is shown for
+              reference only and is not read. Month + Year are combined as the first day of that month. Default fuel is
+              optional if every data row has fuel type in the column you map to fuel type. If you pick an import target
+              that is already used on another column, the two columns swap assignments (except <strong>Ignore</strong>,
+              which any column can use).
             </p>
             <p style={{ margin: "0 0 0.75rem" }}>
               <button
@@ -471,30 +503,36 @@ export default function AdminDeliveryImportPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {IMPORT_COL_KEYS.map((_, i) => (
-                    <tr key={IMPORT_COL_KEYS[i]}>
+                  {sheet.allHeaders.map((headerText, i) => (
+                    <tr key={i}>
                       <td>
-                        <strong>{String.fromCharCode(65 + i)}</strong>
+                        <strong>{columnIndexToLetter(i)}</strong>
                       </td>
-                      <td>{sheet.headers[i] || "—"}</td>
+                      <td>{headerText || (i < 6 ? SIX_COLUMN_TYPICAL_HEADERS[i] : "—")}</td>
                       <td>
-                        <select
-                          className="admin-input"
-                          style={{ minWidth: "min(100%, 280px)", fontSize: "0.8rem" }}
-                          value={columnMapping[i]}
-                          onChange={(e) =>
-                            setColumnMapping((prev) =>
-                              applyColumnMappingChange(prev, i, e.target.value as SemanticField)
-                            )
-                          }
-                          aria-label={`Column ${String.fromCharCode(65 + i)} import as`}
-                        >
-                          {IMPORT_AS_OPTION_ORDER.map((field) => (
-                            <option key={field} value={field}>
-                              {FIELD_LABELS[field]}
-                            </option>
-                          ))}
-                        </select>
+                        {i < 6 ? (
+                          <select
+                            className="admin-input"
+                            style={{ minWidth: "min(100%, 280px)", fontSize: "0.8rem" }}
+                            value={columnMapping[i]}
+                            onChange={(e) =>
+                              setColumnMapping((prev) =>
+                                applyColumnMappingChange(prev, i, e.target.value as SemanticField)
+                              )
+                            }
+                            aria-label={`Column ${columnIndexToLetter(i)} import as`}
+                          >
+                            {IMPORT_AS_OPTION_ORDER.map((field) => (
+                              <option key={field} value={field}>
+                                {FIELD_LABELS[field]}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span style={{ color: "var(--admin-muted)", fontSize: "0.8rem" }}>
+                            Not imported (only columns A–F are read)
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -596,21 +634,23 @@ export default function AdminDeliveryImportPage() {
           </div>
 
           <div className="admin-card">
-            <h2>3. Preview ({Math.min(previewRows.length, 8)} of {sheet.rows.length})</h2>
+            <h2>3. Preview ({Math.min(previewWideRows.length, 8)} of {sheet.rows.length})</h2>
             <div className="admin-table-wrap">
               <table className="admin-table">
                 <thead>
                   <tr>
-                    {sheet.headers.map((h, i) => (
-                      <th key={i}>{h}</th>
+                    {sheet.allHeaders.map((h, i) => (
+                      <th key={i} title={`Column ${columnIndexToLetter(i)}`}>
+                        {h || (i < 6 ? SIX_COLUMN_TYPICAL_HEADERS[i] : columnIndexToLetter(i))}
+                      </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {previewRows.map((r, i) => (
-                    <tr key={i}>
-                      {IMPORT_COL_KEYS.map((k, j) => (
-                        <td key={j}>{String(r[k] ?? "")}</td>
+                  {previewWideRows.map((cells, ri) => (
+                    <tr key={ri}>
+                      {cells.map((cell, ci) => (
+                        <td key={ci}>{String(cell ?? "")}</td>
                       ))}
                     </tr>
                   ))}
