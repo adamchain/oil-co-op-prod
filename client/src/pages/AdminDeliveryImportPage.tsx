@@ -8,10 +8,9 @@ const CUSTOM_COMPANY = "__custom__";
 
 /**
  * Import delivery summaries from Excel/CSV. The **first six columns (A–F)** are
- * always read by position; any extra columns (G onward) are ignored.
- * Positions: A fuel type, B account #, C gallons, D month, E year, F ignored.
- * Typical export headers (row 1) are documented in SIX_COLUMN_TYPICAL_HEADERS; labels may differ.
- * Row 1 is headers; data starts row 2. Default company (whole file) is required when there is no company column.
+ * read by position; anything past F is ignored. Row 1 is for reference only;
+ * each column’s meaning is chosen with “Import as” (defaults match the common
+ * co-op export layout). Default company applies when no column maps to company name.
  * Validate → dry-run; Apply → append rows (deduped by date+fuel+gallons).
  */
 
@@ -25,13 +24,25 @@ type SemanticField =
   | "gallons"
   | "ignore";
 
-/** Semantic field per column index A–F (positional; not driven by header text). */
+/** Default “Import as” per column A–F (common co-op export). */
 const STANDARD_SIX_FIELDS: SemanticField[] = [
   "fuelType",
   "account",
   "gallons",
   "month",
   "year",
+  "ignore",
+];
+
+/** Dropdown order for “Import as”. */
+const IMPORT_AS_OPTION_ORDER: SemanticField[] = [
+  "fuelType",
+  "account",
+  "gallons",
+  "month",
+  "year",
+  "dateDelivered",
+  "companyName",
   "ignore",
 ];
 
@@ -45,10 +56,23 @@ type ParsedSheet = {
   rows: Array<Record<string, unknown>>;
 };
 
-/** Fixed mapping: column index → semantic field (never user-edited). */
-const STRICT_SIX_MAPPING: Record<string, SemanticField> = Object.fromEntries(
-  IMPORT_COL_KEYS.map((k, i) => [k, STANDARD_SIX_FIELDS[i]])
-) as Record<string, SemanticField>;
+/** If user picks a non-ignore field already used on another column, swap assignments. */
+function applyColumnMappingChange(prev: SemanticField[], colIndex: number, field: SemanticField): SemanticField[] {
+  const next = [...prev];
+  if (field === "ignore") {
+    next[colIndex] = "ignore";
+    return next;
+  }
+  const other = next.findIndex((f, i) => i !== colIndex && f === field);
+  if (other >= 0) {
+    const tmp = next[colIndex];
+    next[colIndex] = field;
+    next[other] = tmp;
+    return next;
+  }
+  next[colIndex] = field;
+  return next;
+}
 
 /** Highest 1-based column index ≤ n that has a non-empty cell in columns 0..n-1 (only A–F when n=6). */
 function maxUsedColumnIndexFirstN(grid: unknown[][], n: number): number {
@@ -170,6 +194,8 @@ export default function AdminDeliveryImportPage() {
 
   const [fileName, setFileName] = useState("");
   const [sheet, setSheet] = useState<ParsedSheet | null>(null);
+  /** Per spreadsheet column A–F: which internal field that column maps to. */
+  const [columnMapping, setColumnMapping] = useState<SemanticField[]>(() => [...STANDARD_SIX_FIELDS]);
   // companySelection: "" (none), an OilCompany _id, or CUSTOM_COMPANY
   const [defaults, setDefaults] = useState({
     fuelType: "" as "" | "OIL" | "PROP" | "PROPANE",
@@ -218,13 +244,14 @@ export default function AdminDeliveryImportPage() {
         const grid = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: "", raw: false });
         if (!grid || grid.length === 0) {
           setSheet({ headers: [], rows: [] });
+          setColumnMapping([...STANDARD_SIX_FIELDS]);
           return;
         }
 
         const usedInAF = maxUsedColumnIndexFirstN(grid, 6);
         if (usedInAF < 1) {
           setParseError(
-            "No data found in columns A–F. Put data in the first six columns by position: (A) fuel type, (B) account #, (C) gallons, (D) month, (E) year, (F) ignored. Extra columns past F are ignored."
+            "No data found in columns A–F. Add at least one value in the first six columns (row 2+). Column G onward is not imported — use “Import as” below to match each column to the correct field."
           );
           setSheet(null);
           return;
@@ -247,6 +274,7 @@ export default function AdminDeliveryImportPage() {
         }
 
         setSheet({ headers, rows });
+        setColumnMapping([...STANDARD_SIX_FIELDS]);
       } catch (err) {
         setParseError(err instanceof Error ? err.message : "Failed to parse file");
         setSheet(null);
@@ -268,35 +296,49 @@ export default function AdminDeliveryImportPage() {
           gallons: number;
         }>,
         missingFields: [] as string[],
+        mappingErrors: [] as string[],
         dateMode: "none" as "date" | "monthYear" | "none",
       };
 
-    const colByField = (field: SemanticField) =>
-      Object.entries(STRICT_SIX_MAPPING).find(([, f]) => f === field)?.[0] ?? null;
-    const cols = {
-      fuelType: colByField("fuelType"),
-      account: colByField("account"),
-      companyName: colByField("companyName"),
-      dateDelivered: colByField("dateDelivered"),
-      month: colByField("month"),
-      year: colByField("year"),
-      gallons: colByField("gallons"),
+    const colKeyForField = (field: SemanticField): string | null => {
+      const idx = columnMapping.indexOf(field);
+      return idx >= 0 ? IMPORT_COL_KEYS[idx] : null;
     };
 
-    // Date strategy: prefer a full "Date delivered" column. If absent, accept
-    // a paired Month + Year (synthesize first-of-month).
+    const mappingErrors: string[] = [];
+    const counts = new Map<SemanticField, number>();
+    for (const f of columnMapping) {
+      if (f === "ignore") continue;
+      counts.set(f, (counts.get(f) || 0) + 1);
+    }
+    for (const [field, n] of counts) {
+      if (n > 1) mappingErrors.push(`${FIELD_LABELS[field]} is assigned to more than one column — use each import target at most once (except Ignore).`);
+    }
+
+    const cols = {
+      fuelType: colKeyForField("fuelType"),
+      account: colKeyForField("account"),
+      companyName: colKeyForField("companyName"),
+      dateDelivered: colKeyForField("dateDelivered"),
+      month: colKeyForField("month"),
+      year: colKeyForField("year"),
+      gallons: colKeyForField("gallons"),
+    };
+
     const dateMode: "date" | "monthYear" | "none" = cols.dateDelivered
       ? "date"
       : cols.month && cols.year
-      ? "monthYear"
-      : "none";
+        ? "monthYear"
+        : "none";
 
     const missingFields: string[] = [];
-    if (!cols.account) missingFields.push("account");
-    if (dateMode === "none") missingFields.push("dateDelivered (or Month + Year)");
-    if (!cols.gallons) missingFields.push("gallons");
-    if (!cols.fuelType && !defaults.fuelType) missingFields.push("fuelType");
-    if (!cols.companyName && !resolvedDefaultCompanyName) missingFields.push("companyName");
+    if (mappingErrors.length === 0) {
+      if (!cols.account) missingFields.push("account");
+      if (dateMode === "none") missingFields.push("dateDelivered (or Month + Year)");
+      if (!cols.gallons) missingFields.push("gallons");
+      if (!cols.fuelType && !defaults.fuelType) missingFields.push("fuelType");
+      if (!cols.companyName && !resolvedDefaultCompanyName) missingFields.push("companyName");
+    }
 
     const rows = sheet.rows.map((r, i) => {
       const cell = (col: string | null) => (col ? String(r[col] ?? "").trim() : "");
@@ -312,7 +354,7 @@ export default function AdminDeliveryImportPage() {
       }
       const gallonsRaw = cell(cols.gallons);
       return {
-        rowNumber: i + 2, // header row is row 1 in spreadsheets
+        rowNumber: i + 2,
         fuelType: cell(cols.fuelType) || defaults.fuelType,
         account: cell(cols.account),
         companyName: cell(cols.companyName) || resolvedDefaultCompanyName,
@@ -320,8 +362,8 @@ export default function AdminDeliveryImportPage() {
         gallons: Number(String(gallonsRaw).replace(/[^\d.\-]/g, "")) || 0,
       };
     });
-    return { rows, missingFields, dateMode };
-  }, [sheet, defaults, resolvedDefaultCompanyName]);
+    return { rows, missingFields, mappingErrors, dateMode };
+  }, [sheet, columnMapping, defaults, resolvedDefaultCompanyName]);
 
   async function postImport(dryRun: boolean) {
     if (!token || builtRows.rows.length === 0) return;
@@ -352,11 +394,16 @@ export default function AdminDeliveryImportPage() {
     setReportMode(null);
     setParseError(null);
     setDefaults({ fuelType: "", companySelection: "", customCompanyName: "" });
+    setColumnMapping([...STANDARD_SIX_FIELDS]);
     if (inputRef.current) inputRef.current.value = "";
   }
 
   const previewRows = sheet?.rows.slice(0, 8) ?? [];
-  const canRun = sheet && sheet.rows.length > 0 && builtRows.missingFields.length === 0;
+  const canRun =
+    sheet &&
+    sheet.rows.length > 0 &&
+    builtRows.missingFields.length === 0 &&
+    builtRows.mappingErrors.length === 0;
 
   return (
     <>
@@ -369,11 +416,10 @@ export default function AdminDeliveryImportPage() {
         )}
       </div>
       <p style={{ color: "var(--admin-muted)", fontSize: "0.875rem", margin: "0.25rem 0 1.25rem" }}>
-        The <strong>first six columns (A–F)</strong> are read <strong>by position</strong> (row 1 = headers, row 2+ =
-        data): <strong>A</strong> fuel type (OIL / PROP / PROPANE), <strong>B</strong> account #, <strong>C</strong>{" "}
-        gallons, <strong>D</strong> month, <strong>E</strong> year, <strong>F</strong> ignored. Your row-1 labels can
-        differ from the co-op export (e.g. “MONTH” in column A still maps to fuel type). Columns past F are ignored.
-        Choose a <strong>default company</strong> for matching. Validate first, then apply.
+        Only the <strong>first six columns (A–F)</strong> are read; column <strong>G</strong> onward is ignored. Row 1 is
+        treated as reference headers — use <strong>Import as</strong> below to map each column to the field stored with
+        delivery history (same shape as the workbench delivery modal). Choose a <strong>default company</strong> when no
+        column maps to company name. Validate first, then apply.
       </p>
 
       <div className="admin-card">
@@ -400,8 +446,20 @@ export default function AdminDeliveryImportPage() {
             <h2>2. Column layout &amp; defaults</h2>
             <p style={{ color: "var(--admin-muted)", fontSize: "0.8rem", marginTop: 0 }}>
               Columns are fixed by position (A–F). Anything in column G or beyond is not imported. Row-1 header text is
-              for your reference only — only column position drives the import. Month + Year are combined as the first
-              day of that month. Default fuel is optional if every row has fuel type filled in column A.
+              for your reference only — assign each column’s meaning with <strong>Import as</strong>. Month + Year are
+              combined as the first day of that month. Default fuel is optional if every data row has fuel type in the
+              column you map to fuel type. If you pick an import target that is already used on another column, the two
+              columns swap assignments (except <strong>Ignore</strong>, which any column can use).
+            </p>
+            <p style={{ margin: "0 0 0.75rem" }}>
+              <button
+                type="button"
+                className="admin-btn"
+                style={{ fontSize: "0.8rem", padding: "0.25rem 0.6rem" }}
+                onClick={() => setColumnMapping([...STANDARD_SIX_FIELDS])}
+              >
+                Restore default column mapping
+              </button>
             </p>
             <div className="admin-table-wrap" style={{ marginBottom: "0.75rem" }}>
               <table className="admin-table">
@@ -418,8 +476,26 @@ export default function AdminDeliveryImportPage() {
                       <td>
                         <strong>{String.fromCharCode(65 + i)}</strong>
                       </td>
-                      <td>{SIX_COLUMN_TYPICAL_HEADERS[i]}</td>
-                      <td>{FIELD_LABELS[STANDARD_SIX_FIELDS[i]]}</td>
+                      <td>{sheet.headers[i] || "—"}</td>
+                      <td>
+                        <select
+                          className="admin-input"
+                          style={{ minWidth: "min(100%, 280px)", fontSize: "0.8rem" }}
+                          value={columnMapping[i]}
+                          onChange={(e) =>
+                            setColumnMapping((prev) =>
+                              applyColumnMappingChange(prev, i, e.target.value as SemanticField)
+                            )
+                          }
+                          aria-label={`Column ${String.fromCharCode(65 + i)} import as`}
+                        >
+                          {IMPORT_AS_OPTION_ORDER.map((field) => (
+                            <option key={field} value={field}>
+                              {FIELD_LABELS[field]}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -441,7 +517,7 @@ export default function AdminDeliveryImportPage() {
                   }
                   style={{ width: "100%" }}
                 >
-                  <option value="">— use column A (fuel type) —</option>
+                  <option value="">— use mapped “Fuel type” column —</option>
                   <option value="OIL">OIL</option>
                   <option value="PROP">PROP</option>
                   <option value="PROPANE">PROPANE</option>
@@ -463,7 +539,7 @@ export default function AdminDeliveryImportPage() {
                   }
                   style={{ width: "100%" }}
                 >
-                  <option value="">— choose company (required) —</option>
+                  <option value="">— choose company (required if no “Company name” column) —</option>
                   {oilCompanies.map((c) => (
                     <option key={c._id} value={c._id}>
                       {c.name}
@@ -491,6 +567,11 @@ export default function AdminDeliveryImportPage() {
                   )}
               </div>
             </div>
+            {builtRows.dateMode === "date" && (
+              <p style={{ color: "var(--admin-muted)", fontSize: "0.8rem", margin: "0.75rem 0 0" }}>
+                Using the column mapped to <strong>Date delivered</strong> as each row’s delivery date.
+              </p>
+            )}
             {builtRows.dateMode === "monthYear" && (
               <p style={{ color: "var(--admin-muted)", fontSize: "0.8rem", margin: "0.75rem 0 0" }}>
                 Using <strong>Month + Year</strong> columns to synthesize dates as the first of the month
@@ -499,6 +580,13 @@ export default function AdminDeliveryImportPage() {
                   : ""}
                 .
               </p>
+            )}
+            {builtRows.mappingErrors.length > 0 && (
+              <ul style={{ color: "#b91c1c", fontSize: "0.85rem", margin: "0.75rem 0 0", paddingLeft: "1.25rem" }}>
+                {builtRows.mappingErrors.map((err, i) => (
+                  <li key={i}>{err}</li>
+                ))}
+              </ul>
             )}
             {builtRows.missingFields.length > 0 && (
               <p style={{ color: "#b45309", fontSize: "0.85rem", margin: "0.75rem 0 0" }}>
