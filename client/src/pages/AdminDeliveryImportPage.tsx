@@ -8,10 +8,10 @@ const CUSTOM_COMPANY = "__custom__";
 
 /**
  * Import delivery summaries from Excel/CSV. The **first six columns (A–F)** are
- * always read in fixed order; any extra columns (G onward) are ignored.
- *   1) Product (OIL or PROP)  2) OIL ID / PROP ID  3) GAL  4) Month  5) Year  6) Name (reference only)
- * Row 1 is headers; data starts row 2. Name is not used for matching.
- * Default company (whole file) is required when there is no company column.
+ * always read by position; any extra columns (G onward) are ignored.
+ * Positions: A fuel type, B account #, C gallons, D month, E year, F ignored.
+ * Typical export headers (row 1) are documented in SIX_COLUMN_TYPICAL_HEADERS; labels may differ.
+ * Row 1 is headers; data starts row 2. Default company (whole file) is required when there is no company column.
  * Validate → dry-run; Apply → append rows (deduped by date+fuel+gallons).
  */
 
@@ -25,10 +25,7 @@ type SemanticField =
   | "gallons"
   | "ignore";
 
-/**
- * Standard co-op delivery spreadsheet: 6 columns A–F in order —
- * Product, OIL ID / PROP ID, GAL, Month, Year, Name (reference; not used for matching).
- */
+/** Semantic field per column index A–F (positional; not driven by header text). */
 const STANDARD_SIX_FIELDS: SemanticField[] = [
   "fuelType",
   "account",
@@ -110,13 +107,14 @@ const FIELD_LABELS: Record<SemanticField, string> = {
   ignore: "Ignore (e.g. Name — reference only)",
 };
 
-const SIX_COLUMN_GUIDE = [
-  "Product (OIL or PROP)",
-  "OIL ID / PROP ID",
+/** Typical row-1 labels from the co-op export; used as card-2 mapping and fallback when a cell is blank. */
+const SIX_COLUMN_TYPICAL_HEADERS = [
+  "MONTH",
+  "PRODUCT",
+  "OIL ID",
+  "NAME",
   "GAL",
-  "Month (e.g. MARCH)",
-  "Year",
-  "Name (reference only — not matched)",
+  "Hidden Net Sales Volume",
 ] as const;
 
 const MONTH_NAMES_TO_NUM: Record<string, number> = {
@@ -226,7 +224,7 @@ export default function AdminDeliveryImportPage() {
         const usedInAF = maxUsedColumnIndexFirstN(grid, 6);
         if (usedInAF < 1) {
           setParseError(
-            "No data found in columns A–F. Put the six required fields in the first columns: (1) Product, (2) OIL ID / PROP ID, (3) GAL, (4) Month, (5) Year, (6) Name. Extra columns past F are ignored."
+            "No data found in columns A–F. Put data in the first six columns by position: (A) fuel type, (B) account #, (C) gallons, (D) month, (E) year, (F) ignored. Extra columns past F are ignored."
           );
           setSheet(null);
           return;
@@ -236,7 +234,7 @@ export default function AdminDeliveryImportPage() {
         while (row0.length < 6) row0.push("");
         const headers = row0.slice(0, 6).map((c, i) => {
           const t = String(c ?? "").trim();
-          return t || SIX_COLUMN_GUIDE[i];
+          return t || SIX_COLUMN_TYPICAL_HEADERS[i];
         });
 
         const rows: Array<Record<string, unknown>> = [];
@@ -371,11 +369,11 @@ export default function AdminDeliveryImportPage() {
         )}
       </div>
       <p style={{ color: "var(--admin-muted)", fontSize: "0.875rem", margin: "0.25rem 0 1.25rem" }}>
-        The <strong>first six columns (A–F)</strong> are always used, in order (row 1 = headers, row 2+ = data):{" "}
-        <strong>Product</strong> (OIL or PROP), <strong>OIL ID / PROP ID</strong>, <strong>GAL</strong>,{" "}
-        <strong>Month</strong>, <strong>Year</strong>, <strong>Name</strong> (reference only; not used for matching).
-        Additional columns past F are ignored. Choose a <strong>default company</strong> below for matching.
-        Validate first, then apply.
+        The <strong>first six columns (A–F)</strong> are read <strong>by position</strong> (row 1 = headers, row 2+ =
+        data): <strong>A</strong> fuel type (OIL / PROP / PROPANE), <strong>B</strong> account #, <strong>C</strong>{" "}
+        gallons, <strong>D</strong> month, <strong>E</strong> year, <strong>F</strong> ignored. Your row-1 labels can
+        differ from the co-op export (e.g. “MONTH” in column A still maps to fuel type). Columns past F are ignored.
+        Choose a <strong>default company</strong> for matching. Validate first, then apply.
       </p>
 
       <div className="admin-card">
@@ -401,9 +399,9 @@ export default function AdminDeliveryImportPage() {
           <div className="admin-card">
             <h2>2. Column layout &amp; defaults</h2>
             <p style={{ color: "var(--admin-muted)", fontSize: "0.8rem", marginTop: 0 }}>
-              Columns are fixed by position (A–F). Anything in column G or beyond is not imported. Header text in row 1
-              is for your reference only. Month + Year are combined as the first day of that month. Default fuel is
-              optional if every row has Product filled.
+              Columns are fixed by position (A–F). Anything in column G or beyond is not imported. Row-1 header text is
+              for your reference only — only column position drives the import. Month + Year are combined as the first
+              day of that month. Default fuel is optional if every row has fuel type filled in column A.
             </p>
             <div className="admin-table-wrap" style={{ marginBottom: "0.75rem" }}>
               <table className="admin-table">
@@ -420,7 +418,7 @@ export default function AdminDeliveryImportPage() {
                       <td>
                         <strong>{String.fromCharCode(65 + i)}</strong>
                       </td>
-                      <td>{sheet.headers[i]}</td>
+                      <td>{SIX_COLUMN_TYPICAL_HEADERS[i]}</td>
                       <td>{FIELD_LABELS[STANDARD_SIX_FIELDS[i]]}</td>
                     </tr>
                   ))}
@@ -443,7 +441,7 @@ export default function AdminDeliveryImportPage() {
                   }
                   style={{ width: "100%" }}
                 >
-                  <option value="">— use Product column —</option>
+                  <option value="">— use column A (fuel type) —</option>
                   <option value="OIL">OIL</option>
                   <option value="PROP">PROP</option>
                   <option value="PROPANE">PROPANE</option>

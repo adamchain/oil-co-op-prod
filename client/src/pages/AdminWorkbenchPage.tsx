@@ -303,9 +303,7 @@ function loadCollapsedPanels(): Set<string> {
     const arr = JSON.parse(raw);
     if (Array.isArray(arr)) {
       const ids = arr.filter((v) => typeof v === "string") as string[];
-      // Renamed panel: preserve collapse preference from "Delinquent / Payment Status".
-      const mapped = ids.map((id) => (id === "delinquent" ? "nrdFilters" : id));
-      return new Set(mapped);
+      return new Set(ids);
     }
   } catch {
     // ignore corrupted storage
@@ -352,9 +350,6 @@ export default function AdminWorkbenchPage() {
   const [mailSending, setMailSending] = useState(false);
   const [deliveryHistoryOpen, setDeliveryHistoryOpen] = useState(false);
   const [paymentHistoryOpen, setPaymentHistoryOpen] = useState(false);
-  /** Narrow the workbench member list to records flagged NRD-Oil / NRD-Prop on legacy profile. */
-  const [filterListNrdOil, setFilterListNrdOil] = useState(false);
-  const [filterListNrdProp, setFilterListNrdProp] = useState(false);
 
   const [collapsedPanels, setCollapsedPanels] = useState<Set<string>>(loadCollapsedPanels);
 
@@ -479,10 +474,6 @@ export default function AdminWorkbenchPage() {
   const filteredMembers = useMemo(() => {
     const q = quickSearch.trim().toLowerCase();
     return members.filter((m) => {
-      const lp = (m.legacyProfile || {}) as Record<string, unknown>;
-      if (filterListNrdOil && !Boolean(lp.nrdOil)) return false;
-      if (filterListNrdProp && !Boolean(lp.nrdProp)) return false;
-
       if (filters.length > 0) {
         const allFiltersMatch = filters.every((f) => {
           const def = filterFields.find((x) => x.key === f.field);
@@ -529,7 +520,7 @@ export default function AdminWorkbenchPage() {
       }
       return true;
     });
-  }, [members, filters, filterFields, quickSearch, filterListNrdOil, filterListNrdProp]);
+  }, [members, filters, filterFields, quickSearch]);
 
   /** Select member from `?member=` or load that record if it is outside the current result set. */
   useEffect(() => {
@@ -1964,35 +1955,6 @@ export default function AdminWorkbenchPage() {
                 </label>
               </div>
               </>)}
-            </div>
-
-            <div className={`admin-wb-panel${collapsedPanels.has("nrdFilters") ? " collapsed" : ""}`}>
-              {panelHeader("nrdFilters", "NRD filters")}
-              {!collapsedPanels.has("nrdFilters") && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
-                  <p className="admin-meta" style={{ margin: 0, fontSize: "0.65rem", lineHeight: 1.35 }}>
-                    Narrows the member list, worksheet, and exports. NRD flags are still set under Delivery Status.
-                  </p>
-                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.5rem 1rem" }}>
-                    <label style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.7rem", fontWeight: 600, whiteSpace: "nowrap" }}>
-                      <input
-                        type="checkbox"
-                        checked={filterListNrdOil}
-                        onChange={(e) => setFilterListNrdOil(e.target.checked)}
-                      />
-                      NRD-Oil
-                    </label>
-                    <label style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.7rem", fontWeight: 600, whiteSpace: "nowrap" }}>
-                      <input
-                        type="checkbox"
-                        checked={filterListNrdProp}
-                        onChange={(e) => setFilterListNrdProp(e.target.checked)}
-                      />
-                      NRD-Prop
-                    </label>
-                  </div>
-                </div>
-              )}
             </div>
 
             </div> {/* end right col */}

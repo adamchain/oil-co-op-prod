@@ -172,6 +172,11 @@ export const STATIC_FILTER_FIELDS: FilterFieldDef[] = [
   },
   { key: "legacyProfile.propaneStartDate", label: "Propane Start Date", type: "date", group: "Propane" },
 
+  // Delivery & NRD (legacy flags; same fields as Delivery Status / NRD filters on workbench)
+  { key: "legacyProfile.nrdOil", label: "NRD-Oil", type: "boolean", group: "Delivery" },
+  { key: "legacyProfile.nrdProp", label: "NRD-Prop", type: "boolean", group: "Delivery" },
+  { key: "legacyProfile.deliveryHistory", label: "Delivery History", type: "boolean", group: "Delivery" },
+
   // Electric
   {
     key: "legacyProfile.electricStatus",
