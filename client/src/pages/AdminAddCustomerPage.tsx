@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../authContext";
 
 type OilCo = { _id: string; name: string };
+
+const rowStyle = { display: "flex", flexWrap: "wrap" as const, alignItems: "end", gap: "0.35rem 0.7rem" };
 
 function formatCardNumber(value: string): string {
   const digits = value.replace(/\D/g, "").slice(0, 16);
@@ -16,6 +18,36 @@ function formatExpiry(value: string): string {
     return `${digits.slice(0, 2)}/${digits.slice(2)}`;
   }
   return digits;
+}
+
+function Field({
+  label,
+  width,
+  children,
+}: {
+  label: string;
+  width: string;
+  children: ReactNode;
+}) {
+  return (
+    <label
+      style={{
+        flex: "0 0 auto",
+        width,
+        display: "flex",
+        flexDirection: "column",
+        gap: "0.12rem",
+        fontSize: "0.56rem",
+        fontWeight: 600,
+        color: "var(--wb-muted)",
+        letterSpacing: "0.03em",
+        minWidth: 0,
+      }}
+    >
+      {label}
+      {children}
+    </label>
+  );
 }
 
 export default function AdminAddCustomerPage() {
@@ -141,242 +173,271 @@ export default function AdminAddCustomerPage() {
     setErr("");
   }
 
-  return (
-    <>
-      <h1 style={{ margin: "0 0 0.35rem", fontSize: "1.35rem", fontWeight: 600 }}>Add Customer</h1>
-      <p style={{ color: "var(--admin-muted)", fontSize: "0.875rem", margin: "0 0 1.25rem", maxWidth: "42rem" }}>
-        Phone signup — same fields as the public website registration. Assign an oil company now or leave blank
-        and assign later from the member record.
-      </p>
-
-      {success ? (
-        <div className="admin-card">
-          <p style={{ margin: "0 0 0.75rem" }}>
-            <strong>{success.name}</strong> was created
-            {success.memberNumber ? ` (${success.memberNumber})` : ""}.
-          </p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
-            <Link to={`/admin/members/${success.id}`} className="admin-btn admin-btn-primary">
-              View member
-            </Link>
-            <Link to={`/admin/workbench?member=${success.id}`} className="admin-btn">
-              Open in workbench
-            </Link>
-            <button type="button" className="admin-btn admin-btn-ghost" onClick={resetForm}>
-              Add another
-            </button>
+  if (success) {
+    return (
+      <div className="admin-workbench">
+        <header className="admin-wb-header">
+          <div className="admin-wb-header-left">
+            <span className="admin-wb-count" style={{ fontWeight: 600, color: "var(--wb-text)" }}>
+              Customer created
+            </span>
+          </div>
+        </header>
+        <div className="admin-wb-body">
+          <div className="admin-wb-panel" style={{ maxWidth: "520px" }}>
+            <p className="admin-add-customer-success-msg">
+              <strong>{success.name}</strong>
+              {success.memberNumber ? ` · ${success.memberNumber}` : ""}
+            </p>
+            <div className="admin-wb-actions" style={{ padding: "0.35rem 0 0", border: "none", background: "transparent" }}>
+              <Link to={`/admin/members/${success.id}`} className="admin-wb-btn admin-wb-btn-primary">
+                View member
+              </Link>
+              <Link to={`/admin/workbench?member=${success.id}`} className="admin-wb-btn admin-wb-btn-secondary">
+                Workbench
+              </Link>
+              <button type="button" className="admin-wb-btn" onClick={resetForm}>
+                Add another
+              </button>
+            </div>
           </div>
         </div>
-      ) : (
-        <div className="admin-card">
-          <form onSubmit={onSubmit} className="admin-add-customer-form">
-            <div className="admin-form-grid">
-              <label>
-                First name
-                <input
-                  className="admin-input"
-                  required
-                  value={form.firstName}
-                  onChange={(e) => setForm({ ...form, firstName: e.target.value })}
-                />
-              </label>
-              <label>
-                Last name
-                <input
-                  className="admin-input"
-                  required
-                  value={form.lastName}
-                  onChange={(e) => setForm({ ...form, lastName: e.target.value })}
-                />
-              </label>
-              <label className="admin-form-span-2">
-                Email
-                <input
-                  className="admin-input"
-                  type="email"
-                  required
-                  value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
-                />
-              </label>
-              <label className="admin-form-span-2">
-                Password (min 8 characters)
-                <input
-                  className="admin-input"
-                  type="password"
-                  required
-                  minLength={8}
-                  value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
-                />
-              </label>
-              <label className="admin-form-span-2">
-                Phone
-                <input
-                  className="admin-input"
-                  type="tel"
-                  value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                />
-              </label>
-              <label className="admin-form-span-2">
-                Street address
-                <input
-                  className="admin-input"
-                  value={form.addressLine1}
-                  onChange={(e) => setForm({ ...form, addressLine1: e.target.value })}
-                />
-              </label>
-              <label>
-                City
-                <input
-                  className="admin-input"
-                  value={form.city}
-                  onChange={(e) => setForm({ ...form, city: e.target.value })}
-                />
-              </label>
-              <label>
-                State
-                <input
-                  className="admin-input"
-                  value={form.state}
-                  onChange={(e) => setForm({ ...form, state: e.target.value })}
-                />
-              </label>
-              <label>
-                ZIP
-                <input
-                  className="admin-input"
-                  value={form.postalCode}
-                  onChange={(e) => setForm({ ...form, postalCode: e.target.value })}
-                />
-              </label>
-              <label>
-                Oil company <span style={{ fontWeight: 400, color: "var(--admin-muted)" }}>(optional)</span>
-                <select
-                  className="admin-input"
-                  value={form.oilCompanyId}
-                  onChange={(e) => setForm({ ...form, oilCompanyId: e.target.value })}
-                >
-                  <option value="">Assign later</option>
-                  {oilCos.map((oc) => (
-                    <option key={oc._id} value={oc._id}>
-                      {oc.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="admin-form-span-2">
-                Referrer — name, email, or member # (optional)
-                <input
-                  className="admin-input"
-                  value={form.referrerToken}
-                  onChange={(e) => setForm({ ...form, referrerToken: e.target.value })}
-                  placeholder="e.g. friend@email.com or OC-2026-0001"
-                />
-              </label>
-              <label className="admin-form-span-2">
-                Payment method
-                <select
-                  className="admin-input"
-                  value={form.paymentMethod}
-                  onChange={(e) =>
-                    setForm({ ...form, paymentMethod: e.target.value as "card" | "check" })
-                  }
-                >
-                  <option value="card">Credit/Debit Card (auto-renew enabled)</option>
-                  <option value="check">Check (manual renewal each year)</option>
-                </select>
-              </label>
-            </div>
+      </div>
+    );
+  }
 
-            {form.paymentMethod === "card" && (
-              <div className="admin-add-customer-payment">
-                <h2>Payment information</h2>
-                <p>
-                  Card is charged the registration fee now and stored for annual renewals, same as website signup.
-                </p>
-                <div className="admin-form-grid">
-                  <label className="admin-form-span-2">
-                    Card number
-                    <input
-                      className="admin-input"
-                      type="text"
-                      inputMode="numeric"
-                      placeholder="1234 5678 9012 3456"
-                      value={form.cardNumber}
-                      onChange={(e) => setForm({ ...form, cardNumber: formatCardNumber(e.target.value) })}
-                      maxLength={19}
-                      required
-                      style={{ fontFamily: "monospace" }}
-                    />
-                  </label>
-                  <label>
-                    Expiration (MM/YY)
-                    <input
-                      className="admin-input"
-                      type="text"
-                      inputMode="numeric"
-                      placeholder="MM/YY"
-                      value={form.cardExpiry}
-                      onChange={(e) => setForm({ ...form, cardExpiry: formatExpiry(e.target.value) })}
-                      maxLength={5}
-                      required
-                      style={{ fontFamily: "monospace" }}
-                    />
-                  </label>
-                  <label>
-                    CVV
-                    <input
-                      className="admin-input"
-                      type="text"
-                      inputMode="numeric"
-                      placeholder="123"
-                      value={form.cardCvv}
-                      onChange={(e) =>
-                        setForm({ ...form, cardCvv: e.target.value.replace(/\D/g, "").slice(0, 4) })
-                      }
-                      maxLength={4}
-                      required
-                      style={{ fontFamily: "monospace", maxWidth: "120px" }}
-                    />
-                  </label>
+  return (
+    <div className="admin-workbench">
+      <header className="admin-wb-header">
+        <div className="admin-wb-header-left">
+          <span className="admin-wb-count" style={{ fontWeight: 600, color: "var(--wb-text)" }}>
+            Add Customer
+          </span>
+          <span className="admin-wb-count">Phone signup · same as website</span>
+        </div>
+      </header>
+
+      <form onSubmit={onSubmit}>
+        <div className="admin-wb-actions">
+          <button type="submit" className="admin-wb-btn admin-wb-btn-success" disabled={loading}>
+            {loading
+              ? "Processing…"
+              : form.paymentMethod === "card"
+                ? "Charge & create"
+                : "Create account"}
+          </button>
+          <button type="button" className="admin-wb-btn admin-wb-btn-secondary" onClick={() => navigate("/admin/members")}>
+            Cancel
+          </button>
+          {err && <span className="admin-add-customer-err">{err}</span>}
+        </div>
+
+        <div className="admin-wb-body">
+          <div className="admin-wb-grid">
+            <div className="admin-wb-col">
+              <div className="admin-wb-panel">
+                <h2 className="admin-wb-panel-title">Contact</h2>
+                <div className="admin-form-grid-4">
+                  <div className="admin-form-span-4" style={rowStyle}>
+                    <Field label="First" width="120px">
+                      <input
+                        className="admin-input"
+                        required
+                        value={form.firstName}
+                        onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+                      />
+                    </Field>
+                    <Field label="Last" width="120px">
+                      <input
+                        className="admin-input"
+                        required
+                        value={form.lastName}
+                        onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+                      />
+                    </Field>
+                    <Field label="Phone" width="130px">
+                      <input
+                        className="admin-input"
+                        type="tel"
+                        value={form.phone}
+                        onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                      />
+                    </Field>
+                  </div>
+                  <div className="admin-form-span-4" style={rowStyle}>
+                    <Field label="Email" width="220px">
+                      <input
+                        className="admin-input"
+                        type="email"
+                        required
+                        value={form.email}
+                        onChange={(e) => setForm({ ...form, email: e.target.value })}
+                      />
+                    </Field>
+                    <Field label="Password" width="140px">
+                      <input
+                        className="admin-input"
+                        type="password"
+                        required
+                        minLength={8}
+                        value={form.password}
+                        onChange={(e) => setForm({ ...form, password: e.target.value })}
+                      />
+                    </Field>
+                  </div>
                 </div>
               </div>
-            )}
 
-            {form.paymentMethod === "check" && (
-              <div className="admin-add-customer-check-note">
-                <p>
-                  <strong>Check payment:</strong> Account is created with payment pending. Member mails the
-                  registration fee; annual renewals also require a check each year.
-                </p>
+              <div className="admin-wb-panel">
+                <h2 className="admin-wb-panel-title">Address</h2>
+                <div className="admin-form-grid-4">
+                  <div className="admin-form-span-4" style={rowStyle}>
+                    <Field label="Street" width="min(100%, 280px)">
+                      <input
+                        className="admin-input"
+                        style={{ width: "100%" }}
+                        value={form.addressLine1}
+                        onChange={(e) => setForm({ ...form, addressLine1: e.target.value })}
+                      />
+                    </Field>
+                    <Field label="City" width="120px">
+                      <input
+                        className="admin-input"
+                        value={form.city}
+                        onChange={(e) => setForm({ ...form, city: e.target.value })}
+                      />
+                    </Field>
+                    <Field label="St" width="50px">
+                      <input
+                        className="admin-input"
+                        maxLength={2}
+                        value={form.state}
+                        onChange={(e) =>
+                          setForm({ ...form, state: e.target.value.toUpperCase().slice(0, 2) })
+                        }
+                      />
+                    </Field>
+                    <Field label="Zip" width="80px">
+                      <input
+                        className="admin-input"
+                        maxLength={10}
+                        value={form.postalCode}
+                        onChange={(e) => setForm({ ...form, postalCode: e.target.value })}
+                      />
+                    </Field>
+                  </div>
+                </div>
               </div>
-            )}
-
-            {err && (
-              <p style={{ color: "#b91c1c", margin: "1rem 0 0", fontSize: "0.875rem" }}>{err}</p>
-            )}
-
-            <div style={{ marginTop: "1.25rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-              <button type="submit" className="admin-btn admin-btn-primary" disabled={loading}>
-                {loading
-                  ? "Processing…"
-                  : form.paymentMethod === "card"
-                    ? "Charge & create account"
-                    : "Create account"}
-              </button>
-              <button
-                type="button"
-                className="admin-btn admin-btn-ghost"
-                onClick={() => navigate("/admin/members")}
-              >
-                Cancel
-              </button>
             </div>
-          </form>
+
+            <div className="admin-wb-col">
+              <div className="admin-wb-panel">
+                <h2 className="admin-wb-panel-title">Assignment</h2>
+                <div className="admin-form-grid-4">
+                  <div className="admin-form-span-4" style={rowStyle}>
+                    <Field label="Oil co" width="min(100%, 200px)">
+                      <select
+                        className="admin-input"
+                        style={{ width: "100%" }}
+                        value={form.oilCompanyId}
+                        onChange={(e) => setForm({ ...form, oilCompanyId: e.target.value })}
+                      >
+                        <option value="">Assign later</option>
+                        {oilCos.map((oc) => (
+                          <option key={oc._id} value={oc._id}>
+                            {oc.name}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Referrer" width="min(100%, 200px)">
+                      <input
+                        className="admin-input"
+                        style={{ width: "100%" }}
+                        value={form.referrerToken}
+                        onChange={(e) => setForm({ ...form, referrerToken: e.target.value })}
+                        placeholder="email or member #"
+                      />
+                    </Field>
+                  </div>
+                </div>
+              </div>
+
+              <div className="admin-wb-panel">
+                <h2 className="admin-wb-panel-title">Payment</h2>
+                <div className="admin-form-grid-4">
+                  <div className="admin-form-span-4" style={rowStyle}>
+                    <Field label="Method" width="200px">
+                      <select
+                        className="admin-input"
+                        style={{ width: "100%" }}
+                        value={form.paymentMethod}
+                        onChange={(e) =>
+                          setForm({ ...form, paymentMethod: e.target.value as "card" | "check" })
+                        }
+                      >
+                        <option value="card">Card (auto-renew)</option>
+                        <option value="check">Check (manual renew)</option>
+                      </select>
+                    </Field>
+                  </div>
+
+                  {form.paymentMethod === "card" && (
+                    <div className="admin-form-span-4" style={rowStyle}>
+                      <Field label="Card #" width="min(100%, 200px)">
+                        <input
+                          className="admin-input"
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="1234 5678 9012 3456"
+                          style={{ width: "100%", fontFamily: "monospace" }}
+                          value={form.cardNumber}
+                          onChange={(e) => setForm({ ...form, cardNumber: formatCardNumber(e.target.value) })}
+                          maxLength={19}
+                          required
+                        />
+                      </Field>
+                      <Field label="Exp" width="70px">
+                        <input
+                          className="admin-input"
+                          type="text"
+                          inputMode="numeric"
+                          placeholder="MM/YY"
+                          style={{ fontFamily: "monospace" }}
+                          value={form.cardExpiry}
+                          onChange={(e) => setForm({ ...form, cardExpiry: formatExpiry(e.target.value) })}
+                          maxLength={5}
+                          required
+                        />
+                      </Field>
+                      <Field label="CVV" width="55px">
+                        <input
+                          className="admin-input"
+                          type="text"
+                          inputMode="numeric"
+                          style={{ fontFamily: "monospace" }}
+                          value={form.cardCvv}
+                          onChange={(e) =>
+                            setForm({ ...form, cardCvv: e.target.value.replace(/\D/g, "").slice(0, 4) })
+                          }
+                          maxLength={4}
+                          required
+                        />
+                      </Field>
+                    </div>
+                  )}
+
+                  {form.paymentMethod === "check" && (
+                    <p className="admin-add-customer-inline-note admin-form-span-4">
+                      Check: account pending until registration fee received; renewals by mail each year.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-      )}
-    </>
+      </form>
+    </div>
   );
 }

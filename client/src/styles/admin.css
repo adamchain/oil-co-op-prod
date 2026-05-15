@@ -96,55 +96,25 @@
   color: rgba(255, 255, 255, 0.5);
 }
 
-.admin-add-customer-form .admin-input {
-  width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-}
-
-.admin-add-customer-form label {
-  font-size: 0.8rem;
-  font-weight: 500;
-  color: var(--admin-muted);
-}
-
-.admin-add-customer-payment {
-  margin-top: 1.25rem;
-  padding: 1rem 1.1rem;
-  background: #f8f8f8;
-  border-radius: 12px;
-  border: 0.5px solid var(--admin-border);
-}
-
-.admin-add-customer-payment h2 {
+.admin-add-customer-success-msg {
   margin: 0 0 0.35rem;
-  font-size: 0.75rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--wb-text);
+}
+
+.admin-add-customer-err {
+  font-size: 0.72rem;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--admin-muted);
-  border: none;
-  padding: 0;
+  color: #b91c1c;
+  margin-left: auto;
 }
 
-.admin-add-customer-payment p {
-  margin: 0 0 1rem;
-  font-size: 0.85rem;
-  color: var(--admin-muted);
-}
-
-.admin-add-customer-check-note {
-  margin-top: 1.25rem;
-  padding: 1rem 1.1rem;
-  background: #fff8e6;
-  border-radius: 12px;
-  border: 0.5px solid #f0d070;
-}
-
-.admin-add-customer-check-note p {
-  margin: 0;
-  font-size: 0.85rem;
-  color: #665;
+.admin-add-customer-inline-note {
+  margin: 0.15rem 0 0;
+  font-size: 0.68rem;
+  line-height: 1.35;
+  color: var(--wb-muted);
 }
 
 .admin-main {
