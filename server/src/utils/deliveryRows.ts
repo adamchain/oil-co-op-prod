@@ -108,10 +108,28 @@ export function buildRow(input: DeliveryRowInput, defaults?: { source?: Delivery
   };
 }
 
-/** Stable normalization for company-name matching. Trim + lowercase + collapse whitespace. */
+/**
+ * Stable normalization for company-name matching: lowercase, collapse whitespace,
+ * drop lightweight punctuation so "Mirabito Energy, LLC" and "Mirabito Energy LLC"
+ * align, and strip common legal suffixes from the end.
+ */
 export function normCompany(name: string | null | undefined): string {
   if (!name) return "";
-  return String(name).trim().toLowerCase().replace(/\s+/g, " ");
+  let s = String(name).trim().toLowerCase();
+  s = s.replace(/&/g, " and ");
+  s = s.replace(/['`]/g, "");
+  s = s.replace(/[^a-z0-9\s]/g, " ");
+  s = s.replace(/\s+/g, " ").trim();
+  for (let i = 0; i < 4; i++) {
+    const next = s
+      .replace(/\b(incorporated|corporation|company)\b$/g, "")
+      .replace(/\b(inc|llc|ltd|corp|co)\b$/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (next === s) break;
+    s = next;
+  }
+  return s;
 }
 
 /** Trim, drop leading zeros that some legacy systems add, lowercase for case-insensitive match. */

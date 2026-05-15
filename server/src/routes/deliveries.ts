@@ -2,10 +2,12 @@ import { Router } from "express";
 import mongoose from "mongoose";
 import { z } from "zod";
 import crypto from "node:crypto";
+import bcrypt from "bcryptjs";
 import { requireAuth, requireAdmin, type AuthedRequest } from "../middleware/auth.js";
 import { Member } from "../models/Member.js";
 import { OilCompany } from "../models/OilCompany.js";
 import { logActivity } from "../services/activity.js";
+import { nextJuneFirstAfterSignup } from "../utils/juneBilling.js";
 import {
   accountKeys,
   buildRow,
@@ -145,12 +147,41 @@ const importRowSchema = z.object({
   companyName: z.string().min(1),
   dateDelivered: z.string().min(1),
   gallons: z.number().finite().nonnegative(),
+  /** Customer name from the import file — display-only; matching uses ID + company. */
+  name: z.string().optional(),
+  /** Service address from the vendor sheet — display-only for resolving unmatched rows. */
+  address: z.string().optional(),
 });
+
+const createMembersSchema = z.record(
+  z.string(),
+  z.object({
+    firstName: z.string().min(1),
+    lastName: z.string().min(1),
+  })
+);
 
 const importPayloadSchema = z.object({
   fileName: z.string().optional().default(""),
   dryRun: z.boolean().optional().default(false),
   rows: z.array(importRowSchema).min(1).max(20000),
+  /**
+   * Per-apply confirmations from the import UI. Omitted/empty on dry-run.
+   * - firstDeliveryMemberIds: members who currently have 0 delivery rows; only
+   *   members listed here will have their rows applied (others are skipped so
+   *   the admin can re-verify the match).
+   * - createMembers: keyed by "FUEL|companyKey|accountKey" (the group key
+   *   surfaced in the dry-run report's `unmatched` array). Each entry creates a
+   *   new member with the given name and links the import account/company,
+   *   then appends the delivery rows in that group.
+   */
+  confirmations: z
+    .object({
+      firstDeliveryMemberIds: z.array(z.string()).optional().default([]),
+      createMembers: createMembersSchema.optional().default({}),
+    })
+    .optional()
+    .default({ firstDeliveryMemberIds: [], createMembers: {} }),
 });
 
 type ImportRowError = {
@@ -159,15 +190,154 @@ type ImportRowError = {
   detail?: Record<string, unknown>;
 };
 
+/** Explains why a row did not auto-match — helps staff fix IDs or company strings on the member. */
+type UnmatchHint = {
+  code: string;
+  message: string;
+  memberIds?: string[];
+};
+
+function memberOilCompanyKeys(
+  lp: Record<string, unknown>,
+  oilCompanyId: unknown,
+  oilCompanyById: Map<string, string>
+): string[] {
+  const keys: string[] = [];
+  if (lp.oilCompanyName) keys.push(normCompany(String(lp.oilCompanyName)));
+  if (oilCompanyId) {
+    const linked = oilCompanyById.get(String(oilCompanyId));
+    if (linked) keys.push(linked);
+  }
+  return [...new Set(keys.filter(Boolean))];
+}
+
+/**
+ * When account + file company do not hit the index, infer whether the account exists
+ * under another fuel slot, another company string, or multiple members.
+ */
+function computeUnmatchedHint(
+  fuel: "OIL" | "PROPANE",
+  acctKeys: string[],
+  fileCompanyKey: string,
+  members: Array<{
+    _id: unknown;
+    firstName?: string;
+    lastName?: string;
+    oilCompanyId?: unknown;
+    legacyProfile?: Record<string, unknown>;
+  }>,
+  oilCompanyById: Map<string, string>
+): UnmatchHint | undefined {
+  type Hit = { memberId: string; name: string; memberCompanies: string[] };
+  const wrongFuel: Hit[] = [];
+  const companyMismatch: Hit[] = [];
+
+  for (const m of members) {
+    const lp = (m.legacyProfile || {}) as Record<string, unknown>;
+    const memberId = String(m._id);
+    const name = `${m.firstName || ""} ${m.lastName || ""}`.trim() || memberId;
+    const oilKeys = accountKeys(String(lp.oilId || ""));
+    const propKeys = accountKeys(String(lp.propaneId || ""));
+    const oilCoKeys = memberOilCompanyKeys(lp, m.oilCompanyId, oilCompanyById);
+    const propCoKey = normCompany(String(lp.propaneCompanyName || ""));
+
+    const acctHitOil = acctKeys.some((k) => oilKeys.includes(k));
+    const acctHitProp = acctKeys.some((k) => propKeys.includes(k));
+
+    if (fuel === "OIL") {
+      if (acctHitProp && !acctHitOil) {
+        wrongFuel.push({ memberId, name, memberCompanies: propCoKey ? [propCoKey] : [] });
+        continue;
+      }
+      if (!acctHitOil) continue;
+      const companyOk = oilCoKeys.some((c) => c === fileCompanyKey);
+      if (companyOk) continue;
+      companyMismatch.push({ memberId, name, memberCompanies: oilCoKeys });
+    } else {
+      if (acctHitOil && !acctHitProp) {
+        wrongFuel.push({ memberId, name, memberCompanies: oilCoKeys });
+        continue;
+      }
+      if (!acctHitProp) continue;
+      const companyOk = propCoKey && propCoKey === fileCompanyKey;
+      if (companyOk) continue;
+      companyMismatch.push({ memberId, name, memberCompanies: propCoKey ? [propCoKey] : [] });
+    }
+  }
+
+  if (wrongFuel.length === 1) {
+    const h = wrongFuel[0];
+    return {
+      code: "account_wrong_fuel_slot",
+      message:
+        fuel === "OIL"
+          ? `This account is on file as a propane ID for ${h.name}, not an oil ID. Check the fuel column or add the oil account on the member.`
+          : `This account is on file as an oil ID for ${h.name}, not a propane ID. Check the fuel column or add the propane account on the member.`,
+      memberIds: [h.memberId],
+    };
+  }
+  if (wrongFuel.length > 1) {
+    return {
+      code: "account_wrong_fuel_slot_multi",
+      message: `This account appears as the wrong fuel type on ${wrongFuel.length} members; fix member records or the import fuel column.`,
+      memberIds: wrongFuel.map((h) => h.memberId),
+    };
+  }
+
+  if (companyMismatch.length === 1) {
+    const h = companyMismatch[0];
+    const onFile = h.memberCompanies.length ? h.memberCompanies.join(" / ") : "(none on file)";
+    return {
+      code: "company_mismatch",
+      message: `Account matches ${h.name}, but the file company does not match their ${fuel === "OIL" ? "oil" : "propane"} company on file (${onFile}). Align spelling with the vendor sheet or update the member.`,
+      memberIds: [h.memberId],
+    };
+  }
+  if (companyMismatch.length > 1) {
+    return {
+      code: "company_mismatch_multi",
+      message: `${companyMismatch.length} members share this account with different company strings; resolve duplicates in member data.`,
+      memberIds: companyMismatch.map((h) => h.memberId),
+    };
+  }
+
+  return undefined;
+}
+
+function unmatchedGroupKey(fuel: "OIL" | "PROPANE", companyKey: string, accountKey: string): string {
+  return `${fuel}|${companyKey}|${accountKey}`;
+}
+
+function splitName(raw: string): { firstName: string; lastName: string } {
+  const s = String(raw || "").trim();
+  if (!s) return { firstName: "", lastName: "" };
+  const parts = s.split(/\s+/);
+  if (parts.length === 1) return { firstName: parts[0], lastName: "" };
+  return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
+}
+
 /**
  * POST /api/admin/deliveries/import
- * body: { rows: [{ rowNumber, fuelType, account, companyName, dateDelivered, gallons }], dryRun?: bool }
+ * body: {
+ *   rows: [{ rowNumber, fuelType, account, companyName, dateDelivered, gallons, name? }],
+ *   dryRun?: bool,
+ *   confirmations?: { firstDeliveryMemberIds: string[], createMembers: { [groupKey]: { firstName, lastName } } }
+ * }
  *
  * Each row is matched to a member by:
  *   1. fuelType (OIL or PROPANE)
  *   2. account (oilId for OIL, propaneId for PROPANE)
  *   3. companyName (matched against legacyProfile.<oil|propane>CompanyName,
  *      and for OIL also the linked OilCompany.name)
+ *
+ * Optional `address` from the client is stored only in the import report for staff review.
+ *
+ * Matched rows whose target member has 0 prior delivery rows are surfaced
+ * separately as "first-delivery" — admins must confirm those before apply.
+ * Unmatched rows can be turned into new members per group via `createMembers`.
+ * Unmatched responses include `hint` when the account exists under another
+ * company or fuel slot. Ambiguous rows are never auto-imported on apply; they
+ * are appended to `errors` as `ambiguous_not_imported`.
  *
  * Returns a per-row report. When dryRun is true, no member is mutated.
  */
@@ -177,17 +347,30 @@ router.post("/import", async (req: AuthedRequest, res) => {
     res.status(400).json({ error: parsed.error.flatten() });
     return;
   }
-  const { rows: rawRows, dryRun, fileName } = parsed.data;
+  const { rows: rawRows, dryRun, fileName, confirmations } = parsed.data;
+  const confirmedFirstDelivery = new Set(confirmations.firstDeliveryMemberIds);
   const importBatchId = `imp_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
 
   // Build lookup index: fuel|companyKey|accountKey -> [memberId]
   const oilCompanies = await OilCompany.find().lean();
   const oilCompanyById = new Map<string, string>();
-  for (const oc of oilCompanies) oilCompanyById.set(String(oc._id), normCompany(oc.name));
+  const oilCompanyIdByName = new Map<string, string>();
+  for (const oc of oilCompanies) {
+    const key = normCompany(oc.name);
+    oilCompanyById.set(String(oc._id), key);
+    if (key) oilCompanyIdByName.set(key, String(oc._id));
+  }
 
   const members = await Member.find({ role: "member" })
     .select("_id memberNumber firstName lastName oilCompanyId legacyProfile")
     .lean();
+
+  /** Count of existing delivery rows per memberId — used to detect first-delivery members. */
+  const existingRowCountByMember = new Map<string, number>();
+  for (const m of members) {
+    const lp = (m.legacyProfile || {}) as Record<string, unknown>;
+    existingRowCountByMember.set(String(m._id), normalizeRows(lp.deliveryHistoryRows).length);
+  }
 
   type IndexValue = { memberId: string; memberNumber: string; name: string };
   const index = new Map<string, IndexValue[]>();
@@ -230,7 +413,18 @@ router.post("/import", async (req: AuthedRequest, res) => {
   type MatchedRow = { memberId: string; row: DeliveryRow; rowNumber: number };
   const matched: MatchedRow[] = [];
   const errors: ImportRowError[] = [];
-  const unmatched: Array<{ rowNumber: number; companyName: string; account: string; fuelType: string }> = [];
+  type UnmatchedRow = {
+    rowNumber: number;
+    groupKey: string;
+    companyName: string;
+    account: string;
+    fuelType: "OIL" | "PROPANE";
+    name?: string;
+    address?: string;
+    hint?: UnmatchHint;
+    row: DeliveryRow;
+  };
+  const unmatchedRows: UnmatchedRow[] = [];
   const ambiguous: Array<{
     rowNumber: number;
     companyName: string;
@@ -279,7 +473,22 @@ router.post("/import", async (req: AuthedRequest, res) => {
       }
     }
     if (candidates.length === 0) {
-      unmatched.push({ rowNumber, companyName: r.companyName, account: r.account, fuelType: fuel });
+      const primaryAcctKey = acctKeys[0] || "";
+      const hint = computeUnmatchedHint(fuel, acctKeys, companyKey, members, oilCompanyById);
+      unmatchedRows.push({
+        rowNumber,
+        groupKey: unmatchedGroupKey(fuel, companyKey, primaryAcctKey),
+        companyName: r.companyName,
+        account: r.account,
+        fuelType: fuel,
+        name: r.name?.trim() || undefined,
+        address: r.address?.trim() || undefined,
+        ...(hint ? { hint } : {}),
+        row: buildRow(
+          { dateDelivered: date, fuelType: fuel, gallons, importBatchId },
+          { source: "import" }
+        ),
+      });
       return;
     }
     if (candidates.length > 1) {
@@ -306,6 +515,83 @@ router.post("/import", async (req: AuthedRequest, res) => {
     });
   });
 
+  // Group matched rows by member so we can split "first-delivery" out.
+  const matchedByMember = new Map<string, MatchedRow[]>();
+  for (const m of matched) {
+    const list = matchedByMember.get(m.memberId);
+    if (list) list.push(m);
+    else matchedByMember.set(m.memberId, [m]);
+  }
+
+  type FirstDeliveryMember = {
+    memberId: string;
+    memberNumber: string;
+    name: string;
+    rowNumbers: number[];
+    rowCount: number;
+  };
+  const firstDeliveryMembers: FirstDeliveryMember[] = [];
+  for (const [memberId, items] of matchedByMember.entries()) {
+    if ((existingRowCountByMember.get(memberId) ?? 0) > 0) continue;
+    const m = members.find((mm) => String(mm._id) === memberId);
+    firstDeliveryMembers.push({
+      memberId,
+      memberNumber: String(m?.memberNumber || ""),
+      name: `${m?.firstName || ""} ${m?.lastName || ""}`.trim(),
+      rowNumbers: items.map((it) => it.rowNumber).sort((a, b) => a - b),
+      rowCount: items.length,
+    });
+  }
+
+  // Group unmatched rows by groupKey so the UI can prompt once per (fuel+company+account).
+  type UnmatchedGroup = {
+    groupKey: string;
+    fuelType: "OIL" | "PROPANE";
+    companyName: string;
+    account: string;
+    rowCount: number;
+    rowNumbers: number[];
+    suggestedName: string;
+    hint?: UnmatchHint;
+  };
+  const unmatchedGroupsMap = new Map<string, { rows: UnmatchedRow[]; suggestedName: string }>();
+  for (const u of unmatchedRows) {
+    const entry = unmatchedGroupsMap.get(u.groupKey);
+    if (entry) {
+      entry.rows.push(u);
+      if (!entry.suggestedName && u.name) entry.suggestedName = u.name;
+    } else {
+      unmatchedGroupsMap.set(u.groupKey, { rows: [u], suggestedName: u.name || "" });
+    }
+  }
+  const unmatchedGroups: UnmatchedGroup[] = [];
+  for (const [groupKey, entry] of unmatchedGroupsMap.entries()) {
+    const first = entry.rows[0];
+    const hintFromRows = entry.rows.find((row) => row.hint)?.hint;
+    unmatchedGroups.push({
+      groupKey,
+      fuelType: first.fuelType,
+      companyName: first.companyName,
+      account: first.account,
+      rowCount: entry.rows.length,
+      rowNumbers: entry.rows.map((r) => r.rowNumber).sort((a, b) => a - b),
+      suggestedName: entry.suggestedName,
+      ...(hintFromRows ? { hint: hintFromRows } : {}),
+    });
+  }
+
+  // Flat unmatched array kept for backwards-compat / table view in the UI.
+  const unmatched = unmatchedRows.map((u) => ({
+    rowNumber: u.rowNumber,
+    groupKey: u.groupKey,
+    companyName: u.companyName,
+    account: u.account,
+    fuelType: u.fuelType,
+    name: u.name,
+    address: u.address,
+    ...(u.hint ? { hint: u.hint } : {}),
+  }));
+
   if (dryRun) {
     res.json({
       importBatchId,
@@ -314,7 +600,9 @@ router.post("/import", async (req: AuthedRequest, res) => {
       summary: {
         totalRows: rawRows.length,
         matched: matched.length,
+        firstDeliveryMembers: firstDeliveryMembers.length,
         unmatched: unmatched.length,
+        unmatchedGroups: unmatchedGroups.length,
         ambiguous: ambiguous.length,
         invalid: errors.length,
       },
@@ -325,27 +613,30 @@ router.post("/import", async (req: AuthedRequest, res) => {
         fuelType: m.row.fuelType,
         gallons: m.row.gallons,
       })),
+      firstDeliveryMembers,
       unmatched,
+      unmatchedGroups,
       ambiguous,
       errors,
     });
     return;
   }
 
-  // Group matched rows by member, append, save once per member.
-  const byMember = new Map<string, MatchedRow[]>();
-  for (const m of matched) {
-    const list = byMember.get(m.memberId);
-    if (list) list.push(m);
-    else byMember.set(m.memberId, [m]);
-  }
-
+  // ---- Apply ----
   let appendedCount = 0;
-  for (const [memberId, items] of byMember.entries()) {
+  let skippedFirstDeliveryCount = 0;
+  let createdMemberCount = 0;
+  const createdMembers: Array<{ memberId: string; memberNumber: string; firstName: string; lastName: string }> = [];
+
+  // 1) Matched rows — apply per member; skip first-delivery members not in the confirmed set.
+  for (const [memberId, items] of matchedByMember.entries()) {
+    if ((existingRowCountByMember.get(memberId) ?? 0) === 0 && !confirmedFirstDelivery.has(memberId)) {
+      skippedFirstDeliveryCount += items.length;
+      continue;
+    }
     const member = await Member.findById(memberId);
     if (!member) continue;
     const existing = readRows(member);
-    // Dedupe: skip rows that exactly match (date+fuel+gallons) already on file.
     for (const it of items) {
       const dup = existing.some(
         (r) =>
@@ -368,6 +659,76 @@ router.post("/import", async (req: AuthedRequest, res) => {
     await member.save();
   }
 
+  // 2) Unmatched groups — create new members for the ones the admin opted in to.
+  const unmatchedByGroup = new Map<string, UnmatchedRow[]>();
+  for (const u of unmatchedRows) {
+    const list = unmatchedByGroup.get(u.groupKey);
+    if (list) list.push(u);
+    else unmatchedByGroup.set(u.groupKey, [u]);
+  }
+
+  for (const [groupKey, decision] of Object.entries(confirmations.createMembers || {})) {
+    const groupRows = unmatchedByGroup.get(groupKey);
+    if (!groupRows || groupRows.length === 0) continue;
+    const first = groupRows[0];
+    const firstName = decision.firstName.trim();
+    const lastName = decision.lastName.trim();
+    if (!firstName || !lastName) continue;
+
+    const companyKey = normCompany(first.companyName);
+    const oilCompanyId =
+      first.fuelType === "OIL" ? oilCompanyIdByName.get(companyKey) || null : null;
+    const synthEmail = `import-${importBatchId}-${createdMembers.length}@oilcoop.local`;
+    const passwordHash = await bcrypt.hash(`Imported-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`, 10);
+    const memberNumber = await nextImportMemberNumber();
+    const legacyProfile: Record<string, unknown> = {};
+    if (first.fuelType === "OIL") {
+      legacyProfile.oilId = first.account;
+      legacyProfile.oilCompanyName = first.companyName;
+    } else {
+      legacyProfile.propaneId = first.account;
+      legacyProfile.propaneCompanyName = first.companyName;
+    }
+    legacyProfile.deliveryHistoryRows = sortRowsDesc(groupRows.map((g) => g.row));
+
+    const created = await Member.create({
+      memberNumber,
+      email: synthEmail,
+      passwordHash,
+      firstName,
+      lastName,
+      role: "member",
+      status: "active",
+      paymentMethod: "check",
+      autoRenew: false,
+      signedUpVia: "admin",
+      nextAnnualBillingDate: nextJuneFirstAfterSignup(new Date()),
+      ...(oilCompanyId ? { oilCompanyId: new mongoose.Types.ObjectId(oilCompanyId) } : {}),
+      legacyProfile,
+    });
+
+    appendedCount += groupRows.length;
+    createdMemberCount++;
+    createdMembers.push({
+      memberId: String(created._id),
+      memberNumber,
+      firstName,
+      lastName,
+    });
+  }
+
+  for (const a of ambiguous) {
+    errors.push({
+      rowNumber: a.rowNumber,
+      reason: "ambiguous_not_imported",
+      detail: {
+        companyName: a.companyName,
+        account: a.account,
+        candidateMemberIds: a.candidateMemberIds,
+      },
+    });
+  }
+
   await logActivity(
     new mongoose.Types.ObjectId(req.userId!),
     "admin_delivery_import",
@@ -377,6 +738,8 @@ router.post("/import", async (req: AuthedRequest, res) => {
       totalRows: rawRows.length,
       matched: matched.length,
       appended: appendedCount,
+      skippedFirstDelivery: skippedFirstDeliveryCount,
+      createdMembers: createdMemberCount,
       unmatched: unmatched.length,
       ambiguous: ambiguous.length,
       invalid: errors.length,
@@ -393,15 +756,32 @@ router.post("/import", async (req: AuthedRequest, res) => {
       totalRows: rawRows.length,
       matched: matched.length,
       appended: appendedCount,
+      skippedFirstDelivery: skippedFirstDeliveryCount,
+      createdMembers: createdMemberCount,
+      firstDeliveryMembers: firstDeliveryMembers.length,
       unmatched: unmatched.length,
+      unmatchedGroups: unmatchedGroups.length,
       ambiguous: ambiguous.length,
       invalid: errors.length,
     },
+    firstDeliveryMembers,
     unmatched,
+    unmatchedGroups,
     ambiguous,
     errors,
+    createdMembers,
   });
 });
+
+/** Allocate the next `OC-NNNNNN` member number. Mirrors the helper in admin.ts. */
+async function nextImportMemberNumber(): Promise<string> {
+  const last = (await Member.findOne({ role: "member", memberNumber: { $regex: /^OC-\d+$/ } })
+    .sort({ createdAt: -1 })
+    .select("memberNumber")
+    .lean()) as { memberNumber?: string } | null;
+  const n = last?.memberNumber ? Number(last.memberNumber.replace("OC-", "")) : 1000;
+  return `OC-${String((Number.isFinite(n) ? n : 1000) + 1).padStart(6, "0")}`;
+}
 
 function normalizeDateFreeForm(raw: string): string | null {
   const s = String(raw || "").trim();

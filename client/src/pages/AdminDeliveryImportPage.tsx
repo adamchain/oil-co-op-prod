@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import * as XLSX from "xlsx";
 import { api } from "../api";
 import { useAuth } from "../authContext";
@@ -21,15 +22,22 @@ type SemanticField =
   | "month"
   | "year"
   | "gallons"
+  | "name"
+  | "address"
   | "ignore";
 
-/** Default “Import as” per column A–F (common co-op export). */
+/**
+ * Default “Import as” per column A–F for the classic co-op layout
+ * [MONTH, PRODUCT, OIL ID, NAME, GAL, Hidden]. NAME is reference-only — matching
+ * is by account ID + company, never by customer name — but we keep it parsed so
+ * the unrecognized-customer prompt can suggest a first/last name.
+ */
 const STANDARD_SIX_FIELDS: SemanticField[] = [
+  "month",
   "fuelType",
   "account",
+  "name",
   "gallons",
-  "month",
-  "year",
   "ignore",
 ];
 
@@ -49,6 +57,8 @@ const IMPORT_AS_OPTION_ORDER: SemanticField[] = [
   "year",
   "dateDelivered",
   "companyName",
+  "name",
+  "address",
   "ignore",
 ];
 
@@ -130,6 +140,31 @@ function maxUsedColumnIndexFirstN(grid: unknown[][], n: number): number {
   return max;
 }
 
+type FirstDeliveryMemberInfo = {
+  memberId: string;
+  memberNumber: string;
+  name: string;
+  rowNumbers: number[];
+  rowCount: number;
+};
+
+type UnmatchHint = {
+  code: string;
+  message: string;
+  memberIds?: string[];
+};
+
+type UnmatchedGroupInfo = {
+  groupKey: string;
+  fuelType: "OIL" | "PROPANE";
+  companyName: string;
+  account: string;
+  rowCount: number;
+  rowNumbers: number[];
+  suggestedName: string;
+  hint?: UnmatchHint;
+};
+
 type ServerImportResponse = {
   importBatchId: string;
   fileName: string;
@@ -138,7 +173,11 @@ type ServerImportResponse = {
     totalRows: number;
     matched: number;
     appended?: number;
+    skippedFirstDelivery?: number;
+    createdMembers?: number;
+    firstDeliveryMembers?: number;
     unmatched: number;
+    unmatchedGroups?: number;
     ambiguous: number;
     invalid: number;
   };
@@ -149,7 +188,18 @@ type ServerImportResponse = {
     fuelType: string;
     gallons: number;
   }>;
-  unmatched: Array<{ rowNumber: number; companyName: string; account: string; fuelType: string }>;
+  firstDeliveryMembers?: FirstDeliveryMemberInfo[];
+  unmatched: Array<{
+    rowNumber: number;
+    groupKey?: string;
+    companyName: string;
+    account: string;
+    fuelType: string;
+    name?: string;
+    address?: string;
+    hint?: UnmatchHint;
+  }>;
+  unmatchedGroups?: UnmatchedGroupInfo[];
   ambiguous: Array<{
     rowNumber: number;
     companyName: string;
@@ -161,6 +211,18 @@ type ServerImportResponse = {
     reason: string;
     detail?: Record<string, unknown>;
   }>;
+  createdMembers?: Array<{
+    memberId: string;
+    memberNumber: string;
+    firstName: string;
+    lastName: string;
+  }>;
+};
+
+type CreateMemberDecision = {
+  enabled: boolean;
+  firstName: string;
+  lastName: string;
 };
 
 const FIELD_LABELS: Record<SemanticField, string> = {
@@ -171,7 +233,9 @@ const FIELD_LABELS: Record<SemanticField, string> = {
   month: "Month (1–12 or name; pair with Year)",
   year: "Year (YYYY; pair with Month)",
   gallons: "Gallons (GAL)",
-  ignore: "Ignore (e.g. Name — reference only)",
+  name: "Customer name (reference only — pre-fills new-member prompt)",
+  address: "Service address (reference only — shown for unmatched rows)",
+  ignore: "Ignore",
 };
 
 /** Typical row-1 labels from the co-op export; used as card-2 mapping and fallback when a cell is blank. */
@@ -231,6 +295,15 @@ function parseYearCell(raw: string): number | null {
   return n;
 }
 
+/** Split a raw "FIRST LAST" string into name parts for the new-member prompt. */
+function splitSuggestedName(raw: string): { firstName: string; lastName: string } {
+  const s = String(raw || "").trim();
+  if (!s) return { firstName: "", lastName: "" };
+  const parts = s.split(/\s+/);
+  if (parts.length === 1) return { firstName: parts[0], lastName: "" };
+  return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
+}
+
 export default function AdminDeliveryImportPage() {
   const { token } = useAuth();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -250,6 +323,15 @@ export default function AdminDeliveryImportPage() {
   const [busy, setBusy] = useState(false);
   const [report, setReport] = useState<ServerImportResponse | null>(null);
   const [reportMode, setReportMode] = useState<"validate" | "apply" | null>(null);
+
+  /**
+   * Per-validate confirmation state. Keyed by:
+   *  - memberId for first-delivery members (checkbox: apply their rows)
+   *  - groupKey for unmatched (toggle + first/last name to create a new member)
+   * Reset every time validate produces a fresh report.
+   */
+  const [firstDeliveryConfirms, setFirstDeliveryConfirms] = useState<Record<string, boolean>>({});
+  const [createMemberDecisions, setCreateMemberDecisions] = useState<Record<string, CreateMemberDecision>>({});
 
   useEffect(() => {
     if (!token) return;
@@ -352,10 +434,13 @@ export default function AdminDeliveryImportPage() {
           companyName: string;
           dateDelivered: string;
           gallons: number;
+          name?: string;
+          address?: string;
         }>,
         missingFields: [] as string[],
         mappingErrors: [] as string[],
         dateMode: "none" as "date" | "monthYear" | "none",
+        ignoredColumnIndices: [] as number[],
       };
 
     const map: SemanticField[] =
@@ -370,6 +455,9 @@ export default function AdminDeliveryImportPage() {
       const idx = map.indexOf(field);
       return idx >= 0 ? importColKey(idx) : null;
     };
+
+    const ignoredColumnIndices: number[] = [];
+    for (let i = 0; i < map.length; i++) if (map[i] === "ignore") ignoredColumnIndices.push(i);
 
     const mappingErrors: string[] = [];
     const counts = new Map<SemanticField, number>();
@@ -389,6 +477,8 @@ export default function AdminDeliveryImportPage() {
       month: colKeyForField("month"),
       year: colKeyForField("year"),
       gallons: colKeyForField("gallons"),
+      name: colKeyForField("name"),
+      address: colKeyForField("address"),
     };
 
     const dateMode: "date" | "monthYear" | "none" = cols.dateDelivered
@@ -419,6 +509,8 @@ export default function AdminDeliveryImportPage() {
         }
       }
       const gallonsRaw = cell(cols.gallons);
+      const nameCell = cell(cols.name);
+      const addressCell = cell(cols.address);
       return {
         rowNumber: i + 2,
         fuelType: cell(cols.fuelType) || defaults.fuelType,
@@ -426,15 +518,28 @@ export default function AdminDeliveryImportPage() {
         companyName: cell(cols.companyName) || resolvedDefaultCompanyName,
         dateDelivered,
         gallons: Number(String(gallonsRaw).replace(/[^\d.\-]/g, "")) || 0,
+        ...(nameCell ? { name: nameCell } : {}),
+        ...(addressCell ? { address: addressCell } : {}),
       };
     });
-    return { rows, missingFields, mappingErrors, dateMode };
+    return { rows, missingFields, mappingErrors, dateMode, ignoredColumnIndices };
   }, [sheet, columnMapping, defaults, resolvedDefaultCompanyName]);
 
   async function postImport(dryRun: boolean) {
     if (!token || builtRows.rows.length === 0) return;
     setBusy(true);
     try {
+      const confirmedFirstDelivery = Object.entries(firstDeliveryConfirms)
+        .filter(([, v]) => v)
+        .map(([id]) => id);
+      const createMembers: Record<string, { firstName: string; lastName: string }> = {};
+      for (const [groupKey, d] of Object.entries(createMemberDecisions)) {
+        if (!d.enabled) continue;
+        const firstName = d.firstName.trim();
+        const lastName = d.lastName.trim();
+        if (!firstName || !lastName) continue;
+        createMembers[groupKey] = { firstName, lastName };
+      }
       const r = await api<ServerImportResponse>(`/api/admin/deliveries/import`, {
         method: "POST",
         token,
@@ -442,10 +547,32 @@ export default function AdminDeliveryImportPage() {
           fileName,
           dryRun,
           rows: builtRows.rows,
+          ...(dryRun
+            ? {}
+            : {
+                confirmations: {
+                  firstDeliveryMemberIds: confirmedFirstDelivery,
+                  createMembers,
+                },
+              }),
         }),
       });
       setReport(r);
       setReportMode(dryRun ? "validate" : "apply");
+      if (dryRun) {
+        // Seed defaults from the fresh dry-run: first-delivery members default
+        // to unchecked (admin must confirm), unmatched groups default to "skip"
+        // with the suggested name pre-filled.
+        const fd: Record<string, boolean> = {};
+        for (const m of r.firstDeliveryMembers || []) fd[m.memberId] = false;
+        setFirstDeliveryConfirms(fd);
+        const cm: Record<string, CreateMemberDecision> = {};
+        for (const g of r.unmatchedGroups || []) {
+          const { firstName, lastName } = splitSuggestedName(g.suggestedName);
+          cm[g.groupKey] = { enabled: false, firstName, lastName };
+        }
+        setCreateMemberDecisions(cm);
+      }
     } catch (err) {
       setParseError(err instanceof Error ? err.message : "Import failed");
     } finally {
@@ -461,6 +588,8 @@ export default function AdminDeliveryImportPage() {
     setParseError(null);
     setDefaults({ fuelType: "", companySelection: "", customCompanyName: "" });
     setColumnMapping([...STANDARD_SIX_FIELDS]);
+    setFirstDeliveryConfirms({});
+    setCreateMemberDecisions({});
     if (inputRef.current) inputRef.current.value = "";
   }
 
@@ -485,7 +614,10 @@ export default function AdminDeliveryImportPage() {
         Up to <strong>{MAX_IMPORT_COLUMNS}</strong> columns (through the widest row) are loaded and can be mapped. Row 1
         is <strong>Your header</strong> for reference. If a column is named <strong>YEAR</strong>, it is used for the
         year field automatically when you load the file. Month + Year combine to the first day of that month. Choose a{" "}
-        <strong>default company</strong> when no column maps to company name. Validate first, then apply.
+        <strong>default company</strong> when no column maps to company name. Matching uses{" "}
+        <strong>account number</strong> plus <strong>vendor company name</strong> and fuel type (oil vs propane), not
+        customer name. Unmatched rows are listed with hints so you can add missing IDs, align company spelling with the
+        sheet, or create a member. Validate first, then apply.
       </p>
 
       <div className="admin-card">
@@ -674,23 +806,42 @@ export default function AdminDeliveryImportPage() {
 
           <div className="admin-card">
             <h2>3. Preview ({Math.min(previewWideRows.length, 8)} of {sheet.rows.length})</h2>
+            <p style={{ color: "var(--admin-muted)", fontSize: "0.75rem", margin: "-0.25rem 0 0.5rem" }}>
+              Columns mapped to <strong>Ignore</strong> are grayed out and will not be imported.
+            </p>
             <div className="admin-table-wrap">
               <table className="admin-table">
                 <thead>
                   <tr>
-                    {sheet.allHeaders.map((h, i) => (
-                      <th key={i} title={`Column ${columnIndexToLetter(i)}`}>
-                        {h || (i < 6 ? SIX_COLUMN_TYPICAL_HEADERS[i] : columnIndexToLetter(i))}
-                      </th>
-                    ))}
+                    {sheet.allHeaders.map((h, i) => {
+                      const isIgnored = builtRows.ignoredColumnIndices.includes(i);
+                      return (
+                        <th
+                          key={i}
+                          title={`Column ${columnIndexToLetter(i)}${isIgnored ? " — ignored" : ""}`}
+                          style={isIgnored ? { color: "var(--admin-muted)", background: "rgba(0,0,0,0.03)" } : undefined}
+                        >
+                          {h || (i < 6 ? SIX_COLUMN_TYPICAL_HEADERS[i] : columnIndexToLetter(i))}
+                          {isIgnored && <span style={{ fontWeight: 400, fontSize: "0.7rem", marginLeft: "0.25rem" }}>(ignored)</span>}
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody>
                   {previewWideRows.map((cells, ri) => (
                     <tr key={ri}>
-                      {cells.map((cell, ci) => (
-                        <td key={ci}>{String(cell ?? "")}</td>
-                      ))}
+                      {cells.map((cell, ci) => {
+                        const isIgnored = builtRows.ignoredColumnIndices.includes(ci);
+                        return (
+                          <td
+                            key={ci}
+                            style={isIgnored ? { color: "var(--admin-muted)", background: "rgba(0,0,0,0.03)" } : undefined}
+                          >
+                            {String(cell ?? "")}
+                          </td>
+                        );
+                      })}
                     </tr>
                   ))}
                 </tbody>
@@ -701,8 +852,11 @@ export default function AdminDeliveryImportPage() {
           <div className="admin-card">
             <h2>4. Validate &amp; apply</h2>
             <p style={{ color: "var(--admin-muted)", fontSize: "0.8rem", marginTop: 0 }}>
-              Validate runs the matching logic without changing any data. Apply will append rows to matched
-              members and skip duplicates already on file.
+              Validate runs the matcher without saving. Apply appends deliveries to members that matched; it skips
+              duplicates already on file. Rows that need attention: <strong>first delivery</strong> (matched member but
+              no history yet — confirm), <strong>unmatched</strong> (no account + company + fuel hit — review hints,
+              update IDs, or create a member), and <strong>ambiguous</strong> (more than one member matches — nothing is
+              imported until data is fixed).
             </p>
             <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
               <button
@@ -727,36 +881,170 @@ export default function AdminDeliveryImportPage() {
       )}
 
       {report && (
-        <ImportReportCard report={report} mode={reportMode} />
+        <ImportReportCard
+          report={report}
+          mode={reportMode}
+          firstDeliveryConfirms={firstDeliveryConfirms}
+          setFirstDeliveryConfirms={setFirstDeliveryConfirms}
+          createMemberDecisions={createMemberDecisions}
+          setCreateMemberDecisions={setCreateMemberDecisions}
+        />
       )}
     </>
   );
 }
 
-function ImportReportCard({ report, mode }: { report: ServerImportResponse; mode: "validate" | "apply" | null }) {
+type ImportReportCardProps = {
+  report: ServerImportResponse;
+  mode: "validate" | "apply" | null;
+  firstDeliveryConfirms: Record<string, boolean>;
+  setFirstDeliveryConfirms: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
+  createMemberDecisions: Record<string, CreateMemberDecision>;
+  setCreateMemberDecisions: React.Dispatch<React.SetStateAction<Record<string, CreateMemberDecision>>>;
+};
+
+function formatImportErrorReason(reason: string, detail?: Record<string, unknown>): string {
+  if (reason === "ambiguous_not_imported") {
+    const ids = Array.isArray(detail?.candidateMemberIds)
+      ? (detail.candidateMemberIds as string[]).join(", ")
+      : "";
+    return `Multiple members match this row; it was not imported. Resolve duplicate IDs or company strings on members. Candidates: ${ids || "(none)"}`;
+  }
+  if (reason === "duplicate_skipped") return "Same date, fuel, and gallons already on file — skipped.";
+  return reason;
+}
+
+function UnmatchedRowsDetailTable({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: ServerImportResponse["unmatched"];
+}) {
+  if (rows.length === 0) return null;
+  return (
+    <>
+      <h3 style={{ margin: "0.5rem 0", fontSize: "0.9rem" }}>{title}</h3>
+      <p style={{ color: "var(--admin-muted)", fontSize: "0.78rem", margin: "0 0 0.5rem" }}>
+        Use hints to update the member&apos;s oil or propane account and company fields, then re-import or enter the
+        delivery manually. Name and address come from the file only when mapped.
+      </p>
+      <div className="admin-table-wrap" style={{ marginBottom: "0.75rem", maxHeight: "420px", overflowY: "auto" }}>
+        <table className="admin-table">
+          <thead>
+            <tr>
+              <th>Row #</th>
+              <th>Fuel</th>
+              <th>Company</th>
+              <th>Account</th>
+              <th>Name</th>
+              <th>Address</th>
+              <th>Hint</th>
+              <th>Members</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((u, i) => (
+              <tr key={`${u.rowNumber}-${i}`}>
+                <td>{u.rowNumber}</td>
+                <td>{u.fuelType}</td>
+                <td>{u.companyName}</td>
+                <td>{u.account}</td>
+                <td>{u.name || "—"}</td>
+                <td style={{ maxWidth: "10rem", fontSize: "0.78rem" }}>{u.address || "—"}</td>
+                <td style={{ maxWidth: "22rem", fontSize: "0.78rem" }} title={u.hint?.message}>
+                  {u.hint?.message || "—"}
+                </td>
+                <td style={{ whiteSpace: "nowrap", fontSize: "0.78rem" }}>
+                  {u.hint?.memberIds?.length ? (
+                    u.hint.memberIds.map((id) => (
+                      <Link key={id} to={`/admin/members/${id}`} style={{ marginRight: "0.5rem" }} title={id}>
+                        Profile
+                      </Link>
+                    ))
+                  ) : (
+                    "—"
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+function ImportReportCard({
+  report,
+  mode,
+  firstDeliveryConfirms,
+  setFirstDeliveryConfirms,
+  createMemberDecisions,
+  setCreateMemberDecisions,
+}: ImportReportCardProps) {
   const s = report.summary;
+  const firstDeliveryMembers = report.firstDeliveryMembers || [];
+  const unmatchedGroups = report.unmatchedGroups || [];
+  const isValidate = mode === "validate";
+
   return (
     <div className="admin-card">
-      <h2>{mode === "validate" ? "Validation result" : "Import result"}</h2>
+      <h2>{isValidate ? "Validation result" : "Import result"}</h2>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "0.5rem", marginBottom: "1rem" }}>
         <Stat label="Total rows" value={s.totalRows} />
         <Stat label="Matched" value={s.matched} ok />
         {s.appended != null && <Stat label="Appended" value={s.appended} ok />}
+        {firstDeliveryMembers.length > 0 && (
+          <Stat label="First-delivery customers" value={firstDeliveryMembers.length} warn />
+        )}
+        {s.createdMembers != null && s.createdMembers > 0 && (
+          <Stat label="New members" value={s.createdMembers} ok />
+        )}
+        {s.skippedFirstDelivery != null && s.skippedFirstDelivery > 0 && (
+          <Stat label="Skipped (unconfirmed)" value={s.skippedFirstDelivery} warn />
+        )}
         <Stat label="Unmatched" value={s.unmatched} warn={s.unmatched > 0} />
         <Stat label="Ambiguous" value={s.ambiguous} warn={s.ambiguous > 0} />
         <Stat label="Invalid / dup" value={s.invalid} warn={s.invalid > 0} />
       </div>
 
-      {report.unmatched.length > 0 && (
+      {isValidate && report.ambiguous.length > 0 && (
+        <p style={{ color: "#b45309", fontSize: "0.82rem", margin: "0 0 0.75rem", padding: "0.5rem 0.65rem", background: "rgba(180,83,9,0.08)", borderRadius: "6px" }}>
+          <strong>Ambiguous:</strong> {report.ambiguous.length} row{report.ambiguous.length === 1 ? "" : "s"} match more
+          than one member. They are <strong>never</strong> imported automatically — fix the underlying member records
+          (duplicate account IDs or conflicting company names), then run the import again.
+        </p>
+      )}
+
+      {isValidate && firstDeliveryMembers.length > 0 && (
+        <FirstDeliveryConfirmTable
+          members={firstDeliveryMembers}
+          confirms={firstDeliveryConfirms}
+          setConfirms={setFirstDeliveryConfirms}
+        />
+      )}
+
+      {isValidate && unmatchedGroups.length > 0 && (
+        <UnmatchedGroupConfirmTable
+          groups={unmatchedGroups}
+          decisions={createMemberDecisions}
+          setDecisions={setCreateMemberDecisions}
+        />
+      )}
+
+      {!isValidate && (report.createdMembers?.length ?? 0) > 0 && (
         <ReportTable
-          title="Unmatched rows"
-          rows={report.unmatched.map((u) => ({
-            "Row #": u.rowNumber,
-            Fuel: u.fuelType,
-            Company: u.companyName,
-            Account: u.account,
+          title="New members created"
+          rows={(report.createdMembers || []).map((c) => ({
+            "Member #": c.memberNumber,
+            Name: `${c.firstName} ${c.lastName}`.trim(),
           }))}
         />
+      )}
+
+      {report.unmatched.length > 0 && (
+        <UnmatchedRowsDetailTable title="Unmatched rows (needs follow-up)" rows={report.unmatched} />
       )}
 
       {report.ambiguous.length > 0 && (
@@ -773,15 +1061,178 @@ function ImportReportCard({ report, mode }: { report: ServerImportResponse; mode
 
       {report.errors.length > 0 && (
         <ReportTable
-          title="Invalid / duplicate rows"
+          title="Invalid / duplicate / not imported"
           rows={report.errors.map((e) => ({
             "Row #": e.rowNumber,
-            Reason: e.reason,
+            Reason: formatImportErrorReason(e.reason, e.detail),
             Detail: e.detail ? JSON.stringify(e.detail) : "",
           }))}
         />
       )}
     </div>
+  );
+}
+
+function FirstDeliveryConfirmTable({
+  members,
+  confirms,
+  setConfirms,
+}: {
+  members: FirstDeliveryMemberInfo[];
+  confirms: Record<string, boolean>;
+  setConfirms: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
+}) {
+  const allChecked = members.every((m) => confirms[m.memberId]);
+  return (
+    <>
+      <h3 style={{ margin: "0.5rem 0", fontSize: "0.9rem" }}>
+        First-delivery confirmation ({members.length})
+      </h3>
+      <p style={{ color: "var(--admin-muted)", fontSize: "0.78rem", margin: "0 0 0.5rem" }}>
+        These customers exist but have <strong>no prior delivery history</strong>. Confirm each one
+        before their rows will be imported — Apply skips any that are left unchecked.
+      </p>
+      <div className="admin-table-wrap" style={{ marginBottom: "0.75rem", maxHeight: "320px", overflowY: "auto" }}>
+        <table className="admin-table">
+          <thead>
+            <tr>
+              <th style={{ width: "1%", whiteSpace: "nowrap" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: "0.35rem", fontWeight: 500 }}>
+                  <input
+                    type="checkbox"
+                    checked={allChecked}
+                    onChange={(e) => {
+                      const v = e.target.checked;
+                      setConfirms((prev) => {
+                        const next = { ...prev };
+                        for (const m of members) next[m.memberId] = v;
+                        return next;
+                      });
+                    }}
+                  />
+                  All
+                </label>
+              </th>
+              <th>Member #</th>
+              <th>Name</th>
+              <th>Rows in import</th>
+            </tr>
+          </thead>
+          <tbody>
+            {members.map((m) => (
+              <tr key={m.memberId}>
+                <td>
+                  <input
+                    type="checkbox"
+                    aria-label={`Confirm first delivery for ${m.name || m.memberNumber}`}
+                    checked={Boolean(confirms[m.memberId])}
+                    onChange={(e) =>
+                      setConfirms((prev) => ({ ...prev, [m.memberId]: e.target.checked }))
+                    }
+                  />
+                </td>
+                <td>{m.memberNumber || "—"}</td>
+                <td>{m.name || "—"}</td>
+                <td>{m.rowCount}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+function UnmatchedGroupConfirmTable({
+  groups,
+  decisions,
+  setDecisions,
+}: {
+  groups: UnmatchedGroupInfo[];
+  decisions: Record<string, CreateMemberDecision>;
+  setDecisions: React.Dispatch<React.SetStateAction<Record<string, CreateMemberDecision>>>;
+}) {
+  return (
+    <>
+      <h3 style={{ margin: "0.5rem 0", fontSize: "0.9rem" }}>
+        Unrecognized customers ({groups.length})
+      </h3>
+      <p style={{ color: "var(--admin-muted)", fontSize: "0.78rem", margin: "0 0 0.5rem" }}>
+        No member matches these <strong>fuel + company + account</strong> combinations. When a hint says the account
+        exists under another company or fuel slot, update the member instead of creating a duplicate. Otherwise you can{" "}
+        <strong>Skip</strong> (default) or <strong>Create new member</strong> — the name is pre-filled from the file.
+      </p>
+      <div className="admin-table-wrap" style={{ marginBottom: "0.75rem", maxHeight: "360px", overflowY: "auto" }}>
+        <table className="admin-table">
+          <thead>
+            <tr>
+              <th>Decision</th>
+              <th>Fuel</th>
+              <th>Company</th>
+              <th>Account</th>
+              <th>Hint</th>
+              <th>Rows</th>
+              <th>First name</th>
+              <th>Last name</th>
+            </tr>
+          </thead>
+          <tbody>
+            {groups.map((g) => {
+              const d = decisions[g.groupKey] || { enabled: false, firstName: "", lastName: "" };
+              const update = (patch: Partial<CreateMemberDecision>) =>
+                setDecisions((prev) => ({
+                  ...prev,
+                  [g.groupKey]: { ...d, ...patch },
+                }));
+              const nameMissing = d.enabled && (!d.firstName.trim() || !d.lastName.trim());
+              return (
+                <tr key={g.groupKey}>
+                  <td>
+                    <label style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                      <input
+                        type="checkbox"
+                        checked={d.enabled}
+                        onChange={(e) => update({ enabled: e.target.checked })}
+                      />
+                      {d.enabled ? "Create" : "Skip"}
+                    </label>
+                  </td>
+                  <td>{g.fuelType}</td>
+                  <td>{g.companyName}</td>
+                  <td>{g.account}</td>
+                  <td style={{ maxWidth: "14rem", fontSize: "0.78rem" }} title={g.hint?.message}>
+                    {g.hint?.message || "—"}
+                  </td>
+                  <td>{g.rowCount}</td>
+                  <td>
+                    <input
+                      className="admin-input"
+                      style={{ minWidth: "8rem" }}
+                      value={d.firstName}
+                      onChange={(e) => update({ firstName: e.target.value })}
+                      placeholder="First"
+                      disabled={!d.enabled}
+                      aria-invalid={nameMissing && !d.firstName.trim() ? true : undefined}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      className="admin-input"
+                      style={{ minWidth: "8rem" }}
+                      value={d.lastName}
+                      onChange={(e) => update({ lastName: e.target.value })}
+                      placeholder="Last"
+                      disabled={!d.enabled}
+                      aria-invalid={nameMissing && !d.lastName.trim() ? true : undefined}
+                    />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 
