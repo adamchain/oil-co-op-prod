@@ -39,6 +39,15 @@ export default function AdminLayout() {
             Email Templates
           </NavLink>
         </nav>
+        <div className="admin-sidebar-bottom">
+          <NavLink
+            to="/admin/add-customer"
+            className={linkClass}
+            onClick={() => setSidebarOpen(false)}
+          >
+            Add Customer
+          </NavLink>
+        </div>
         <div className="admin-sidebar-foot">
           <div style={{ marginBottom: "0.5rem" }}>
             {member?.firstName} {member?.lastName}

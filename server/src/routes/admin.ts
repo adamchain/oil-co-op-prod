@@ -12,6 +12,7 @@ import { Referral } from "../models/Referral.js";
 import { PaymentToken } from "../models/PaymentToken.js";
 import { EmailTemplate, EMAIL_TEMPLATE_KEYS } from "../models/EmailTemplate.js";
 import { logActivity } from "../services/activity.js";
+import { registerMember, registerMemberSchema } from "../services/memberRegistration.js";
 import { sendMemberEmail, sendPaymentLinkEmail, sendOilCompanyAssignedEmail } from "../services/mail.js";
 import { applyTemplateVariables, ensureEmailTemplates } from "../services/emailTemplateStore.js";
 import { nextJuneFirstAfterSignup } from "../utils/juneBilling.js";
@@ -422,6 +423,39 @@ async function nextMemberNumber(): Promise<string> {
   const n = last?.memberNumber ? Number(last.memberNumber.replace("OC-", "")) : 1000;
   return `OC-${String((Number.isFinite(n) ? n : 1000) + 1).padStart(6, "0")}`;
 }
+
+router.post("/members/register", async (req: AuthedRequest, res) => {
+  const parsed = registerMemberSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+
+  const result = await registerMember(parsed.data, {
+    signedUpVia: "phone",
+    adminId: req.userId,
+  });
+  if (!result.ok) {
+    res.status(result.status).json({
+      error: result.error,
+      ...(result.detail ? { detail: result.detail } : {}),
+      ...result.extra,
+    });
+    return;
+  }
+
+  const member = result.member;
+  res.status(201).json({
+    member: {
+      _id: String(member._id),
+      email: member.email,
+      firstName: member.firstName,
+      lastName: member.lastName,
+      memberNumber: member.memberNumber,
+      oilCompanyId: member.oilCompanyId,
+    },
+  });
+});
 
 router.post("/members", async (req: AuthedRequest, res) => {
   const parsed = createMemberSchema.safeParse(req.body);

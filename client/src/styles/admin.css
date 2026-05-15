@@ -84,11 +84,67 @@
   border-left-color: var(--admin-accent);
 }
 
+.admin-sidebar-bottom {
+  padding: 0.5rem 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
 .admin-sidebar-foot {
   padding: 0.75rem 0.85rem;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   font-size: 0.8rem;
   color: rgba(255, 255, 255, 0.5);
+}
+
+.admin-add-customer-form .admin-input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.admin-add-customer-form label {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--admin-muted);
+}
+
+.admin-add-customer-payment {
+  margin-top: 1.25rem;
+  padding: 1rem 1.1rem;
+  background: #f8f8f8;
+  border-radius: 12px;
+  border: 0.5px solid var(--admin-border);
+}
+
+.admin-add-customer-payment h2 {
+  margin: 0 0 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--admin-muted);
+  border: none;
+  padding: 0;
+}
+
+.admin-add-customer-payment p {
+  margin: 0 0 1rem;
+  font-size: 0.85rem;
+  color: var(--admin-muted);
+}
+
+.admin-add-customer-check-note {
+  margin-top: 1.25rem;
+  padding: 1rem 1.1rem;
+  background: #fff8e6;
+  border-radius: 12px;
+  border: 0.5px solid #f0d070;
+}
+
+.admin-add-customer-check-note p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #665;
 }
 
 .admin-main {
