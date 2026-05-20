@@ -23,13 +23,15 @@ type SemanticField =
   | "year"
   | "gallons"
   | "name"
+  | "nameFirst"
+  | "nameLast"
   | "address"
   | "ignore";
 
 /**
  * Default “Import as” per column A–F for the classic co-op layout
  * [MONTH, PRODUCT, OIL ID, NAME, GAL, Hidden]. NAME is reference-only — matching
- * is by account ID + company, never by customer name — but we keep it parsed so
+ * is by account / oil ID only (never company or customer name) — but we keep it parsed so
  * the unrecognized-customer prompt can suggest a first/last name.
  */
 const STANDARD_SIX_FIELDS: SemanticField[] = [
@@ -58,6 +60,8 @@ const IMPORT_AS_OPTION_ORDER: SemanticField[] = [
   "dateDelivered",
   "companyName",
   "name",
+  "nameFirst",
+  "nameLast",
   "address",
   "ignore",
 ];
@@ -227,13 +231,15 @@ type CreateMemberDecision = {
 
 const FIELD_LABELS: Record<SemanticField, string> = {
   fuelType: "Fuel type (OIL / PROP / PROPANE)",
-  account: "Account # (oil ID or propane ID)",
-  companyName: "Company name",
+  account: "Account # (oil ID or propane ID — used for matching)",
+  companyName: "Company name (optional — not used for matching)",
   dateDelivered: "Date delivered (full date)",
   month: "Month (1–12 or name; pair with Year)",
   year: "Year (YYYY; pair with Month)",
   gallons: "Gallons (GAL)",
   name: "Customer name (reference only — pre-fills new-member prompt)",
+  nameFirst: "Name first (combine with Name last → customer name)",
+  nameLast: "Name last (combine with Name first → customer name)",
   address: "Service address (reference only — shown for unmatched rows)",
   ignore: "Ignore",
 };
@@ -293,6 +299,61 @@ function parseYearCell(raw: string): number | null {
   if (n < 100) n += 2000;
   if (n < 1900 || n > 2200) return null;
   return n;
+}
+
+/** Build reference name from mapped columns (full name and/or first + last). */
+function buildImportName(
+  fullName: string,
+  firstName: string,
+  lastName: string,
+  hasNameCol: boolean,
+  hasFirstCol: boolean,
+  hasLastCol: boolean
+): string {
+  if (hasFirstCol && hasLastCol) {
+    const combined = `${firstName} ${lastName}`.trim();
+    if (combined) return combined;
+  }
+  if (hasNameCol && fullName) return fullName;
+  if (hasFirstCol || hasLastCol) return `${firstName} ${lastName}`.trim();
+  return "";
+}
+
+/** One row in the POST body to `/api/admin/deliveries/import` (same shape as validate/apply). */
+type ImportPayloadRow = {
+  rowNumber: number;
+  fuelType: string;
+  account: string;
+  companyName: string;
+  dateDelivered: string;
+  gallons: number;
+  name?: string;
+  address?: string;
+};
+
+const IMPORT_PAYLOAD_PREVIEW_COLUMNS: { key: keyof ImportPayloadRow; label: string }[] = [
+  { key: "rowNumber", label: "Row #" },
+  { key: "account", label: "Account / oil ID (matched)" },
+  { key: "fuelType", label: "Fuel (oil vs propane slot)" },
+  { key: "dateDelivered", label: "Date delivered" },
+  { key: "gallons", label: "Gallons" },
+];
+
+function importPreviewColumnsForMapping(map: SemanticField[]): { key: keyof ImportPayloadRow; label: string }[] {
+  const cols = [...IMPORT_PAYLOAD_PREVIEW_COLUMNS];
+  const has = (f: SemanticField) => map.includes(f);
+  if (has("name") || has("nameFirst") || has("nameLast")) {
+    cols.push({ key: "name", label: "Name" });
+  }
+  if (has("companyName")) cols.push({ key: "companyName", label: "Company (not matched)" });
+  if (has("address")) cols.push({ key: "address", label: "Address" });
+  return cols;
+}
+
+function formatImportPreviewCell(row: ImportPayloadRow, key: keyof ImportPayloadRow): string {
+  const v = row[key];
+  if (v == null || v === "") return "—";
+  return key === "gallons" ? String(v) : String(v);
 }
 
 /** Split a raw "FIRST LAST" string into name parts for the new-member prompt. */
@@ -427,16 +488,7 @@ export default function AdminDeliveryImportPage() {
   const builtRows = useMemo(() => {
     if (!sheet)
       return {
-        rows: [] as Array<{
-          rowNumber: number;
-          fuelType: string;
-          account: string;
-          companyName: string;
-          dateDelivered: string;
-          gallons: number;
-          name?: string;
-          address?: string;
-        }>,
+        rows: [] as ImportPayloadRow[],
         missingFields: [] as string[],
         mappingErrors: [] as string[],
         dateMode: "none" as "date" | "monthYear" | "none",
@@ -478,6 +530,8 @@ export default function AdminDeliveryImportPage() {
       year: colKeyForField("year"),
       gallons: colKeyForField("gallons"),
       name: colKeyForField("name"),
+      nameFirst: colKeyForField("nameFirst"),
+      nameLast: colKeyForField("nameLast"),
       address: colKeyForField("address"),
     };
 
@@ -493,7 +547,6 @@ export default function AdminDeliveryImportPage() {
       if (dateMode === "none") missingFields.push("dateDelivered (or Month + Year)");
       if (!cols.gallons) missingFields.push("gallons");
       if (!cols.fuelType && !defaults.fuelType) missingFields.push("fuelType");
-      if (!cols.companyName && !resolvedDefaultCompanyName) missingFields.push("companyName");
     }
 
     const rows = sheet.rows.map((r, i) => {
@@ -509,7 +562,14 @@ export default function AdminDeliveryImportPage() {
         }
       }
       const gallonsRaw = cell(cols.gallons);
-      const nameCell = cell(cols.name);
+      const nameCell = buildImportName(
+        cell(cols.name),
+        cell(cols.nameFirst),
+        cell(cols.nameLast),
+        Boolean(cols.name),
+        Boolean(cols.nameFirst),
+        Boolean(cols.nameLast)
+      );
       const addressCell = cell(cols.address);
       return {
         rowNumber: i + 2,
@@ -593,7 +653,20 @@ export default function AdminDeliveryImportPage() {
     if (inputRef.current) inputRef.current.value = "";
   }
 
-  const previewWideRows = sheet?.rowCellsWide.slice(0, 8) ?? [];
+  const importPreviewColumns = useMemo(() => {
+    if (!sheet) return [];
+    const map: SemanticField[] =
+      columnMapping.length >= sheet.allHeaders.length
+        ? columnMapping.slice(0, sheet.allHeaders.length)
+        : [
+            ...columnMapping,
+            ...Array(sheet.allHeaders.length - columnMapping.length).fill("ignore" as SemanticField),
+          ];
+    return importPreviewColumnsForMapping(map);
+  }, [sheet, columnMapping]);
+
+  const importPreviewRows = builtRows.rows.slice(0, 8);
+
   const canRun =
     sheet &&
     sheet.rows.length > 0 &&
@@ -614,10 +687,10 @@ export default function AdminDeliveryImportPage() {
         Up to <strong>{MAX_IMPORT_COLUMNS}</strong> columns (through the widest row) are loaded and can be mapped. Row 1
         is <strong>Your header</strong> for reference. If a column is named <strong>YEAR</strong>, it is used for the
         year field automatically when you load the file. Month + Year combine to the first day of that month. Choose a{" "}
-        <strong>default company</strong> when no column maps to company name. Matching uses{" "}
-        <strong>account number</strong> plus <strong>vendor company name</strong> and fuel type (oil vs propane), not
-        customer name. Unmatched rows are listed with hints so you can add missing IDs, align company spelling with the
-        sheet, or create a member. Validate first, then apply.
+        <strong>default company</strong> only when creating new members from unmatched rows (not used for matching).
+        Matching uses <strong>account / oil ID</strong> only (oil ID for OIL rows, propane ID for PROPANE rows), not
+        company name or customer name. Unmatched rows are listed with hints so you can add missing IDs on the member or
+        create a member. Validate first, then apply.
       </p>
 
       <div className="admin-card">
@@ -645,7 +718,9 @@ export default function AdminDeliveryImportPage() {
             <p style={{ color: "var(--admin-muted)", fontSize: "0.8rem", marginTop: 0 }}>
               <strong>Your header (row 1)</strong> lists every column in the loaded width (widest row). Map each column
               with <strong>Import as</strong> (defaults match the classic six-column export; extras default to Ignore).
-              Month + Year combine as the first of the month. Default fuel applies when no column maps to fuel type.
+              Map <strong>Name first</strong> and <strong>Name last</strong> on separate columns to build the customer name
+              for unmatched-row hints and new-member prompts. Month + Year combine as the first of the month. Default fuel
+              applies when no column maps to fuel type.
               Choosing a target already used elsewhere swaps assignments (except <strong>Ignore</strong>).
             </p>
             {sheet.fullColumnCount > MAX_IMPORT_COLUMNS && (
@@ -748,7 +823,7 @@ export default function AdminDeliveryImportPage() {
                   }
                   style={{ width: "100%" }}
                 >
-                  <option value="">— choose company (required if no “Company name” column) —</option>
+                  <option value="">— optional: company for new members only —</option>
                   {oilCompanies.map((c) => (
                     <option key={c._id} value={c._id}>
                       {c.name}
@@ -769,9 +844,7 @@ export default function AdminDeliveryImportPage() {
                   defaults.companySelection !== CUSTOM_COMPANY &&
                   resolvedDefaultCompanyName && (
                     <p style={{ color: "var(--admin-muted)", fontSize: "0.72rem", margin: "0.25rem 0 0" }}>
-                      Will match member rows where{" "}
-                      <code>legacyProfile.oilCompanyName</code> or the linked Oil Company is{" "}
-                      <strong>{resolvedDefaultCompanyName}</strong>.
+                      Used when creating new members from unmatched groups — not for row matching.
                     </p>
                   )}
               </div>
@@ -805,43 +878,27 @@ export default function AdminDeliveryImportPage() {
           </div>
 
           <div className="admin-card">
-            <h2>3. Preview ({Math.min(previewWideRows.length, 8)} of {sheet.rows.length})</h2>
+            <h2>3. Import preview ({importPreviewRows.length} of {sheet.rows.length} rows)</h2>
             <p style={{ color: "var(--admin-muted)", fontSize: "0.75rem", margin: "-0.25rem 0 0.5rem" }}>
-              Columns mapped to <strong>Ignore</strong> are grayed out and will not be imported.
+              Each row below is the exact record sent when you <strong>Validate</strong> or <strong>Apply</strong> (after
+              column mapping and file defaults). Name first + Name last are merged into <strong>Name</strong>; Month +
+              Year become <strong>Date delivered</strong>.
             </p>
             <div className="admin-table-wrap">
               <table className="admin-table">
                 <thead>
                   <tr>
-                    {sheet.allHeaders.map((h, i) => {
-                      const isIgnored = builtRows.ignoredColumnIndices.includes(i);
-                      return (
-                        <th
-                          key={i}
-                          title={`Column ${columnIndexToLetter(i)}${isIgnored ? " — ignored" : ""}`}
-                          style={isIgnored ? { color: "var(--admin-muted)", background: "rgba(0,0,0,0.03)" } : undefined}
-                        >
-                          {h || (i < 6 ? SIX_COLUMN_TYPICAL_HEADERS[i] : columnIndexToLetter(i))}
-                          {isIgnored && <span style={{ fontWeight: 400, fontSize: "0.7rem", marginLeft: "0.25rem" }}>(ignored)</span>}
-                        </th>
-                      );
-                    })}
+                    {importPreviewColumns.map((col) => (
+                      <th key={col.key}>{col.label}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {previewWideRows.map((cells, ri) => (
-                    <tr key={ri}>
-                      {cells.map((cell, ci) => {
-                        const isIgnored = builtRows.ignoredColumnIndices.includes(ci);
-                        return (
-                          <td
-                            key={ci}
-                            style={isIgnored ? { color: "var(--admin-muted)", background: "rgba(0,0,0,0.03)" } : undefined}
-                          >
-                            {String(cell ?? "")}
-                          </td>
-                        );
-                      })}
+                  {importPreviewRows.map((row) => (
+                    <tr key={row.rowNumber}>
+                      {importPreviewColumns.map((col) => (
+                        <td key={col.key}>{formatImportPreviewCell(row, col.key)}</td>
+                      ))}
                     </tr>
                   ))}
                 </tbody>
@@ -854,7 +911,7 @@ export default function AdminDeliveryImportPage() {
             <p style={{ color: "var(--admin-muted)", fontSize: "0.8rem", marginTop: 0 }}>
               Validate runs the matcher without saving. Apply appends deliveries to members that matched; it skips
               duplicates already on file. Rows that need attention: <strong>first delivery</strong> (matched member but
-              no history yet — confirm), <strong>unmatched</strong> (no account + company + fuel hit — review hints,
+              no history yet — confirm), <strong>unmatched</strong> (no member with that account / oil ID — review hints,
               update IDs, or create a member), and <strong>ambiguous</strong> (more than one member matches — nothing is
               imported until data is fixed).
             </p>
@@ -908,7 +965,7 @@ function formatImportErrorReason(reason: string, detail?: Record<string, unknown
     const ids = Array.isArray(detail?.candidateMemberIds)
       ? (detail.candidateMemberIds as string[]).join(", ")
       : "";
-    return `Multiple members match this row; it was not imported. Resolve duplicate IDs or company strings on members. Candidates: ${ids || "(none)"}`;
+    return `Multiple members share this account / oil ID; it was not imported. Resolve duplicate IDs on members. Candidates: ${ids || "(none)"}`;
   }
   if (reason === "duplicate_skipped") return "Same date, fuel, and gallons already on file — skipped.";
   return reason;
@@ -926,7 +983,7 @@ function UnmatchedRowsDetailTable({
     <>
       <h3 style={{ margin: "0.5rem 0", fontSize: "0.9rem" }}>{title}</h3>
       <p style={{ color: "var(--admin-muted)", fontSize: "0.78rem", margin: "0 0 0.5rem" }}>
-        Use hints to update the member&apos;s oil or propane account and company fields, then re-import or enter the
+        Use hints to update the member&apos;s oil or propane account ID, then re-import or enter the
         delivery manually. Name and address come from the file only when mapped.
       </p>
       <div className="admin-table-wrap" style={{ marginBottom: "0.75rem", maxHeight: "420px", overflowY: "auto" }}>
@@ -1013,7 +1070,7 @@ function ImportReportCard({
         <p style={{ color: "#b45309", fontSize: "0.82rem", margin: "0 0 0.75rem", padding: "0.5rem 0.65rem", background: "rgba(180,83,9,0.08)", borderRadius: "6px" }}>
           <strong>Ambiguous:</strong> {report.ambiguous.length} row{report.ambiguous.length === 1 ? "" : "s"} match more
           than one member. They are <strong>never</strong> imported automatically — fix the underlying member records
-          (duplicate account IDs or conflicting company names), then run the import again.
+          (duplicate account / oil IDs on multiple members), then run the import again.
         </p>
       )}
 
@@ -1158,8 +1215,8 @@ function UnmatchedGroupConfirmTable({
         Unrecognized customers ({groups.length})
       </h3>
       <p style={{ color: "var(--admin-muted)", fontSize: "0.78rem", margin: "0 0 0.5rem" }}>
-        No member matches these <strong>fuel + company + account</strong> combinations. When a hint says the account
-        exists under another company or fuel slot, update the member instead of creating a duplicate. Otherwise you can{" "}
+        No member has these <strong>account / oil IDs</strong> on file. When a hint says the ID exists under the other
+        fuel slot, update the member instead of creating a duplicate. Otherwise you can{" "}
         <strong>Skip</strong> (default) or <strong>Create new member</strong> — the name is pre-filled from the file.
       </p>
       <div className="admin-table-wrap" style={{ marginBottom: "0.75rem", maxHeight: "360px", overflowY: "auto" }}>

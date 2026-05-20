@@ -1324,6 +1324,15 @@ button.admin-wb-panel-title.admin-wb-panel-toggle:hover {
   box-shadow: 0 0 0 3px var(--wb-accent-soft);
 }
 
+.admin-wb-panel .admin-input-static {
+  display: block;
+  cursor: default;
+  user-select: text;
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #334155;
+}
+
 /* 4-column form grid for compact panels */
 .admin-wb-panel .admin-form-grid-4 {
   display: grid;
@@ -2214,5 +2223,146 @@ button.admin-wb-panel-title.admin-wb-panel-toggle:hover {
   .admin-modal-body-grid {
     grid-template-columns: 1fr;
   }
+}
+
+/* Delivery find modal (stacked above delivery history) */
+.admin-delivery-find-overlay {
+  z-index: 290;
+}
+
+.admin-delivery-find-panel {
+  max-width: min(980px, 100%);
+  width: 100%;
+  max-height: min(92vh, 820px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0.85rem 1rem;
+}
+
+.admin-delivery-find-panel .admin-modal-panel-head {
+  flex-shrink: 0;
+}
+
+.admin-delivery-find-section-label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--admin-muted);
+  margin-bottom: 0.4rem;
+}
+
+.admin-delivery-find-presets {
+  flex-shrink: 0;
+  margin-bottom: 0.75rem;
+}
+
+.admin-delivery-find-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.45rem;
+}
+
+.admin-delivery-find-preset {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  text-align: left;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--admin-border);
+  border-radius: 8px;
+  background: var(--admin-surface);
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s, box-shadow 0.12s;
+}
+
+.admin-delivery-find-preset strong {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--admin-text, #1e293b);
+}
+
+.admin-delivery-find-preset span {
+  font-size: 0.68rem;
+  color: var(--admin-muted);
+  line-height: 1.35;
+  font-weight: 500;
+}
+
+.admin-delivery-find-preset:hover {
+  border-color: rgba(194, 65, 12, 0.35);
+  background: rgba(194, 65, 12, 0.04);
+}
+
+.admin-delivery-find-preset.is-active {
+  border-color: var(--admin-accent);
+  background: rgba(194, 65, 12, 0.08);
+  box-shadow: 0 0 0 1px rgba(194, 65, 12, 0.2);
+}
+
+.admin-delivery-find-filters {
+  flex-shrink: 0;
+  margin-bottom: 0.55rem;
+}
+
+.admin-delivery-find-grid {
+  margin-bottom: 0.45rem;
+}
+
+.admin-delivery-find-span-2 {
+  grid-column: span 2;
+}
+
+@media (max-width: 640px) {
+  .admin-delivery-find-span-2 {
+    grid-column: span 1;
+  }
+}
+
+.admin-delivery-find-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.admin-delivery-find-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.admin-delivery-find-meta {
+  font-size: 0.72rem;
+  color: var(--admin-muted);
+  margin-left: auto;
+}
+
+.admin-delivery-find-results {
+  flex: 1;
+  min-height: 120px;
+  max-height: 42vh;
+  overflow: auto;
+}
+
+.admin-delivery-find-results .admin-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #eef2f7;
+}
+
+.admin-delivery-find-hint {
+  font-size: 0.7rem;
+  color: var(--admin-muted);
+  max-width: 10rem;
+}
+
+.admin-delivery-find-empty {
+  padding: 1rem 0;
 }
 

@@ -1426,7 +1426,9 @@ export default function AdminWorkbenchPage() {
                 >
                   <label style={{ flex: "0 0 auto", width: "110px" }}>
                     ID
-                    <input className="admin-input" readOnly value={current.memberNumber || legacyValue("legacyId") || "—"} />
+                    <span className="admin-input admin-input-static" aria-readonly="true">
+                      {current.memberNumber || legacyValue("legacyId") || "—"}
+                    </span>
                   </label>
                   <label style={{ flex: "0 0 auto", width: "130px" }}>
                     New Member Dt

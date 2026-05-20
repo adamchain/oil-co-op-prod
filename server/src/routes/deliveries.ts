@@ -144,10 +144,11 @@ const importRowSchema = z.object({
   rowNumber: z.number().int().positive().optional(),
   fuelType: z.string().min(1),
   account: z.string().min(1),
-  companyName: z.string().min(1),
+  /** Optional — not used for matching; stored on new members when created from import. */
+  companyName: z.string().optional().default(""),
   dateDelivered: z.string().min(1),
   gallons: z.number().finite().nonnegative(),
-  /** Customer name from the import file — display-only; matching uses ID + company. */
+  /** Customer name from the import file — display-only; matching uses account / oil ID only. */
   name: z.string().optional(),
   /** Service address from the vendor sheet — display-only for resolving unmatched rows. */
   address: z.string().optional(),
@@ -170,7 +171,7 @@ const importPayloadSchema = z.object({
    * - firstDeliveryMemberIds: members who currently have 0 delivery rows; only
    *   members listed here will have their rows applied (others are skipped so
    *   the admin can re-verify the match).
-   * - createMembers: keyed by "FUEL|companyKey|accountKey" (the group key
+   * - createMembers: keyed by "FUEL|accountKey" (the group key
    *   surfaced in the dry-run report's `unmatched` array). Each entry creates a
    *   new member with the given name and links the import account/company,
    *   then appends the delivery rows in that group.
@@ -197,40 +198,21 @@ type UnmatchHint = {
   memberIds?: string[];
 };
 
-function memberOilCompanyKeys(
-  lp: Record<string, unknown>,
-  oilCompanyId: unknown,
-  oilCompanyById: Map<string, string>
-): string[] {
-  const keys: string[] = [];
-  if (lp.oilCompanyName) keys.push(normCompany(String(lp.oilCompanyName)));
-  if (oilCompanyId) {
-    const linked = oilCompanyById.get(String(oilCompanyId));
-    if (linked) keys.push(linked);
-  }
-  return [...new Set(keys.filter(Boolean))];
-}
-
 /**
- * When account + file company do not hit the index, infer whether the account exists
- * under another fuel slot, another company string, or multiple members.
+ * When account does not hit the index, infer whether it exists under the other fuel slot.
  */
 function computeUnmatchedHint(
   fuel: "OIL" | "PROPANE",
   acctKeys: string[],
-  fileCompanyKey: string,
   members: Array<{
     _id: unknown;
     firstName?: string;
     lastName?: string;
-    oilCompanyId?: unknown;
     legacyProfile?: Record<string, unknown>;
-  }>,
-  oilCompanyById: Map<string, string>
+  }>
 ): UnmatchHint | undefined {
-  type Hit = { memberId: string; name: string; memberCompanies: string[] };
+  type Hit = { memberId: string; name: string };
   const wrongFuel: Hit[] = [];
-  const companyMismatch: Hit[] = [];
 
   for (const m of members) {
     const lp = (m.legacyProfile || {}) as Record<string, unknown>;
@@ -238,30 +220,14 @@ function computeUnmatchedHint(
     const name = `${m.firstName || ""} ${m.lastName || ""}`.trim() || memberId;
     const oilKeys = accountKeys(String(lp.oilId || ""));
     const propKeys = accountKeys(String(lp.propaneId || ""));
-    const oilCoKeys = memberOilCompanyKeys(lp, m.oilCompanyId, oilCompanyById);
-    const propCoKey = normCompany(String(lp.propaneCompanyName || ""));
 
     const acctHitOil = acctKeys.some((k) => oilKeys.includes(k));
     const acctHitProp = acctKeys.some((k) => propKeys.includes(k));
 
     if (fuel === "OIL") {
-      if (acctHitProp && !acctHitOil) {
-        wrongFuel.push({ memberId, name, memberCompanies: propCoKey ? [propCoKey] : [] });
-        continue;
-      }
-      if (!acctHitOil) continue;
-      const companyOk = oilCoKeys.some((c) => c === fileCompanyKey);
-      if (companyOk) continue;
-      companyMismatch.push({ memberId, name, memberCompanies: oilCoKeys });
-    } else {
-      if (acctHitOil && !acctHitProp) {
-        wrongFuel.push({ memberId, name, memberCompanies: oilCoKeys });
-        continue;
-      }
-      if (!acctHitProp) continue;
-      const companyOk = propCoKey && propCoKey === fileCompanyKey;
-      if (companyOk) continue;
-      companyMismatch.push({ memberId, name, memberCompanies: propCoKey ? [propCoKey] : [] });
+      if (acctHitProp && !acctHitOil) wrongFuel.push({ memberId, name });
+    } else if (acctHitOil && !acctHitProp) {
+      wrongFuel.push({ memberId, name });
     }
   }
 
@@ -284,28 +250,11 @@ function computeUnmatchedHint(
     };
   }
 
-  if (companyMismatch.length === 1) {
-    const h = companyMismatch[0];
-    const onFile = h.memberCompanies.length ? h.memberCompanies.join(" / ") : "(none on file)";
-    return {
-      code: "company_mismatch",
-      message: `Account matches ${h.name}, but the file company does not match their ${fuel === "OIL" ? "oil" : "propane"} company on file (${onFile}). Align spelling with the vendor sheet or update the member.`,
-      memberIds: [h.memberId],
-    };
-  }
-  if (companyMismatch.length > 1) {
-    return {
-      code: "company_mismatch_multi",
-      message: `${companyMismatch.length} members share this account with different company strings; resolve duplicates in member data.`,
-      memberIds: companyMismatch.map((h) => h.memberId),
-    };
-  }
-
   return undefined;
 }
 
-function unmatchedGroupKey(fuel: "OIL" | "PROPANE", companyKey: string, accountKey: string): string {
-  return `${fuel}|${companyKey}|${accountKey}`;
+function unmatchedGroupKey(fuel: "OIL" | "PROPANE", accountKey: string): string {
+  return `${fuel}|${accountKey}`;
 }
 
 function splitName(raw: string): { firstName: string; lastName: string } {
@@ -324,19 +273,18 @@ function splitName(raw: string): { firstName: string; lastName: string } {
  *   confirmations?: { firstDeliveryMemberIds: string[], createMembers: { [groupKey]: { firstName, lastName } } }
  * }
  *
- * Each row is matched to a member by:
- *   1. fuelType (OIL or PROPANE)
- *   2. account (oilId for OIL, propaneId for PROPANE)
- *   3. companyName (matched against legacyProfile.<oil|propane>CompanyName,
- *      and for OIL also the linked OilCompany.name)
+ * Each row is matched to a member by account ID only:
+ *   - OIL rows → legacyProfile.oilId
+ *   - PROPANE rows → legacyProfile.propaneId
+ * Company name on the row is not used for matching (optional metadata / new-member setup).
  *
  * Optional `address` from the client is stored only in the import report for staff review.
  *
  * Matched rows whose target member has 0 prior delivery rows are surfaced
  * separately as "first-delivery" — admins must confirm those before apply.
  * Unmatched rows can be turned into new members per group via `createMembers`.
- * Unmatched responses include `hint` when the account exists under another
- * company or fuel slot. Ambiguous rows are never auto-imported on apply; they
+ * Unmatched responses include `hint` when the account exists under the other fuel slot.
+ * Ambiguous rows are never auto-imported on apply; they
  * are appended to `errors` as `ambiguous_not_imported`.
  *
  * Returns a per-row report. When dryRun is true, no member is mutated.
@@ -351,7 +299,7 @@ router.post("/import", async (req: AuthedRequest, res) => {
   const confirmedFirstDelivery = new Set(confirmations.firstDeliveryMemberIds);
   const importBatchId = `imp_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
 
-  // Build lookup index: fuel|companyKey|accountKey -> [memberId]
+  // Build lookup index: fuel|accountKey -> [memberId]
   const oilCompanies = await OilCompany.find().lean();
   const oilCompanyById = new Map<string, string>();
   const oilCompanyIdByName = new Map<string, string>();
@@ -392,21 +340,12 @@ router.post("/import", async (req: AuthedRequest, res) => {
     const oilIdKeys = accountKeys(String(lp.oilId || ""));
     const propIdKeys = accountKeys(String(lp.propaneId || ""));
 
-    const oilCompanyNames = new Set<string>();
-    if (lp.oilCompanyName) oilCompanyNames.add(normCompany(String(lp.oilCompanyName)));
-    if (m.oilCompanyId) {
-      const linked = oilCompanyById.get(String(m.oilCompanyId));
-      if (linked) oilCompanyNames.add(linked);
-    }
     for (const oilKey of oilIdKeys) {
-      for (const co of oilCompanyNames) {
-        if (co) addToIndex(`OIL|${co}|${oilKey}`, value);
-      }
+      addToIndex(`OIL|${oilKey}`, value);
     }
 
-    const propCompany = normCompany(String(lp.propaneCompanyName || ""));
-    if (propCompany) {
-      for (const propKey of propIdKeys) addToIndex(`PROPANE|${propCompany}|${propKey}`, value);
+    for (const propKey of propIdKeys) {
+      addToIndex(`PROPANE|${propKey}`, value);
     }
   }
 
@@ -452,19 +391,14 @@ router.post("/import", async (req: AuthedRequest, res) => {
       return;
     }
     const acctKeys = accountKeys(r.account);
-    const companyKey = normCompany(r.companyName);
     if (acctKeys.length === 0) {
       errors.push({ rowNumber, reason: "missing_account" });
-      return;
-    }
-    if (!companyKey) {
-      errors.push({ rowNumber, reason: "missing_company" });
       return;
     }
     const seen = new Set<string>();
     const candidates: IndexValue[] = [];
     for (const k of acctKeys) {
-      const list = index.get(`${fuel}|${companyKey}|${k}`);
+      const list = index.get(`${fuel}|${k}`);
       if (!list) continue;
       for (const v of list) {
         if (seen.has(v.memberId)) continue;
@@ -474,10 +408,10 @@ router.post("/import", async (req: AuthedRequest, res) => {
     }
     if (candidates.length === 0) {
       const primaryAcctKey = acctKeys[0] || "";
-      const hint = computeUnmatchedHint(fuel, acctKeys, companyKey, members, oilCompanyById);
+      const hint = computeUnmatchedHint(fuel, acctKeys, members);
       unmatchedRows.push({
         rowNumber,
-        groupKey: unmatchedGroupKey(fuel, companyKey, primaryAcctKey),
+        groupKey: unmatchedGroupKey(fuel, primaryAcctKey),
         companyName: r.companyName,
         account: r.account,
         fuelType: fuel,

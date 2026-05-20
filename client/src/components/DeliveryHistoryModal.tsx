@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import DeliveryFindModal, { type DeliveryFindMember } from "./DeliveryFindModal";
 
 const OIL_STATUS = ["ACTIVE", "PROSPECTIVE", "NO OIL", "INACTIVE", "RESIDENT", "UNKNOWN"] as const;
 const PROP_STATUS = ["ACTIVE", "NO PROPANE", "RESIDENT", "INACTIVE", "PROSPECTIVE", "UNKNOWN"] as const;
@@ -46,14 +47,7 @@ export type DeliveryHistoryModalProps = {
   onClose: () => void;
   member?: DeliveryMemberSnapshot;
   deliveries?: DeliveryHistoryRow[];
-  searchableMembers?: Array<{
-    _id: string;
-    memberNumber?: string;
-    firstName?: string;
-    lastName?: string;
-    legacyProfile?: Record<string, unknown>;
-    oilCompanyId?: { name?: string } | null;
-  }>;
+  searchableMembers?: DeliveryFindMember[];
   onMemberPatch?: (patch: DeliveryMemberPatch) => void;
   isDirty?: boolean;
   isSaving?: boolean;
@@ -88,34 +82,8 @@ export default function DeliveryHistoryModal({
   onDeleteDelivery,
 }: DeliveryHistoryModalProps) {
   const titleId = useId();
-  const [findYear, setFindYear] = useState(() => String(new Date().getFullYear()));
-  const [findMonth, setFindMonth] = useState("");
-  const [findFuel, setFindFuel] = useState<"" | "OIL" | "PROPANE" | "NRD_OIL" | "NRD_PROP">("");
-  const [findCompany, setFindCompany] = useState<string>("");
-  const [findDelinquent, setFindDelinquent] = useState(false);
-  const [findNotPaidCurrentYr, setFindNotPaidCurrentYr] = useState(false);
-  const [findTriggered, setFindTriggered] = useState(false);
+  const [findOpen, setFindOpen] = useState(false);
   const [selectedFindMemberId, setSelectedFindMemberId] = useState<string | null>(null);
-
-  // Unique, sorted list of company names found across the searchable members
-  // (both oil and propane). Used to populate the Find > Company dropdown so
-  // staff can filter delivery searches to a single supplier.
-  const findCompanyOptions = useMemo(() => {
-    const set = new Set<string>();
-    for (const m of searchableMembers) {
-      const lp = (m.legacyProfile || {}) as Record<string, unknown>;
-      const oc = String(lp.oilCompanyName || "").trim();
-      const pc = String(lp.propaneCompanyName || "").trim();
-      if (oc) set.add(oc);
-      if (pc) set.add(pc);
-      const linked =
-        m.oilCompanyId && typeof m.oilCompanyId === "object" && "name" in (m.oilCompanyId as { name?: string })
-          ? String((m.oilCompanyId as { name?: string }).name || "").trim()
-          : "";
-      if (linked) set.add(linked);
-    }
-    return [...set].sort((a, b) => a.localeCompare(b));
-  }, [searchableMembers]);
 
   // Local override of deliveries used after CRUD ops. Falls back to props.
   const [rowsOverride, setRowsOverride] = useState<DeliveryHistoryRow[] | null>(null);
@@ -228,10 +196,7 @@ export default function DeliveryHistoryModal({
   useEffect(() => {
     if (!open) {
       setSelectedFindMemberId(null);
-      setFindTriggered(false);
-      setFindCompany("");
-      setFindDelinquent(false);
-      setFindNotPaidCurrentYr(false);
+      setFindOpen(false);
       setEditingRowId(null);
       setAdding(false);
       setRowsOverride(null);
@@ -359,83 +324,17 @@ export default function DeliveryHistoryModal({
       setRowBusy(false);
     }
   };
-  const findResults = useMemo(() => {
-    if (!findTriggered) return [];
-    const yearNum = Number(findYear);
-    const monthNum = Number(findMonth);
-    const hasYear = Number.isFinite(yearNum) && yearNum > 0;
-    const hasMonth = Number.isFinite(monthNum) && monthNum >= 1 && monthNum <= 12;
-    const companyKey = findCompany.trim().toLowerCase();
-    const hasAnyFilter =
-      hasYear ||
-      hasMonth ||
-      findFuel !== "" ||
-      Boolean(companyKey) ||
-      findDelinquent ||
-      findNotPaidCurrentYr;
-    if (!hasAnyFilter) return [];
-
-    return searchableMembers
-      .map((m) => {
-        const lp = (m.legacyProfile || {}) as Record<string, unknown>;
-        if (findDelinquent && !Boolean(lp.delinquent)) return null;
-        if (findNotPaidCurrentYr && !Boolean(lp.notPaidCurrentYr)) return null;
-        if (companyKey) {
-          const oc = String(lp.oilCompanyName || "").trim().toLowerCase();
-          const pc = String(lp.propaneCompanyName || "").trim().toLowerCase();
-          const linked =
-            m.oilCompanyId && typeof m.oilCompanyId === "object" && "name" in (m.oilCompanyId as { name?: string })
-              ? String((m.oilCompanyId as { name?: string }).name || "").trim().toLowerCase()
-              : "";
-          if (oc !== companyKey && pc !== companyKey && linked !== companyKey) return null;
-        }
-        if (findFuel === "NRD_OIL" && !Boolean(lp.nrdOil)) return null;
-        if (findFuel === "NRD_PROP" && !Boolean(lp.nrdProp)) return null;
-
-        const rows = parseRowsFromLegacy(lp.deliveryHistoryRows);
-        const matches = rows.filter((row) => {
-          const d = new Date(row.dateDelivered);
-          if (hasYear && d.getFullYear() !== yearNum) return false;
-          if (hasMonth && d.getMonth() + 1 !== monthNum) return false;
-          if (findFuel === "OIL" && row.fuelType !== "OIL") return false;
-          if (findFuel === "PROPANE" && row.fuelType !== "PROPANE") return false;
-          if (findFuel === "NRD_OIL" && row.fuelType !== "OIL") return false;
-          if (findFuel === "NRD_PROP" && row.fuelType !== "PROPANE") return false;
-          return true;
-        });
-        if (matches.length === 0) return null;
-        return {
-          id: m._id,
-          memberNumber: m.memberNumber || "",
-          name: `${m.firstName || ""} ${m.lastName || ""}`.trim() || "Unknown",
-          deliveries: matches.length,
-          gallons: matches.reduce((sum, row) => sum + row.gallons, 0),
-        };
-      })
-      .filter((v): v is { id: string; memberNumber: string; name: string; deliveries: number; gallons: number } => Boolean(v))
-      .sort((a, b) => b.deliveries - a.deliveries || a.name.localeCompare(b.name));
-  }, [
-    findTriggered,
-    findMonth,
-    findYear,
-    findFuel,
-    findCompany,
-    findDelinquent,
-    findNotPaidCurrentYr,
-    searchableMembers,
-  ]);
-
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
+      if (e.key === "Escape" && !findOpen) {
         e.preventDefault();
         onClose();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [open, onClose, findOpen]);
 
   if (!open) return null;
 
@@ -491,7 +390,7 @@ export default function DeliveryHistoryModal({
             <button
               type="button"
               className="admin-btn"
-              onClick={() => setFindTriggered(true)}
+              onClick={() => setFindOpen(true)}
               disabled={searchableMembers.length === 0}
             >
               Find
@@ -784,160 +683,11 @@ export default function DeliveryHistoryModal({
                 </tbody>
               </table>
             </div>
-            <div className="admin-modal-find-stack">
-              <div className="admin-modal-find-row">
-                <div className="admin-modal-field">
-                  <span>Year</span>
-                  <input
-                    className="admin-input"
-                    value={findYear}
-                    onChange={(e) => setFindYear(e.target.value.replace(/[^\d]/g, "").slice(0, 4))}
-                    placeholder="YYYY"
-                    inputMode="numeric"
-                  />
-                </div>
-                <div className="admin-modal-field">
-                  <span>Month</span>
-                  <select className="admin-input" value={findMonth} onChange={(e) => setFindMonth(e.target.value)}>
-                    <option value="">Any</option>
-                    <option value="01">January</option>
-                    <option value="02">February</option>
-                    <option value="03">March</option>
-                    <option value="04">April</option>
-                    <option value="05">May</option>
-                    <option value="06">June</option>
-                    <option value="07">July</option>
-                    <option value="08">August</option>
-                    <option value="09">September</option>
-                    <option value="10">October</option>
-                    <option value="11">November</option>
-                    <option value="12">December</option>
-                  </select>
-                </div>
-                <div className="admin-modal-field">
-                  <span>Fuel / NRD</span>
-                  <select
-                    className="admin-input"
-                    value={findFuel}
-                    onChange={(e) =>
-                      setFindFuel(e.target.value as "" | "OIL" | "PROPANE" | "NRD_OIL" | "NRD_PROP")
-                    }
-                  >
-                    <option value="">Any</option>
-                    <option value="OIL">Oil</option>
-                    <option value="PROPANE">Propane</option>
-                    <option value="NRD_OIL">NRD-Oil</option>
-                    <option value="NRD_PROP">NRD-Prop</option>
-                  </select>
-                </div>
-                <div className="admin-modal-field admin-modal-field-company">
-                  <span>Company</span>
-                  <select
-                    className="admin-input"
-                    value={findCompany}
-                    onChange={(e) => setFindCompany(e.target.value)}
-                    disabled={findCompanyOptions.length === 0}
-                    title={
-                      findCompanyOptions.length === 0
-                        ? "No companies found on loaded members"
-                        : "Oil or propane company (one list)"
-                    }
-                  >
-                    <option value="">Any</option>
-                    {findCompanyOptions.map((name) => (
-                      <option key={name} value={name}>
-                        {name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <button
-                  type="button"
-                  className="admin-btn admin-btn-primary admin-modal-find-btn"
-                  onClick={() => setFindTriggered(true)}
-                  disabled={searchableMembers.length === 0}
-                >
-                  Find
-                </button>
-                {findTriggered && (
-                  <button
-                    type="button"
-                    className="admin-btn admin-modal-find-btn"
-                    onClick={() => {
-                      setFindTriggered(false);
-                      setFindFuel("");
-                      setFindCompany("");
-                      setFindMonth("");
-                      setFindDelinquent(false);
-                      setFindNotPaidCurrentYr(false);
-                    }}
-                  >
-                    Reset
-                  </button>
-                )}
-              </div>
-              <div className="admin-modal-find-checks">
-                <label className="admin-modal-find-check">
-                  <input
-                    type="checkbox"
-                    checked={findNotPaidCurrentYr}
-                    onChange={(e) => setFindNotPaidCurrentYr(e.target.checked)}
-                  />
-                  Not paid current year
-                </label>
-                <label className="admin-modal-find-check">
-                  <input type="checkbox" checked={findDelinquent} onChange={(e) => setFindDelinquent(e.target.checked)} />
-                  Delinquent
-                </label>
-              </div>
-            </div>
-            {findTriggered && (
-              <div className="admin-table-wrap admin-modal-find-results">
-                <table className="admin-table">
-                  <thead>
-                    <tr>
-                      <th>Member #</th>
-                      <th>Name</th>
-                      <th>Deliveries</th>
-                      <th>Total gallons</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {findResults.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} className="admin-modal-table-empty">
-                          No customers matched these find criteria.
-                        </td>
-                      </tr>
-                    ) : (
-                      findResults.map((row) => {
-                        const isActive = row.id === selectedFindMemberId;
-                        return (
-                          <tr
-                            key={row.id}
-                            className={`admin-modal-find-result-row${isActive ? " is-active" : ""}`}
-                            onClick={() => setSelectedFindMemberId(row.id)}
-                            tabIndex={0}
-                            role="button"
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" || e.key === " ") {
-                                e.preventDefault();
-                                setSelectedFindMemberId(row.id);
-                              }
-                            }}
-                            title="Open this customer in the modal"
-                          >
-                            <td>{row.memberNumber || "—"}</td>
-                            <td>{row.name}</td>
-                            <td>{row.deliveries}</td>
-                            <td>{row.gallons.toFixed(1)}</td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
+            {searchableMembers.length > 0 && (
+              <p className="admin-modal-hint">
+                Use <strong>Find</strong> in the header for cross-member search (presets: March + no recent, inactive
+                with deliveries, new members 7 days).
+              </p>
             )}
             {searchableMembers.length === 0 && (
               <p className="admin-modal-hint">Customer-wide find is available from the Workbench delivery modal.</p>
@@ -948,7 +698,18 @@ export default function DeliveryHistoryModal({
     </div>
   );
 
-  return createPortal(node, document.body);
+  return (
+    <>
+      {createPortal(node, document.body)}
+      <DeliveryFindModal
+        open={findOpen}
+        onClose={() => setFindOpen(false)}
+        members={searchableMembers}
+        selectedMemberId={selectedFindMemberId}
+        onSelectMember={setSelectedFindMemberId}
+      />
+    </>
+  );
 }
 
 type DeliveryEditorRowProps = {
