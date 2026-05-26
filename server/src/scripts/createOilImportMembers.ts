@@ -53,7 +53,7 @@ function parseMembersFromXlsx(filePath: string): RowToCreate[] {
     seen.add(key);
     const lastName = (lastCol >= 0 ? String(row[lastCol] ?? "") : "").trim().toUpperCase();
     const firstName = (firstCol >= 0 ? String(row[firstCol] ?? "") : "").trim().toUpperCase();
-    out.push({ oilId, lastName, firstName: firstName || "—", lastName: lastName || "—" });
+    out.push({ oilId, firstName: firstName || "—", lastName: lastName || "—" });
   }
   return out;
 }
