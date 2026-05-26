@@ -139,7 +139,7 @@ export const STATIC_FILTER_FIELDS: FilterFieldDef[] = [
   { key: "legacyProfile.oilId", label: "Oil ID", type: "text", group: "Oil" },
   { key: "legacyProfile.oilStartDate", label: "Oil Start Date", type: "date", group: "Oil" },
   {
-    key: "legacyProfile.oilStatus",
+    key: "legacyProfile.oilWorkbenchStatus",
     label: "Oil Status",
     type: "enum",
     group: "Oil",
