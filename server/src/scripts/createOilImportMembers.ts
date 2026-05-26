@@ -2,14 +2,16 @@
  * Create members in MongoDB with oil account IDs for delivery import matching.
  *
  * Usage:
- *   cd server && npx tsx src/scripts/createOilImportMembers.ts [--dry-run] [--company "Vendor Name"]
+ *   cd server && npx tsx src/scripts/createOilImportMembers.ts [--dry-run] [--company "Ives Brothers"] [--file path/to.xlsx] [--allow-local]
  *
- * Uses MONGODB_URI (or MONGO_URL) from server/.env — point at production before running.
+ * Uses MONGODB_URI from server/.env, or Railway env when run via `railway run`.
  * Idempotent: skips when legacyProfile.oilId already matches an existing member.
  */
 import crypto from "node:crypto";
+import fs from "node:fs";
 import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
+import * as XLSX from "xlsx";
 import { connectDb } from "../db.js";
 import { config, hasMongoEnv } from "../config.js";
 import { Member } from "../models/Member.js";
@@ -17,36 +19,43 @@ import { OilCompany } from "../models/OilCompany.js";
 import { accountKeys } from "../utils/deliveryRows.js";
 import { nextJuneFirstAfterSignup } from "../utils/juneBilling.js";
 
-/** oilId, lastName, firstName (as on vendor delivery sheet) */
-const MEMBERS_TO_CREATE: { oilId: string; lastName: string; firstName: string }[] = [
-  { oilId: "15043-1", lastName: "ANDERSON", firstName: "BETHANY" },
-  { oilId: "11340-1", lastName: "ANDERSON", firstName: "BRIAN" },
-  { oilId: "13018-1", lastName: "BACHMAN", firstName: "DWIGHT" },
-  { oilId: "12645-1", lastName: "BAILEY SR.", firstName: "RICHARD" },
-  { oilId: "13841-1", lastName: "BAZZANI & CHARLES APMANN", firstName: "JANICE" },
-  { oilId: "13145-1", lastName: "BEKMAN", firstName: "SUSANNA" },
-  { oilId: "8085-1", lastName: "BERGSTROM", firstName: "DOUGLAS" },
-  { oilId: "13587-1", lastName: "BERTHIAUME", firstName: "BONNIE" },
-  { oilId: "4040-1", lastName: "BOISVERT", firstName: "TAMARA" },
-  { oilId: "9923-1", lastName: "BOUCHARD", firstName: "LOIS" },
-  { oilId: "14414-1", lastName: "CALISE", firstName: "SUZANNE" },
-  { oilId: "14853-1", lastName: "CARLSON", firstName: "BEVERLY" },
-  { oilId: "13159-1", lastName: "CATALDO", firstName: "LISA" },
-  { oilId: "12256-1", lastName: "CELLINI", firstName: "JOHN" },
-  { oilId: "13028-1", lastName: "CHANG", firstName: "ROBERT" },
-  { oilId: "14096-1", lastName: "CHERNYAK", firstName: "MARK" },
-  { oilId: "9795-1", lastName: "CLARK", firstName: "JOHN & KARIN" },
-  { oilId: "14072-1", lastName: "DAUPHINAIS", firstName: "MARK" },
-  { oilId: "14322-1", lastName: "DEMMA", firstName: "LORI" },
-  { oilId: "12092-1", lastName: "DUISENBERG", firstName: "MARC" },
-  { oilId: "12313-1", lastName: "EMILIO", firstName: "ANTHONY" },
-];
+type RowToCreate = { oilId: string; lastName: string; firstName: string };
 
 function normCompany(name: string): string {
   return String(name || "")
     .trim()
     .toLowerCase()
     .replace(/\s+/g, " ");
+}
+
+function parseMembersFromXlsx(filePath: string): RowToCreate[] {
+  const buf = fs.readFileSync(filePath);
+  const wb = XLSX.read(buf, { type: "buffer", cellDates: true });
+  const wsName = wb.SheetNames[0];
+  if (!wsName) throw new Error("no sheets in workbook");
+  const grid = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[wsName], { header: 1, defval: "" });
+  if (!grid.length) return [];
+  const header = (grid[0] || []).map((c) => String(c ?? "").trim().toLowerCase());
+  const col = (name: string) => header.findIndex((h) => h === name.toLowerCase());
+  const accountCol = col("account");
+  const lastCol = col("name last");
+  const firstCol = col("name first");
+  if (accountCol < 0) throw new Error('Expected "Account" column in row 1');
+
+  const out: RowToCreate[] = [];
+  const seen = new Set<string>();
+  for (let r = 1; r < grid.length; r++) {
+    const row = grid[r] || [];
+    const oilId = String(row[accountCol] ?? "").trim();
+    if (!oilId) continue;
+    const key = oilId.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const lastName = (lastCol >= 0 ? String(row[lastCol] ?? "") : "").trim().toUpperCase();
+    const firstName = (firstCol >= 0 ? String(row[firstCol] ?? "") : "").trim().toUpperCase();
+    out.push({ oilId, lastName, firstName: firstName || "—", lastName: lastName || "—" });
+  }
+  return out;
 }
 
 async function nextMemberNumber(): Promise<string> {
@@ -80,18 +89,34 @@ async function findMemberByOilId(oilId: string) {
 
 async function main() {
   const dryRun = process.argv.includes("--dry-run");
+  const allowLocal = process.argv.includes("--allow-local");
   const companyArgIdx = process.argv.indexOf("--company");
+  const fileArgIdx = process.argv.indexOf("--file");
   const companyName =
     (companyArgIdx >= 0 ? process.argv[companyArgIdx + 1] : "") ||
     process.env.OIL_COMPANY_NAME?.trim() ||
-    "";
+    "Ives Brothers";
+  const filePath = fileArgIdx >= 0 ? process.argv[fileArgIdx + 1] : "";
 
   const hostHint = config.mongoUri.includes("127.0.0.1") || config.mongoUri.includes("localhost")
     ? "LOCAL"
     : "REMOTE";
   console.log(`Mongo target: ${hostHint}${hasMongoEnv() ? "" : " (default local — set MONGODB_URI)"}`);
-  if (!dryRun && hostHint === "LOCAL") {
-    console.error("Refusing to write: MONGODB_URI looks local. Set production URI in server/.env or use --dry-run.");
+  if (!dryRun && hostHint === "LOCAL" && !allowLocal) {
+    console.error("Refusing to write: MONGODB_URI looks local. Use --allow-local for dev DB, or railway run for prod.");
+    process.exit(1);
+  }
+
+  let membersToCreate: RowToCreate[];
+  if (filePath) {
+    if (!fs.existsSync(filePath)) {
+      console.error(`File not found: ${filePath}`);
+      process.exit(1);
+    }
+    membersToCreate = parseMembersFromXlsx(filePath);
+    console.log(`Loaded ${membersToCreate.length} unique accounts from ${filePath}`);
+  } else {
+    console.error("Pass --file path/to/delivery-summary.xlsx");
     process.exit(1);
   }
 
@@ -102,13 +127,7 @@ async function main() {
     const all = await OilCompany.find().lean();
     const match = all.find((c) => normCompany(c.name) === normCompany(companyName));
     if (match) oilCompanyId = new mongoose.Types.ObjectId(String(match._id));
-    else console.warn(`Warning: oil company not found in DB: "${companyName}" (oilCompanyName will still be set on legacyProfile)`);
-  } else {
-    const all = await OilCompany.find().sort({ name: 1 }).select("name").lean();
-    if (all.length) {
-      console.log("Oil companies in DB (pass --company \"Name\" for delivery import matching):");
-      for (const c of all) console.log(`  - ${c.name}`);
-    }
+    else console.warn(`Warning: oil company not found: "${companyName}"`);
   }
 
   const passwordHash = dryRun
@@ -119,8 +138,8 @@ async function main() {
   let updated = 0;
   let nextNum = await nextMemberNumber();
 
-  for (let i = 0; i < MEMBERS_TO_CREATE.length; i++) {
-    const { oilId, lastName, firstName } = MEMBERS_TO_CREATE[i];
+  for (let i = 0; i < membersToCreate.length; i++) {
+    const { oilId, lastName, firstName } = membersToCreate[i];
     const existing = await findMemberByOilId(oilId);
 
     if (existing) {
@@ -129,9 +148,10 @@ async function main() {
         String(existing.firstName || "").toUpperCase() !== firstName ||
         String(existing.lastName || "").toUpperCase() !== lastName;
       const needsOilId = String(lp.oilId || "").trim() !== oilId;
-      if (needsName || needsOilId) {
+      const needsCo = companyName && normCompany(String(lp.oilCompanyName || "")) !== normCompany(companyName);
+      if (needsName || needsOilId || needsCo) {
         if (dryRun) {
-          console.log(`[update] ${oilId} ${firstName} ${lastName} (member ${existing.memberNumber || existing._id})`);
+          console.log(`[update] ${oilId} ${firstName} ${lastName}`);
           updated++;
         } else {
           await Member.updateOne(
@@ -140,10 +160,10 @@ async function main() {
               $set: {
                 firstName,
                 lastName,
-                ...(companyName ? { "legacyProfile.oilCompanyName": companyName } : {}),
                 "legacyProfile.oilId": oilId,
                 "legacyProfile.workbenchMemberStatus": "ACTIVE",
                 "legacyProfile.importSource": "delivery-import-setup-script",
+                ...(companyName ? { "legacyProfile.oilCompanyName": companyName } : {}),
                 ...(oilCompanyId ? { oilCompanyId } : {}),
               },
             }
@@ -152,7 +172,6 @@ async function main() {
           updated++;
         }
       } else {
-        console.log(`Skip (exists): ${oilId} ${firstName} ${lastName} → ${existing.memberNumber || existing._id}`);
         skipped++;
       }
       continue;
@@ -173,7 +192,7 @@ async function main() {
     if (companyName) legacyProfile.oilCompanyName = companyName;
 
     if (dryRun) {
-      console.log(`[create] ${memberNumber} ${oilId} ${firstName} ${lastName} <${email}>`);
+      console.log(`[create] ${memberNumber} ${oilId} ${firstName} ${lastName}`);
       created++;
       continue;
     }
