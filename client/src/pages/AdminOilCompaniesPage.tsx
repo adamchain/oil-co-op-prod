@@ -230,7 +230,10 @@ export default function AdminOilCompaniesPage() {
 
   async function load() {
     if (!token) return;
-    const res = await api<{ oilCompanies: OilCompany[] }>("/api/admin/oil-companies", { token });
+    const res = await api<{ oilCompanies: OilCompany[] }>(
+      "/api/admin/oil-companies?includeInactive=1",
+      { token }
+    );
     setRows(res.oilCompanies || []);
   }
 

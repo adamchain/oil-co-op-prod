@@ -4,7 +4,7 @@ import * as XLSX from "xlsx";
 import { api } from "../api";
 import { useAuth } from "../authContext";
 
-type OilCompany = { _id: string; name: string };
+type OilCompany = { _id: string; name: string; active?: boolean };
 const CUSTOM_COMPANY = "__custom__";
 
 /**
@@ -396,7 +396,7 @@ export default function AdminDeliveryImportPage() {
 
   useEffect(() => {
     if (!token) return;
-    api<{ oilCompanies: OilCompany[] }>("/api/admin/oil-companies", { token })
+    api<{ oilCompanies: OilCompany[] }>("/api/admin/oil-companies?includeInactive=1", { token })
       .then((r) => setOilCompanies([...r.oilCompanies].sort((a, b) => a.name.localeCompare(b.name))))
       .catch(() => setOilCompanies([]));
   }, [token]);
@@ -826,7 +826,7 @@ export default function AdminDeliveryImportPage() {
                   <option value="">— optional: company for new members only —</option>
                   {oilCompanies.map((c) => (
                     <option key={c._id} value={c._id}>
-                      {c.name}
+                      {c.active === false ? `${c.name} (inactive)` : c.name}
                     </option>
                   ))}
                   <option value={CUSTOM_COMPANY}>Custom (type below)…</option>
