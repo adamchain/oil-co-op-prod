@@ -48,6 +48,8 @@ export type DeliveryHistoryModalProps = {
   member?: DeliveryMemberSnapshot;
   deliveries?: DeliveryHistoryRow[];
   searchableMembers?: DeliveryFindMember[];
+  oilCompanyOptions?: { _id: string; name: string; active?: boolean }[];
+  propaneCompanyOptions?: { name: string }[];
   onMemberPatch?: (patch: DeliveryMemberPatch) => void;
   isDirty?: boolean;
   isSaving?: boolean;
@@ -73,6 +75,8 @@ export default function DeliveryHistoryModal({
   member,
   deliveries = [],
   searchableMembers = [],
+  oilCompanyOptions = [],
+  propaneCompanyOptions = [],
   onMemberPatch,
   isDirty = false,
   isSaving = false,
@@ -705,6 +709,8 @@ export default function DeliveryHistoryModal({
         open={findOpen}
         onClose={() => setFindOpen(false)}
         members={searchableMembers}
+        oilCompanyOptions={oilCompanyOptions}
+        propaneCompanyOptions={propaneCompanyOptions}
         selectedMemberId={selectedFindMemberId}
         onSelectMember={setSelectedFindMemberId}
       />

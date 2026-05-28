@@ -168,6 +168,8 @@ export type DeliveryFindModalProps = {
   open: boolean;
   onClose: () => void;
   members: DeliveryFindMember[];
+  oilCompanyOptions?: { _id: string; name: string; active?: boolean }[];
+  propaneCompanyOptions?: { name: string }[];
   selectedMemberId?: string | null;
   onSelectMember: (memberId: string) => void;
 };
@@ -193,6 +195,8 @@ export default function DeliveryFindModal({
   open,
   onClose,
   members,
+  oilCompanyOptions = [],
+  propaneCompanyOptions = [],
   selectedMemberId = null,
   onSelectMember,
 }: DeliveryFindModalProps) {
@@ -202,21 +206,27 @@ export default function DeliveryFindModal({
   const [triggered, setTriggered] = useState(false);
 
   const companyOptions = useMemo(() => {
-    const set = new Set<string>();
+    const byKey = new Map<string, string>();
+    const add = (raw: string) => {
+      const name = String(raw || "").trim();
+      if (!name) return;
+      const key = name.toLowerCase();
+      if (!byKey.has(key)) byKey.set(key, name);
+    };
+    for (const oc of oilCompanyOptions) add(oc.name);
+    for (const pc of propaneCompanyOptions) add(pc.name);
     for (const m of members) {
       const lp = (m.legacyProfile || {}) as Record<string, unknown>;
-      const oc = String(lp.oilCompanyName || "").trim();
-      const pc = String(lp.propaneCompanyName || "").trim();
-      if (oc) set.add(oc);
-      if (pc) set.add(pc);
+      add(String(lp.oilCompanyName || ""));
+      add(String(lp.propaneCompanyName || ""));
       const linked =
         m.oilCompanyId && typeof m.oilCompanyId === "object" && "name" in (m.oilCompanyId as { name?: string })
-          ? String((m.oilCompanyId as { name?: string }).name || "").trim()
+          ? String((m.oilCompanyId as { name?: string }).name || "")
           : "";
-      if (linked) set.add(linked);
+      add(linked);
     }
-    return [...set].sort((a, b) => a.localeCompare(b));
-  }, [members]);
+    return [...byKey.values()].sort((a, b) => a.localeCompare(b));
+  }, [members, oilCompanyOptions, propaneCompanyOptions]);
 
   const applyPreset = (id: FindPresetId) => {
     const base = defaultFilters();

@@ -53,7 +53,8 @@ type Member = {
   legacyProfile?: Record<string, unknown>;
 };
 
-type OilCompany = { _id: string; name: string; contactEmail?: string; contactPhone?: string; notes?: string };
+type OilCompany = { _id: string; name: string; contactEmail?: string; contactPhone?: string; notes?: string; active?: boolean };
+type PropaneCompany = { name: string; count?: number };
 type BillingEvent = { _id: string; kind: string; status: string; amountCents: number; billingYear?: number; createdAt: string };
 type Comm = { _id: string; channel: string; subject?: string; status: string; createdAt: string };
 type Referral = { referrerMemberId?: { firstName?: string; lastName?: string; email?: string } };
@@ -328,6 +329,7 @@ export default function AdminWorkbenchPage() {
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   const [oilCompanies, setOilCompanies] = useState<OilCompany[]>([]);
+  const [propaneCompanies, setPropaneCompanies] = useState<PropaneCompany[]>([]);
   const [billing, setBilling] = useState<BillingEvent[]>([]);
   const [communications, setCommunications] = useState<Comm[]>([]);
   const [referral, setReferral] = useState<Referral | null>(null);
@@ -424,8 +426,24 @@ export default function AdminWorkbenchPage() {
 
   async function loadOilCompanies() {
     if (!token) return;
-    const { oilCompanies: rows } = await api<{ oilCompanies: OilCompany[] }>("/api/admin/oil-companies", { token });
+    const { oilCompanies: rows } = await api<{ oilCompanies: OilCompany[] }>(
+      "/api/admin/oil-companies?includeInactive=1",
+      { token }
+    );
     setOilCompanies(rows);
+  }
+
+  async function loadPropaneCompanies() {
+    if (!token) return;
+    try {
+      const { propaneCompanies: rows } = await api<{ propaneCompanies: PropaneCompany[] }>(
+        "/api/admin/propane-companies",
+        { token }
+      );
+      setPropaneCompanies(rows);
+    } catch {
+      // Non-fatal: filter dropdown will just be empty.
+    }
   }
 
   useEffect(() => {
@@ -457,6 +475,18 @@ export default function AdminWorkbenchPage() {
 
   useEffect(() => {
     void loadOilCompanies();
+    void loadPropaneCompanies();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+    function onFocus() {
+      void loadOilCompanies();
+      void loadPropaneCompanies();
+    }
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
@@ -469,7 +499,10 @@ export default function AdminWorkbenchPage() {
     missingMemberFetchAttempt.current = null;
   }, [memberParam]);
 
-  const filterFields = useMemo(() => buildFilterFields(oilCompanies), [oilCompanies]);
+  const filterFields = useMemo(
+    () => buildFilterFields(oilCompanies, propaneCompanies),
+    [oilCompanies, propaneCompanies]
+  );
 
   const filteredMembers = useMemo(() => {
     const q = quickSearch.trim().toLowerCase();
@@ -2693,6 +2726,8 @@ export default function AdminWorkbenchPage() {
         member={deliveryModalMember}
         deliveries={deliveryRows}
         searchableMembers={members}
+        oilCompanyOptions={oilCompanies}
+        propaneCompanyOptions={propaneCompanies}
         isDirty={formIsDirty}
         isSaving={isSaving}
         onSave={async () => {

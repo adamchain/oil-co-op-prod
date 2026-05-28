@@ -580,9 +580,30 @@ router.delete("/members/:id", async (req: AuthedRequest, res) => {
   res.json({ ok: true });
 });
 
-router.get("/oil-companies", async (_req, res) => {
-  const list = await OilCompany.find({ active: true }).sort({ name: 1 }).lean();
+router.get("/oil-companies", async (req, res) => {
+  const includeInactive = String(req.query.includeInactive ?? "") === "1";
+  const filter = includeInactive ? {} : { active: true };
+  const list = await OilCompany.find(filter).sort({ name: 1 }).lean();
   res.json({ oilCompanies: list });
+});
+
+router.get("/propane-companies", async (_req, res) => {
+  const docs = await Member.aggregate<{ _id: string; count: number }>([
+    {
+      $project: {
+        name: {
+          $trim: {
+            input: { $ifNull: ["$legacyProfile.propaneCompanyName", ""] },
+          },
+        },
+      },
+    },
+    { $match: { name: { $ne: "" } } },
+    { $group: { _id: "$name", count: { $sum: 1 } } },
+    { $sort: { _id: 1 } },
+  ]);
+  const propaneCompanies = docs.map((d) => ({ name: d._id, count: d.count }));
+  res.json({ propaneCompanies });
 });
 
 const oilCoSchema = z.object({

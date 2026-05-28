@@ -154,6 +154,7 @@ export const STATIC_FILTER_FIELDS: FilterFieldDef[] = [
   },
 
   // Propane
+  { key: "legacyProfile.propaneCompanyName", label: "Propane Company", type: "ref", group: "Propane" },
   { key: "legacyProfile.propaneId", label: "Propane ID", type: "text", group: "Propane" },
   { key: "legacyProfile.propCoCode", label: "Propane Co Code", type: "text", group: "Propane" },
   {
@@ -232,13 +233,32 @@ export const STATIC_FILTER_FIELDS: FilterFieldDef[] = [
   { key: "notes", label: "Internal Notes", type: "text", group: "Misc" },
 ];
 
-export function buildFilterFields(oilCompanies: { _id: string; name: string }[]): FilterFieldDef[] {
+export function buildFilterFields(
+  oilCompanies: { _id: string; name: string; active?: boolean }[],
+  propaneCompanies: { name: string }[] = []
+): FilterFieldDef[] {
   return STATIC_FILTER_FIELDS.map((f) => {
     if (f.key === "oilCompanyId._id") {
       return {
         ...f,
-        options: oilCompanies.map((oc) => ({ value: oc._id, label: oc.name })),
+        options: oilCompanies.map((oc) => ({
+          value: oc._id,
+          label: oc.active === false ? `${oc.name} (inactive)` : oc.name,
+        })),
       };
+    }
+    if (f.key === "legacyProfile.propaneCompanyName") {
+      const seen = new Set<string>();
+      const options: FilterFieldOption[] = [];
+      for (const pc of propaneCompanies) {
+        const name = String(pc.name || "").trim();
+        if (!name) continue;
+        const key = name.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        options.push({ value: name, label: name });
+      }
+      return { ...f, options };
     }
     return f;
   });
