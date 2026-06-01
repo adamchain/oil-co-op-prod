@@ -92,6 +92,22 @@ function withYearColumnFromHeaders(allHeaders: string[], mapping: SemanticField[
   return next;
 }
 
+/**
+ * Headers that should default to "Ignore" on first load: junk dollar columns
+ * from vendor exports ("Net Sales Volume", "Hidden Net Sales Volume") and any
+ * column with no header text. Admins can still re-map them by hand if needed.
+ */
+const AUTO_IGNORE_HEADER_RX = /(^$|net\s*sales|hidden)/i;
+function withAutoIgnoredHeaders(allHeaders: string[], mapping: SemanticField[]): SemanticField[] {
+  const next = [...mapping];
+  for (let i = 0; i < allHeaders.length; i++) {
+    if (AUTO_IGNORE_HEADER_RX.test(String(allHeaders[i] || "").trim())) {
+      next[i] = "ignore";
+    }
+  }
+  return next;
+}
+
 /** If user picks a non-ignore field already used on another column, swap assignments. */
 function applyColumnMappingChange(prev: SemanticField[], colIndex: number, field: SemanticField): SemanticField[] {
   const next = [...prev];
@@ -179,6 +195,7 @@ type ServerImportResponse = {
     appended?: number;
     skippedFirstDelivery?: number;
     createdMembers?: number;
+    matchedExistingGroups?: number;
     firstDeliveryMembers?: number;
     unmatched: number;
     unmatchedGroups?: number;
@@ -221,13 +238,28 @@ type ServerImportResponse = {
     firstName: string;
     lastName: string;
   }>;
+  matchedExisting?: Array<{
+    groupKey: string;
+    memberId: string;
+    memberNumber: string;
+    memberName: string;
+    fuelType: "OIL" | "PROPANE";
+    account: string;
+    rowsAppended: number;
+    stampedAccount: boolean;
+  }>;
 };
 
-type CreateMemberDecision = {
-  enabled: boolean;
+type UnmatchedGroupMode = "skip" | "create" | "match";
+type UnmatchedGroupDecision = {
+  mode: UnmatchedGroupMode;
   firstName: string;
   lastName: string;
+  matchMemberId: string;
+  matchMemberLabel: string;
 };
+// Legacy alias — many call-sites still reference the old type name.
+type CreateMemberDecision = UnmatchedGroupDecision;
 
 const FIELD_LABELS: Record<SemanticField, string> = {
   fuelType: "Fuel type (OIL / PROP / PROPANE)",
@@ -467,11 +499,14 @@ export default function AdminDeliveryImportPage() {
 
         const mappingInit = withYearColumnFromHeaders(
           allHeaders,
-          (() => {
-            const m = [...STANDARD_SIX_FIELDS];
-            while (m.length < maxCol) m.push("ignore");
-            return m;
-          })()
+          withAutoIgnoredHeaders(
+            allHeaders,
+            (() => {
+              const m = [...STANDARD_SIX_FIELDS];
+              while (m.length < maxCol) m.push("ignore");
+              return m;
+            })()
+          )
         );
 
         setSheet({ allHeaders, headers, rows, rowCellsWide, fullColumnCount: wide });
@@ -593,12 +628,18 @@ export default function AdminDeliveryImportPage() {
         .filter(([, v]) => v)
         .map(([id]) => id);
       const createMembers: Record<string, { firstName: string; lastName: string }> = {};
+      const matchToMember: Record<string, { memberId: string }> = {};
       for (const [groupKey, d] of Object.entries(createMemberDecisions)) {
-        if (!d.enabled) continue;
-        const firstName = d.firstName.trim();
-        const lastName = d.lastName.trim();
-        if (!firstName || !lastName) continue;
-        createMembers[groupKey] = { firstName, lastName };
+        if (d.mode === "create") {
+          const firstName = d.firstName.trim();
+          const lastName = d.lastName.trim();
+          if (!firstName || !lastName) continue;
+          createMembers[groupKey] = { firstName, lastName };
+        } else if (d.mode === "match") {
+          const memberId = d.matchMemberId.trim();
+          if (!memberId) continue;
+          matchToMember[groupKey] = { memberId };
+        }
       }
       const r = await api<ServerImportResponse>(`/api/admin/deliveries/import`, {
         method: "POST",
@@ -613,6 +654,7 @@ export default function AdminDeliveryImportPage() {
                 confirmations: {
                   firstDeliveryMemberIds: confirmedFirstDelivery,
                   createMembers,
+                  matchToMember,
                 },
               }),
         }),
@@ -626,10 +668,16 @@ export default function AdminDeliveryImportPage() {
         const fd: Record<string, boolean> = {};
         for (const m of r.firstDeliveryMembers || []) fd[m.memberId] = false;
         setFirstDeliveryConfirms(fd);
-        const cm: Record<string, CreateMemberDecision> = {};
+        const cm: Record<string, UnmatchedGroupDecision> = {};
         for (const g of r.unmatchedGroups || []) {
           const { firstName, lastName } = splitSuggestedName(g.suggestedName);
-          cm[g.groupKey] = { enabled: false, firstName, lastName };
+          cm[g.groupKey] = {
+            mode: "skip",
+            firstName,
+            lastName,
+            matchMemberId: "",
+            matchMemberLabel: "",
+          };
         }
         setCreateMemberDecisions(cm);
       }
@@ -666,6 +714,13 @@ export default function AdminDeliveryImportPage() {
   }, [sheet, columnMapping]);
 
   const importPreviewRows = builtRows.rows.slice(0, 8);
+  const fuelTypeColumnMapped = columnMapping.includes("fuelType");
+
+  useEffect(() => {
+    if (fuelTypeColumnMapped && defaults.fuelType) {
+      setDefaults((d) => ({ ...d, fuelType: "" }));
+    }
+  }, [fuelTypeColumnMapped, defaults.fuelType]);
 
   const canRun =
     sheet &&
@@ -739,7 +794,12 @@ export default function AdminDeliveryImportPage() {
                   const n = sheet.allHeaders.length;
                   const base = [...STANDARD_SIX_FIELDS];
                   while (base.length < n) base.push("ignore");
-                  setColumnMapping(withYearColumnFromHeaders(sheet.allHeaders, base));
+                  setColumnMapping(
+                    withYearColumnFromHeaders(
+                      sheet.allHeaders,
+                      withAutoIgnoredHeaders(sheet.allHeaders, base)
+                    )
+                  );
                 }}
               >
                 Restore default column mapping
@@ -785,28 +845,40 @@ export default function AdminDeliveryImportPage() {
                 </tbody>
               </table>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", maxWidth: "640px" }}>
-              <div>
-                <label style={{ display: "block", fontSize: "0.7rem", textTransform: "uppercase", color: "var(--admin-muted)", marginBottom: "0.25rem" }}>
-                  Default fuel type (whole file)
-                </label>
-                <select
-                  className="admin-input"
-                  value={defaults.fuelType}
-                  onChange={(e) =>
-                    setDefaults((d) => ({
-                      ...d,
-                      fuelType: e.target.value as "" | "OIL" | "PROP" | "PROPANE",
-                    }))
-                  }
-                  style={{ width: "100%" }}
-                >
-                  <option value="">— use mapped “Fuel type” column —</option>
-                  <option value="OIL">OIL</option>
-                  <option value="PROP">PROP</option>
-                  <option value="PROPANE">PROPANE</option>
-                </select>
-              </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: fuelTypeColumnMapped ? "1fr" : "1fr 1fr",
+                gap: "0.75rem",
+                maxWidth: "640px",
+              }}
+            >
+              {!fuelTypeColumnMapped && (
+                <div>
+                  <label style={{ display: "block", fontSize: "0.7rem", textTransform: "uppercase", color: "var(--admin-muted)", marginBottom: "0.25rem" }}>
+                    Default fuel type (whole file)
+                  </label>
+                  <select
+                    className="admin-input"
+                    value={defaults.fuelType}
+                    onChange={(e) =>
+                      setDefaults((d) => ({
+                        ...d,
+                        fuelType: e.target.value as "" | "OIL" | "PROP" | "PROPANE",
+                      }))
+                    }
+                    style={{ width: "100%" }}
+                  >
+                    <option value="">— pick a default —</option>
+                    <option value="OIL">OIL</option>
+                    <option value="PROP">PROP</option>
+                    <option value="PROPANE">PROPANE</option>
+                  </select>
+                  <p style={{ color: "var(--admin-muted)", fontSize: "0.72rem", margin: "0.25rem 0 0" }}>
+                    Only needed because no column is mapped to <strong>Fuel type</strong>. Map a column instead to remove this.
+                  </p>
+                </div>
+              )}
               <div>
                 <label style={{ display: "block", fontSize: "0.7rem", textTransform: "uppercase", color: "var(--admin-muted)", marginBottom: "0.25rem" }}>
                   Default company (whole file)
@@ -974,17 +1046,21 @@ function formatImportErrorReason(reason: string, detail?: Record<string, unknown
 function UnmatchedRowsDetailTable({
   title,
   rows,
+  mode,
 }: {
   title: string;
   rows: ServerImportResponse["unmatched"];
+  mode: "validate" | "apply" | null;
 }) {
   if (rows.length === 0) return null;
   return (
     <>
       <h3 style={{ margin: "0.5rem 0", fontSize: "0.9rem" }}>{title}</h3>
       <p style={{ color: "var(--admin-muted)", fontSize: "0.78rem", margin: "0 0 0.5rem" }}>
-        Use hints to update the member&apos;s oil or propane account ID, then re-import or enter the
-        delivery manually. Name and address come from the file only when mapped.
+        {mode === "apply"
+          ? "These rows were discarded on Apply (group decision was Skip). Nothing is stored — re-import the file and choose Match or Create to keep them."
+          : "Use hints to update the member's oil or propane account ID, or set the group decision above to Match / Create. Skipped rows are discarded — they are not saved anywhere."}
+        {" "}Name and address come from the file only when mapped.
       </p>
       <div className="admin-table-wrap" style={{ marginBottom: "0.75rem", maxHeight: "420px", overflowY: "auto" }}>
         <table className="admin-table">
@@ -1058,6 +1134,9 @@ function ImportReportCard({
         {s.createdMembers != null && s.createdMembers > 0 && (
           <Stat label="New members" value={s.createdMembers} ok />
         )}
+        {s.matchedExistingGroups != null && s.matchedExistingGroups > 0 && (
+          <Stat label="Matched to existing" value={s.matchedExistingGroups} ok />
+        )}
         {s.skippedFirstDelivery != null && s.skippedFirstDelivery > 0 && (
           <Stat label="Skipped (unconfirmed)" value={s.skippedFirstDelivery} warn />
         )}
@@ -1100,8 +1179,26 @@ function ImportReportCard({
         />
       )}
 
+      {!isValidate && (report.matchedExisting?.length ?? 0) > 0 && (
+        <ReportTable
+          title="Matched to existing members"
+          rows={(report.matchedExisting || []).map((m) => ({
+            "Member #": m.memberNumber,
+            Name: m.memberName || "(unnamed)",
+            Fuel: m.fuelType,
+            Account: m.account,
+            "Rows added": m.rowsAppended,
+            "Account stamped": m.stampedAccount ? "yes" : "(already on file)",
+          }))}
+        />
+      )}
+
       {report.unmatched.length > 0 && (
-        <UnmatchedRowsDetailTable title="Unmatched rows (needs follow-up)" rows={report.unmatched} />
+        <UnmatchedRowsDetailTable
+          title={isValidate ? "Unmatched rows (needs follow-up)" : "Unmatched rows — discarded on Apply"}
+          rows={report.unmatched}
+          mode={mode}
+        />
       )}
 
       {report.ambiguous.length > 0 && (
@@ -1206,8 +1303,8 @@ function UnmatchedGroupConfirmTable({
   setDecisions,
 }: {
   groups: UnmatchedGroupInfo[];
-  decisions: Record<string, CreateMemberDecision>;
-  setDecisions: React.Dispatch<React.SetStateAction<Record<string, CreateMemberDecision>>>;
+  decisions: Record<string, UnmatchedGroupDecision>;
+  setDecisions: React.Dispatch<React.SetStateAction<Record<string, UnmatchedGroupDecision>>>;
 }) {
   return (
     <>
@@ -1215,44 +1312,55 @@ function UnmatchedGroupConfirmTable({
         Unrecognized customers ({groups.length})
       </h3>
       <p style={{ color: "var(--admin-muted)", fontSize: "0.78rem", margin: "0 0 0.5rem" }}>
-        No member has these <strong>account / oil IDs</strong> on file. When a hint says the ID exists under the other
-        fuel slot, update the member instead of creating a duplicate. Otherwise you can{" "}
-        <strong>Skip</strong> (default) or <strong>Create new member</strong> — the name is pre-filled from the file.
+        No member has these <strong>account / oil IDs</strong> on file. Choose one per group: <strong>Skip</strong>{" "}
+        (default — these rows are <em>discarded</em>, not saved), <strong>Match to existing member</strong> (search by
+        name or member #; the account is stamped onto their record so future imports auto-match), or{" "}
+        <strong>Create new member</strong> (name pre-filled from the file).
       </p>
-      <div className="admin-table-wrap" style={{ marginBottom: "0.75rem", maxHeight: "360px", overflowY: "auto" }}>
+      <div className="admin-table-wrap" style={{ marginBottom: "0.75rem", maxHeight: "420px", overflowY: "auto" }}>
         <table className="admin-table">
           <thead>
             <tr>
-              <th>Decision</th>
+              <th style={{ minWidth: "12rem" }}>Decision</th>
               <th>Fuel</th>
               <th>Company</th>
               <th>Account</th>
               <th>Hint</th>
               <th>Rows</th>
-              <th>First name</th>
-              <th>Last name</th>
+              <th colSpan={2}>Details</th>
             </tr>
           </thead>
           <tbody>
             {groups.map((g) => {
-              const d = decisions[g.groupKey] || { enabled: false, firstName: "", lastName: "" };
-              const update = (patch: Partial<CreateMemberDecision>) =>
+              const d =
+                decisions[g.groupKey] || {
+                  mode: "skip" as UnmatchedGroupMode,
+                  firstName: "",
+                  lastName: "",
+                  matchMemberId: "",
+                  matchMemberLabel: "",
+                };
+              const update = (patch: Partial<UnmatchedGroupDecision>) =>
                 setDecisions((prev) => ({
                   ...prev,
                   [g.groupKey]: { ...d, ...patch },
                 }));
-              const nameMissing = d.enabled && (!d.firstName.trim() || !d.lastName.trim());
+              const nameMissing = d.mode === "create" && (!d.firstName.trim() || !d.lastName.trim());
+              const matchMissing = d.mode === "match" && !d.matchMemberId.trim();
               return (
                 <tr key={g.groupKey}>
                   <td>
-                    <label style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
-                      <input
-                        type="checkbox"
-                        checked={d.enabled}
-                        onChange={(e) => update({ enabled: e.target.checked })}
-                      />
-                      {d.enabled ? "Create" : "Skip"}
-                    </label>
+                    <select
+                      className="admin-input"
+                      style={{ minWidth: "10rem", fontSize: "0.8rem" }}
+                      value={d.mode}
+                      onChange={(e) => update({ mode: e.target.value as UnmatchedGroupMode })}
+                      aria-label={`Decision for ${g.account}`}
+                    >
+                      <option value="skip">Skip (discard rows)</option>
+                      <option value="match">Match to existing member</option>
+                      <option value="create">Create new member</option>
+                    </select>
                   </td>
                   <td>{g.fuelType}</td>
                   <td>{g.companyName}</td>
@@ -1261,27 +1369,41 @@ function UnmatchedGroupConfirmTable({
                     {g.hint?.message || "—"}
                   </td>
                   <td>{g.rowCount}</td>
-                  <td>
-                    <input
-                      className="admin-input"
-                      style={{ minWidth: "8rem" }}
-                      value={d.firstName}
-                      onChange={(e) => update({ firstName: e.target.value })}
-                      placeholder="First"
-                      disabled={!d.enabled}
-                      aria-invalid={nameMissing && !d.firstName.trim() ? true : undefined}
-                    />
-                  </td>
-                  <td>
-                    <input
-                      className="admin-input"
-                      style={{ minWidth: "8rem" }}
-                      value={d.lastName}
-                      onChange={(e) => update({ lastName: e.target.value })}
-                      placeholder="Last"
-                      disabled={!d.enabled}
-                      aria-invalid={nameMissing && !d.lastName.trim() ? true : undefined}
-                    />
+                  <td colSpan={2}>
+                    {d.mode === "create" ? (
+                      <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap" }}>
+                        <input
+                          className="admin-input"
+                          style={{ minWidth: "7rem" }}
+                          value={d.firstName}
+                          onChange={(e) => update({ firstName: e.target.value })}
+                          placeholder="First name"
+                          aria-invalid={nameMissing && !d.firstName.trim() ? true : undefined}
+                        />
+                        <input
+                          className="admin-input"
+                          style={{ minWidth: "7rem" }}
+                          value={d.lastName}
+                          onChange={(e) => update({ lastName: e.target.value })}
+                          placeholder="Last name"
+                          aria-invalid={nameMissing && !d.lastName.trim() ? true : undefined}
+                        />
+                      </div>
+                    ) : d.mode === "match" ? (
+                      <MemberSearchPicker
+                        value={d.matchMemberId}
+                        label={d.matchMemberLabel}
+                        invalid={matchMissing}
+                        onPick={(memberId, memberLabel) =>
+                          update({ matchMemberId: memberId, matchMemberLabel: memberLabel })
+                        }
+                        onClear={() => update({ matchMemberId: "", matchMemberLabel: "" })}
+                      />
+                    ) : (
+                      <span style={{ color: "var(--admin-muted)", fontSize: "0.78rem" }}>
+                        Rows for this group will be discarded on Apply.
+                      </span>
+                    )}
                   </td>
                 </tr>
               );
@@ -1290,6 +1412,156 @@ function UnmatchedGroupConfirmTable({
         </table>
       </div>
     </>
+  );
+}
+
+/** Inline async picker — types a query, debounces, calls /api/admin/members?q=. */
+function MemberSearchPicker({
+  value,
+  label,
+  invalid,
+  onPick,
+  onClear,
+}: {
+  value: string;
+  label: string;
+  invalid?: boolean;
+  onPick: (memberId: string, label: string) => void;
+  onClear: () => void;
+}) {
+  const { token } = useAuth();
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [results, setResults] = useState<
+    Array<{ _id: string; memberNumber?: string; firstName?: string; lastName?: string; legacyProfile?: Record<string, unknown> }>
+  >([]);
+
+  useEffect(() => {
+    if (!token) return;
+    const q = query.trim();
+    if (q.length < 2) {
+      setResults([]);
+      return;
+    }
+    const ctrl = new AbortController();
+    const handle = window.setTimeout(async () => {
+      setBusy(true);
+      try {
+        const r = await api<{
+          members: Array<{
+            _id: string;
+            memberNumber?: string;
+            firstName?: string;
+            lastName?: string;
+            legacyProfile?: Record<string, unknown>;
+          }>;
+        }>(`/api/admin/members?q=${encodeURIComponent(q)}`, { token, signal: ctrl.signal });
+        setResults(r.members.slice(0, 8));
+      } catch {
+        // Aborted or failed — surface no results.
+        setResults([]);
+      } finally {
+        setBusy(false);
+      }
+    }, 300);
+    return () => {
+      ctrl.abort();
+      window.clearTimeout(handle);
+    };
+  }, [query, token]);
+
+  if (value) {
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexWrap: "wrap" }}>
+        <span style={{ fontSize: "0.82rem" }}>{label || `Member ${value}`}</span>
+        <button
+          type="button"
+          className="admin-btn"
+          style={{ fontSize: "0.72rem", padding: "0.15rem 0.45rem" }}
+          onClick={() => {
+            onClear();
+            setQuery("");
+            setOpen(true);
+          }}
+        >
+          Change
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div style={{ position: "relative" }}>
+      <input
+        className="admin-input"
+        style={{ minWidth: "16rem", fontSize: "0.8rem" }}
+        value={query}
+        placeholder="Search name, member #, email…"
+        aria-invalid={invalid ? true : undefined}
+        onFocus={() => setOpen(true)}
+        onBlur={() => window.setTimeout(() => setOpen(false), 150)}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setOpen(true);
+        }}
+      />
+      {open && query.trim().length >= 2 && (
+        <div
+          style={{
+            position: "absolute",
+            top: "100%",
+            left: 0,
+            right: 0,
+            zIndex: 10,
+            background: "var(--admin-card-bg, #fff)",
+            border: "1px solid var(--admin-border, #d4d6d9)",
+            borderRadius: "4px",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+            maxHeight: "220px",
+            overflowY: "auto",
+            fontSize: "0.8rem",
+          }}
+        >
+          {busy && (
+            <div style={{ padding: "0.4rem 0.6rem", color: "var(--admin-muted)" }}>Searching…</div>
+          )}
+          {!busy && results.length === 0 && (
+            <div style={{ padding: "0.4rem 0.6rem", color: "var(--admin-muted)" }}>No matches.</div>
+          )}
+          {results.map((m) => {
+            const lp = (m.legacyProfile || {}) as Record<string, unknown>;
+            const name = `${m.firstName || ""} ${m.lastName || ""}`.trim() || "(unnamed)";
+            const oilId = String(lp.oilId || "");
+            const propaneId = String(lp.propaneId || "");
+            const idHint = [oilId && `oil ${oilId}`, propaneId && `propane ${propaneId}`].filter(Boolean).join(", ");
+            const label = `${name} (${m.memberNumber || "—"})${idHint ? ` — ${idHint}` : ""}`;
+            return (
+              <button
+                key={m._id}
+                type="button"
+                style={{
+                  display: "block",
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "0.35rem 0.6rem",
+                  background: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                }}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onPick(m._id, label);
+                  setQuery("");
+                  setOpen(false);
+                }}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 

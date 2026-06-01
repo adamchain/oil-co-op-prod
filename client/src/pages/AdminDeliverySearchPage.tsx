@@ -39,6 +39,8 @@ type SearchResponse = {
   byMember: Array<{ memberId: string; memberNumber: string; name: string; rows: number; gallons: number }>;
 };
 
+type OilCompany = { _id: string; name: string; active?: boolean };
+
 const MONTHS = [
   "Any",
   "January",
@@ -73,6 +75,7 @@ export default function AdminDeliverySearchPage() {
   const [data, setData] = useState<SearchResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [companies, setCompanies] = useState<OilCompany[]>([]);
 
   const queryString = useMemo(() => {
     const p = new URLSearchParams();
@@ -108,6 +111,13 @@ export default function AdminDeliverySearchPage() {
     if (!token) return;
     void runSearch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  useEffect(() => {
+    if (!token) return;
+    api<{ oilCompanies: OilCompany[] }>("/api/admin/oil-companies?includeInactive=1", { token })
+      .then((r) => setCompanies([...r.oilCompanies].sort((a, b) => a.name.localeCompare(b.name))))
+      .catch(() => setCompanies([]));
   }, [token]);
 
   function exportCsv() {
@@ -244,10 +254,16 @@ export default function AdminDeliverySearchPage() {
           <Field label="Company name (exact)">
             <input
               className="admin-input"
+              list="delivery-search-company-list"
               value={filters.companyName}
               onChange={(e) => setFilters((f) => ({ ...f, companyName: e.target.value }))}
               placeholder="e.g. Saveway Petroleum"
             />
+            <datalist id="delivery-search-company-list">
+              {companies.map((c) => (
+                <option key={c._id} value={c.name} />
+              ))}
+            </datalist>
           </Field>
           <Field label="Account # (oil or propane)">
             <input

@@ -162,6 +162,13 @@ const createMembersSchema = z.record(
   })
 );
 
+const matchToMemberSchema = z.record(
+  z.string(),
+  z.object({
+    memberId: z.string().min(1),
+  })
+);
+
 const importPayloadSchema = z.object({
   fileName: z.string().optional().default(""),
   dryRun: z.boolean().optional().default(false),
@@ -175,14 +182,19 @@ const importPayloadSchema = z.object({
    *   surfaced in the dry-run report's `unmatched` array). Each entry creates a
    *   new member with the given name and links the import account/company,
    *   then appends the delivery rows in that group.
+   * - matchToMember: keyed by the same group key. Attaches the unmatched
+   *   group's delivery rows to an existing member and (if blank) stamps the
+   *   import's account onto that member's oil/propane ID so the next import
+   *   auto-matches.
    */
   confirmations: z
     .object({
       firstDeliveryMemberIds: z.array(z.string()).optional().default([]),
       createMembers: createMembersSchema.optional().default({}),
+      matchToMember: matchToMemberSchema.optional().default({}),
     })
     .optional()
-    .default({ firstDeliveryMemberIds: [], createMembers: {} }),
+    .default({ firstDeliveryMemberIds: [], createMembers: {}, matchToMember: {} }),
 });
 
 type ImportRowError = {
@@ -609,9 +621,24 @@ router.post("/import", async (req: AuthedRequest, res) => {
     const lastName = decision.lastName.trim();
     if (!firstName || !lastName) continue;
 
-    const companyKey = normCompany(first.companyName);
-    const oilCompanyId =
+    const trimmedCompanyName = (first.companyName || "").trim();
+    const companyKey = normCompany(trimmedCompanyName);
+    let oilCompanyId: string | null =
       first.fuelType === "OIL" ? oilCompanyIdByName.get(companyKey) || null : null;
+    // Custom company names typed during import should appear in the dropdown
+    // next time — upsert by normalized name so we don't create dupes.
+    if (trimmedCompanyName && companyKey && !oilCompanyIdByName.has(companyKey)) {
+      const upserted = (await OilCompany.findOneAndUpdate(
+        { name: new RegExp(`^${trimmedCompanyName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "i") },
+        { $setOnInsert: { name: trimmedCompanyName, active: true } },
+        { new: true, upsert: true, setDefaultsOnInsert: true }
+      ).lean()) as { _id?: unknown } | null;
+      if (upserted && upserted._id) {
+        const newId = String(upserted._id);
+        oilCompanyIdByName.set(companyKey, newId);
+        if (first.fuelType === "OIL") oilCompanyId = newId;
+      }
+    }
     const synthEmail = `import-${importBatchId}-${createdMembers.length}@oilcoop.local`;
     const passwordHash = await bcrypt.hash(`Imported-${Date.now()}-${crypto.randomBytes(4).toString("hex")}`, 10);
     const memberNumber = await nextImportMemberNumber();
@@ -651,6 +678,94 @@ router.post("/import", async (req: AuthedRequest, res) => {
     });
   }
 
+  // 3) Unmatched groups — attach to an existing member chosen by the admin.
+  type MatchedExisting = {
+    groupKey: string;
+    memberId: string;
+    memberNumber: string;
+    memberName: string;
+    fuelType: "OIL" | "PROPANE";
+    account: string;
+    rowsAppended: number;
+    stampedAccount: boolean;
+  };
+  const matchedExisting: MatchedExisting[] = [];
+
+  for (const [groupKey, decision] of Object.entries(confirmations.matchToMember || {})) {
+    const groupRows = unmatchedByGroup.get(groupKey);
+    if (!groupRows || groupRows.length === 0) continue;
+    const targetId = decision.memberId;
+    if (!mongoose.isValidObjectId(targetId)) {
+      errors.push({
+        rowNumber: groupRows[0].rowNumber,
+        reason: "match_to_member_invalid",
+        detail: { groupKey, memberId: targetId },
+      });
+      continue;
+    }
+    const member = await Member.findById(targetId);
+    if (!member || (member as any).role !== "member") {
+      errors.push({
+        rowNumber: groupRows[0].rowNumber,
+        reason: "match_to_member_not_found",
+        detail: { groupKey, memberId: targetId },
+      });
+      continue;
+    }
+    const first = groupRows[0];
+    const lp = ((member as any).legacyProfile && typeof (member as any).legacyProfile === "object"
+      ? (member as any).legacyProfile
+      : {}) as Record<string, unknown>;
+    const existing = readRows(member);
+    let appendedHere = 0;
+    for (const it of groupRows) {
+      const dup = existing.some(
+        (r) =>
+          r.dateDelivered === it.row.dateDelivered &&
+          r.fuelType === it.row.fuelType &&
+          Math.abs(r.gallons - it.row.gallons) < 0.01
+      );
+      if (dup) {
+        errors.push({
+          rowNumber: it.rowNumber,
+          reason: "duplicate_skipped",
+          detail: { date: it.row.dateDelivered, fuelType: it.row.fuelType, gallons: it.row.gallons },
+        });
+        continue;
+      }
+      existing.push(it.row);
+      appendedHere++;
+    }
+    // Stamp the account onto the member's blank oilId/propaneId slot so the
+    // next import auto-matches without needing this picker again.
+    let stampedAccount = false;
+    const accountFieldKey = first.fuelType === "OIL" ? "oilId" : "propaneId";
+    if (!String(lp[accountFieldKey] || "").trim()) {
+      lp[accountFieldKey] = first.account;
+      stampedAccount = true;
+    }
+    // Backfill blank company-name slot on the member too — purely descriptive.
+    const companyFieldKey = first.fuelType === "OIL" ? "oilCompanyName" : "propaneCompanyName";
+    if (first.companyName && !String(lp[companyFieldKey] || "").trim()) {
+      lp[companyFieldKey] = first.companyName;
+    }
+    (member as any).legacyProfile = { ...lp };
+    (member as any).markModified("legacyProfile");
+    writeRows(member, existing);
+    await member.save();
+    appendedCount += appendedHere;
+    matchedExisting.push({
+      groupKey,
+      memberId: String((member as any)._id),
+      memberNumber: String((member as any).memberNumber || ""),
+      memberName: `${(member as any).firstName || ""} ${(member as any).lastName || ""}`.trim(),
+      fuelType: first.fuelType,
+      account: first.account,
+      rowsAppended: appendedHere,
+      stampedAccount,
+    });
+  }
+
   for (const a of ambiguous) {
     errors.push({
       rowNumber: a.rowNumber,
@@ -674,6 +789,7 @@ router.post("/import", async (req: AuthedRequest, res) => {
       appended: appendedCount,
       skippedFirstDelivery: skippedFirstDeliveryCount,
       createdMembers: createdMemberCount,
+      matchedExistingGroups: matchedExisting.length,
       unmatched: unmatched.length,
       ambiguous: ambiguous.length,
       invalid: errors.length,
@@ -692,6 +808,7 @@ router.post("/import", async (req: AuthedRequest, res) => {
       appended: appendedCount,
       skippedFirstDelivery: skippedFirstDeliveryCount,
       createdMembers: createdMemberCount,
+      matchedExistingGroups: matchedExisting.length,
       firstDeliveryMembers: firstDeliveryMembers.length,
       unmatched: unmatched.length,
       unmatchedGroups: unmatchedGroups.length,
@@ -704,6 +821,7 @@ router.post("/import", async (req: AuthedRequest, res) => {
     ambiguous,
     errors,
     createdMembers,
+    matchedExisting,
   });
 });
 
