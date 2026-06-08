@@ -38,61 +38,29 @@ export const STATIC_FILTER_FIELDS: FilterFieldDef[] = [
   { key: "memberNumber", label: "Member #", type: "text", group: "Identity" },
   { key: "firstName", label: "First Name", type: "text", group: "Identity" },
   { key: "lastName", label: "Last Name", type: "text", group: "Identity" },
-  { key: "legacyProfile.legacyId", label: "Legacy ID", type: "text", group: "Identity" },
-  { key: "legacyProfile.midName1", label: "Mid Name 1", type: "text", group: "Identity" },
-  { key: "legacyProfile.suffix1", label: "Suffix 1", type: "text", group: "Identity" },
-  { key: "legacyProfile.firstName2", label: "First Name 2", type: "text", group: "Identity" },
-  { key: "legacyProfile.midName2", label: "Mid Name 2", type: "text", group: "Identity" },
-  { key: "legacyProfile.lastName2", label: "Last Name 2", type: "text", group: "Identity" },
-  { key: "legacyProfile.suffix2", label: "Suffix 2", type: "text", group: "Identity" },
-  { key: "legacyProfile.useBothNames", label: "Use Both Names", type: "boolean", group: "Identity" },
   { key: "legacyProfile.standardMembership", label: "Standard Membership", type: "boolean", group: "Identity" },
   { key: "legacyProfile.seniorMember", label: "Senior Member", type: "boolean", group: "Identity" },
   { key: "legacyProfile.lowVolume", label: "Low Volume", type: "boolean", group: "Identity" },
-  { key: "legacyProfile.waiveFeeLifetime", label: "Lifetime", type: "boolean", group: "Identity" },
-  { key: "legacyProfile.waiveFeeSenior", label: "Waive Fee — Senior", type: "boolean", group: "Identity" },
-  { key: "legacyProfile.mailAddr", label: "Mail Addr", type: "boolean", group: "Identity" },
+  { key: "legacyProfile.waiveFeeLifetime", label: "Lifetime Member", type: "boolean", group: "Identity" },
   { key: "legacyProfile.newMemberDt", label: "New Member Date", type: "date", group: "Identity" },
   { key: "legacyProfile.originalStartDate", label: "Original Start Date", type: "date", group: "Identity" },
-  { key: "createdAt", label: "Created At", type: "date", group: "Identity" },
 
   // Address
   { key: "addressLine1", label: "Street", type: "text", group: "Address" },
   { key: "addressLine2", label: "Address Line 2", type: "text", group: "Address" },
   { key: "legacyProfile.aptNo1", label: "Apt No", type: "text", group: "Address" },
-  { key: "legacyProfile.streetNo", label: "Street No", type: "text", group: "Address" },
   { key: "city", label: "City", type: "text", group: "Address" },
   { key: "state", label: "State", type: "text", group: "Address" },
   { key: "postalCode", label: "Zip", type: "text", group: "Address" },
 
   // Contact
   { key: "phone", label: "Phone 1", type: "text", group: "Contact" },
-  { key: "legacyProfile.typePhone1", label: "Phone 1 Type", type: "text", group: "Contact" },
-  { key: "legacyProfile.p1Ext", label: "Phone 1 Ext", type: "text", group: "Contact" },
   { key: "legacyProfile.phone2", label: "Phone 2", type: "text", group: "Contact" },
-  { key: "legacyProfile.typePhone2", label: "Phone 2 Type", type: "text", group: "Contact" },
-  { key: "legacyProfile.p2Ext", label: "Phone 2 Ext", type: "text", group: "Contact" },
   { key: "legacyProfile.phone3", label: "Phone 3", type: "text", group: "Contact" },
-  { key: "legacyProfile.typePhone3", label: "Phone 3 Type", type: "text", group: "Contact" },
-  { key: "legacyProfile.p3Ext", label: "Phone 3 Ext", type: "text", group: "Contact" },
   { key: "email", label: "Email", type: "text", group: "Contact" },
   { key: "legacyProfile.email2", label: "Email 2", type: "text", group: "Contact" },
-  { key: "legacyProfile.emailOptOut", label: "Email Opted Out", type: "boolean", group: "Contact" },
-  { key: "legacyProfile.callBack", label: "Call Back", type: "boolean", group: "Contact" },
-  { key: "legacyProfile.callBackDate", label: "Call Back Date", type: "date", group: "Contact" },
 
   // Status & Workflow
-  {
-    key: "status",
-    label: "Member Status",
-    type: "enum",
-    group: "Status",
-    options: [
-      { value: "active", label: "Active" },
-      { value: "expired", label: "Expired" },
-      { value: "cancelled", label: "Cancelled" },
-    ],
-  },
   {
     key: "signedUpVia",
     label: "Signed Up Via",
@@ -111,10 +79,10 @@ export const STATIC_FILTER_FIELDS: FilterFieldDef[] = [
     type: "enum",
     group: "Status",
     options: [
-      { value: "PHO", label: "PHO" },
-      { value: "WEB", label: "WEB" },
-      { value: "REF", label: "REF" },
-      { value: "MAIL", label: "MAIL" },
+      { value: "PHO", label: "Phone (PHO)" },
+      { value: "WEB", label: "Web (WEB)" },
+      { value: "REF", label: "Referral (REF)" },
+      { value: "MAIL", label: "Mail (MAIL)" },
     ],
   },
   {
@@ -128,15 +96,9 @@ export const STATIC_FILTER_FIELDS: FilterFieldDef[] = [
       { value: "OTHER", label: "OTHER" },
     ],
   },
-  { key: "legacyProfile.referredById", label: "Referred By ID", type: "text", group: "Status" },
-  { key: "legacyProfile.dateReferred", label: "Date Referred", type: "date", group: "Status" },
-  { key: "legacyProfile.nextStep", label: "Next Step", type: "text", group: "Status" },
-  { key: "legacyProfile.recordType", label: "Record Type", type: "text", group: "Status" },
-  { key: "legacyProfile.registrationPaymentStatus", label: "Reg Payment Status", type: "text", group: "Status" },
 
   // Oil
   { key: "oilCompanyId._id", label: "Oil Company", type: "ref", group: "Oil" },
-  { key: "legacyProfile.oilId", label: "Oil ID", type: "text", group: "Oil" },
   { key: "legacyProfile.oilStartDate", label: "Oil Start Date", type: "date", group: "Oil" },
   {
     key: "legacyProfile.oilWorkbenchStatus",
@@ -155,8 +117,6 @@ export const STATIC_FILTER_FIELDS: FilterFieldDef[] = [
 
   // Propane
   { key: "legacyProfile.propaneCompanyName", label: "Propane Company", type: "ref", group: "Propane" },
-  { key: "legacyProfile.propaneId", label: "Propane ID", type: "text", group: "Propane" },
-  { key: "legacyProfile.propCoCode", label: "Propane Co Code", type: "text", group: "Propane" },
   {
     key: "legacyProfile.propaneStatus",
     label: "Propane Status",
@@ -173,7 +133,7 @@ export const STATIC_FILTER_FIELDS: FilterFieldDef[] = [
   },
   { key: "legacyProfile.propaneStartDate", label: "Propane Start Date", type: "date", group: "Propane" },
 
-  // Delivery & NRD (legacy flags; same fields as Delivery Status / NRD filters on workbench)
+  // Delivery & NRD
   { key: "legacyProfile.nrdOil", label: "NRD-Oil", type: "boolean", group: "Delivery" },
   { key: "legacyProfile.nrdProp", label: "NRD-Prop", type: "boolean", group: "Delivery" },
   { key: "legacyProfile.deliveryHistory", label: "Delivery History", type: "boolean", group: "Delivery" },
@@ -194,11 +154,9 @@ export const STATIC_FILTER_FIELDS: FilterFieldDef[] = [
   },
   { key: "legacyProfile.electricStartDate", label: "Electric Start Date", type: "date", group: "Electric" },
   { key: "legacyProfile.electricSignUpDate", label: "Electric Sign Up Date", type: "date", group: "Electric" },
-  { key: "legacyProfile.droppedDate", label: "Electric Dropped Date", type: "date", group: "Electric" },
   { key: "legacyProfile.electricAccountNumber", label: "Electric Account #", type: "text", group: "Electric" },
   { key: "legacyProfile.notPaidCurrent", label: "Not Paid Current", type: "boolean", group: "Electric" },
   { key: "legacyProfile.delinquent", label: "Delinquent", type: "boolean", group: "Electric" },
-  { key: "legacyProfile.nameKey", label: "Name Key", type: "text", group: "Electric" },
 
   // Solar
   { key: "legacyProfile.solorReferralSentDate", label: "Solar Referral Sent Date", type: "date", group: "Solar" },
@@ -227,15 +185,11 @@ export const STATIC_FILTER_FIELDS: FilterFieldDef[] = [
   { key: "legacyProfile.insuranceDatePaid", label: "Insurance Date Paid", type: "date", group: "Insurance" },
 
   // Misc
-  { key: "legacyProfile.employer", label: "Employer", type: "text", group: "Misc" },
-  { key: "legacyProfile.company", label: "Company", type: "text", group: "Misc" },
-  { key: "legacyProfile.contactNote", label: "Contact Note", type: "text", group: "Misc" },
   { key: "notes", label: "Internal Notes", type: "text", group: "Misc" },
 ];
 
 export function buildFilterFields(
-  oilCompanies: { _id: string; name: string; active?: boolean }[],
-  propaneCompanies: { name: string }[] = []
+  oilCompanies: { _id: string; name: string; active?: boolean }[]
 ): FilterFieldDef[] {
   return STATIC_FILTER_FIELDS.map((f) => {
     if (f.key === "oilCompanyId._id") {
@@ -248,17 +202,13 @@ export function buildFilterFields(
       };
     }
     if (f.key === "legacyProfile.propaneCompanyName") {
-      const seen = new Set<string>();
-      const options: FilterFieldOption[] = [];
-      for (const pc of propaneCompanies) {
-        const name = String(pc.name || "").trim();
-        if (!name) continue;
-        const key = name.toLowerCase();
-        if (seen.has(key)) continue;
-        seen.add(key);
-        options.push({ value: name, label: name });
-      }
-      return { ...f, options };
+      return {
+        ...f,
+        options: oilCompanies.map((oc) => ({
+          value: oc.name,
+          label: oc.active === false ? `${oc.name} (inactive)` : oc.name,
+        })),
+      };
     }
     return f;
   });
@@ -361,7 +311,13 @@ export function evaluateFilter(
     }
     case "enum":
     case "ref": {
-      const text = empty ? "" : String(raw);
+      let text = empty ? "" : String(raw);
+      // For howJoined, fall back to signedUpVia for members who lack a legacyProfile value
+      if (!text && filter.field === "legacyProfile.howJoined") {
+        const via = String(getValueAtPath(member, "signedUpVia") || "").toLowerCase().trim();
+        if (via === "web") text = "WEB";
+        else if (via === "phone") text = "PHO";
+      }
       if (filter.operator === "is") return text === filter.value;
       if (filter.operator === "is_not") return text !== filter.value;
       return false;

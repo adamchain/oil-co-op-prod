@@ -500,8 +500,8 @@ export default function AdminWorkbenchPage() {
   }, [memberParam]);
 
   const filterFields = useMemo(
-    () => buildFilterFields(oilCompanies, propaneCompanies),
-    [oilCompanies, propaneCompanies]
+    () => buildFilterFields(oilCompanies),
+    [oilCompanies]
   );
 
   const filteredMembers = useMemo(() => {
