@@ -862,6 +862,79 @@ function normalizeDateFreeForm(raw: string): string | null {
   return null;
 }
 
+/* ---------- import history & undo ---------- */
+
+/** GET /api/admin/deliveries/import-history  → last 30 imports */
+router.get("/import-history", async (_req, res) => {
+  const { ActivityLog } = await import("../models/ActivityLog.js");
+  const logs = await ActivityLog.find({ action: "admin_delivery_import" })
+    .sort({ createdAt: -1 })
+    .limit(30)
+    .lean();
+
+  const items = logs.map((l) => {
+    const d = (l.details || {}) as Record<string, unknown>;
+    return {
+      importBatchId: String(d.importBatchId || ""),
+      fileName: String(d.fileName || ""),
+      totalRows: Number(d.totalRows) || 0,
+      appended: Number(d.appended) || 0,
+      createdMembers: Number(d.createdMembers) || 0,
+      unmatched: Number(d.unmatched) || 0,
+      createdAt: (l as any).createdAt,
+      adminId: String(d.adminId || ""),
+    };
+  });
+
+  res.json({ imports: items });
+});
+
+/** POST /api/admin/deliveries/import/:importBatchId/undo */
+router.post("/import/:importBatchId/undo", async (req: AuthedRequest, res) => {
+  const { ActivityLog } = await import("../models/ActivityLog.js");
+  const batchId = String(req.params.importBatchId || "").trim();
+  if (!batchId) {
+    res.status(400).json({ error: "Missing importBatchId" });
+    return;
+  }
+
+  // Find all members that have at least one row from this batch.
+  const members = await Member.find({
+    "legacyProfile.deliveryHistoryRows": {
+      $elemMatch: { importBatchId: batchId },
+    },
+  });
+
+  let totalRemoved = 0;
+  for (const member of members) {
+    const lp = (member.legacyProfile && typeof member.legacyProfile === "object"
+      ? member.legacyProfile
+      : {}) as Record<string, unknown>;
+    const before = normalizeRows(lp.deliveryHistoryRows);
+    const after = before.filter((r) => r.importBatchId !== batchId);
+    const removed = before.length - after.length;
+    if (removed === 0) continue;
+    member.legacyProfile = { ...lp, deliveryHistoryRows: sortRowsDesc(after) };
+    member.markModified("legacyProfile");
+    await member.save();
+    totalRemoved += removed;
+  }
+
+  await logActivity(
+    new mongoose.Types.ObjectId(req.userId!),
+    "admin_delivery_import_undone",
+    { importBatchId: batchId, membersAffected: members.length, rowsRemoved: totalRemoved, adminId: req.userId },
+    new mongoose.Types.ObjectId(req.userId!)
+  );
+
+  await ActivityLog.deleteMany({
+    action: "admin_delivery_import",
+    "details.importBatchId": batchId,
+  });
+
+  res.json({ ok: true, membersAffected: members.length, rowsRemoved: totalRemoved });
+});
+
 /* ---------- cross-member search ---------- */
 
 /**

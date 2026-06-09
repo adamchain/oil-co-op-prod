@@ -7,13 +7,6 @@ import { useAuth } from "../authContext";
 type OilCompany = { _id: string; name: string; active?: boolean };
 const CUSTOM_COMPANY = "__custom__";
 
-/**
- * Import delivery summaries from Excel/CSV. All columns through the sheet’s
- * detected width (up to a cap) are stored and can be mapped; row 1 is labels
- * only. Default mapping matches the common six-column co-op layout, with
- * extra columns defaulting to Ignore. Validate → dry-run; Apply → append rows.
- */
-
 type SemanticField =
   | "fuelType"
   | "account"
@@ -28,12 +21,6 @@ type SemanticField =
   | "address"
   | "ignore";
 
-/**
- * Default “Import as” per column A–F for the classic co-op layout
- * [MONTH, PRODUCT, OIL ID, NAME, GAL, Hidden]. NAME is reference-only — matching
- * is by account / oil ID only (never company or customer name) — but we keep it parsed so
- * the unrecognized-customer prompt can suggest a first/last name.
- */
 const STANDARD_SIX_FIELDS: SemanticField[] = [
   "month",
   "fuelType",
@@ -43,14 +30,12 @@ const STANDARD_SIX_FIELDS: SemanticField[] = [
   "ignore",
 ];
 
-/** Max columns read/mapped per sheet (wider workbooks are truncated here). */
 const MAX_IMPORT_COLUMNS = 40;
 
 function importColKey(columnIndex: number): string {
   return `__c${columnIndex}`;
 }
 
-/** Dropdown order for “Import as”. */
 const IMPORT_AS_OPTION_ORDER: SemanticField[] = [
   "fuelType",
   "account",
@@ -67,19 +52,13 @@ const IMPORT_AS_OPTION_ORDER: SemanticField[] = [
 ];
 
 type ParsedSheet = {
-  /** Row-1 label for every imported column (width = min(widest row, cap), at least 6). */
   allHeaders: string[];
-  /** First six headers (same as allHeaders.slice(0, 6) when padded). */
   headers: string[];
-  /** Data rows; keys `__c0` … `__c{n-1}` for each imported column. */
   rows: Array<Record<string, unknown>>;
-  /** Parallel to rows: full-width cell values for preview (length matches allHeaders). */
   rowCellsWide: unknown[][];
-  /** Widest column count in the raw workbook (before cap). */
   fullColumnCount: number;
 };
 
-/** If a column header is exactly "YEAR", use that column for Year and clear the previous Year slot (common PETRI layout). */
 function withYearColumnFromHeaders(allHeaders: string[], mapping: SemanticField[]): SemanticField[] {
   const next = [...mapping];
   const yearHeaderIdx = allHeaders.findIndex((h) => /^\s*YEAR\s*$/i.test(h));
@@ -92,11 +71,6 @@ function withYearColumnFromHeaders(allHeaders: string[], mapping: SemanticField[
   return next;
 }
 
-/**
- * Headers that should default to "Ignore" on first load: junk dollar columns
- * from vendor exports ("Net Sales Volume", "Hidden Net Sales Volume") and any
- * column with no header text. Admins can still re-map them by hand if needed.
- */
 const AUTO_IGNORE_HEADER_RX = /(^$|net\s*sales|hidden)/i;
 function withAutoIgnoredHeaders(allHeaders: string[], mapping: SemanticField[]): SemanticField[] {
   const next = [...mapping];
@@ -108,7 +82,6 @@ function withAutoIgnoredHeaders(allHeaders: string[], mapping: SemanticField[]):
   return next;
 }
 
-/** If user picks a non-ignore field already used on another column, swap assignments. */
 function applyColumnMappingChange(prev: SemanticField[], colIndex: number, field: SemanticField): SemanticField[] {
   const next = [...prev];
   if (field === "ignore") {
@@ -126,7 +99,6 @@ function applyColumnMappingChange(prev: SemanticField[], colIndex: number, field
   return next;
 }
 
-/** Highest column count present in any row of the sheet. */
 function gridMaxColumns(grid: unknown[][]): number {
   let w = 0;
   for (const row of grid) {
@@ -135,7 +107,6 @@ function gridMaxColumns(grid: unknown[][]): number {
   return w;
 }
 
-/** 0-based column index to Excel-style letter(s): 0→A, 25→Z, 26→AA. */
 function columnIndexToLetter(index: number): string {
   let n = index + 1;
   let s = "";
@@ -147,7 +118,6 @@ function columnIndexToLetter(index: number): string {
   return s;
 }
 
-/** Highest 1-based column index ≤ n that has a non-empty cell in columns 0..n-1. */
 function maxUsedColumnIndexFirstN(grid: unknown[][], n: number): number {
   let max = 0;
   for (const row of grid) {
@@ -258,25 +228,23 @@ type UnmatchedGroupDecision = {
   matchMemberId: string;
   matchMemberLabel: string;
 };
-// Legacy alias — many call-sites still reference the old type name.
 type CreateMemberDecision = UnmatchedGroupDecision;
 
 const FIELD_LABELS: Record<SemanticField, string> = {
   fuelType: "Fuel type (OIL / PROP / PROPANE)",
-  account: "Account # (oil ID or propane ID — used for matching)",
-  companyName: "Company name (optional — not used for matching)",
-  dateDelivered: "Date delivered (full date)",
-  month: "Month (1–12 or name; pair with Year)",
-  year: "Year (YYYY; pair with Month)",
-  gallons: "Gallons (GAL)",
-  name: "Customer name (reference only — pre-fills new-member prompt)",
-  nameFirst: "Name first (combine with Name last → customer name)",
-  nameLast: "Name last (combine with Name first → customer name)",
-  address: "Service address (reference only — shown for unmatched rows)",
-  ignore: "Ignore",
+  account: "Account # — used to match customers",
+  companyName: "Company name (optional)",
+  dateDelivered: "Date delivered",
+  month: "Month — pair with Year column",
+  year: "Year — pair with Month column",
+  gallons: "Gallons",
+  name: "Customer name (reference only)",
+  nameFirst: "First name",
+  nameLast: "Last name",
+  address: "Service address (reference only)",
+  ignore: "Ignore this column",
 };
 
-/** Typical row-1 labels from the co-op export; used as card-2 mapping and fallback when a cell is blank. */
 const SIX_COLUMN_TYPICAL_HEADERS = [
   "MONTH",
   "PRODUCT",
@@ -301,20 +269,14 @@ const MONTH_NAMES_TO_NUM: Record<string, number> = {
   dec: 12, december: 12,
 };
 
-/**
- * Accepts "11-NOVEMBER", "NOVEMBER", "Nov", "11", "11/2025", etc.
- * Returns 1..12 or null if it can't be parsed.
- */
 function parseMonthCell(raw: string): number | null {
   const s = String(raw || "").trim();
   if (!s) return null;
-  // Leading numeric prefix wins ("11-NOVEMBER" → 11).
   const numLead = s.match(/^\d{1,2}/);
   if (numLead) {
     const n = Number(numLead[0]);
     if (n >= 1 && n <= 12) return n;
   }
-  // Otherwise try the first alphabetic chunk as a name.
   const nameMatch = s.match(/[A-Za-z]+/);
   if (nameMatch) {
     const key = nameMatch[0].toLowerCase();
@@ -333,7 +295,6 @@ function parseYearCell(raw: string): number | null {
   return n;
 }
 
-/** Build reference name from mapped columns (full name and/or first + last). */
 function buildImportName(
   fullName: string,
   firstName: string,
@@ -351,7 +312,6 @@ function buildImportName(
   return "";
 }
 
-/** One row in the POST body to `/api/admin/deliveries/import` (same shape as validate/apply). */
 type ImportPayloadRow = {
   rowNumber: number;
   fuelType: string;
@@ -365,9 +325,9 @@ type ImportPayloadRow = {
 
 const IMPORT_PAYLOAD_PREVIEW_COLUMNS: { key: keyof ImportPayloadRow; label: string }[] = [
   { key: "rowNumber", label: "Row #" },
-  { key: "account", label: "Account / oil ID (matched)" },
-  { key: "fuelType", label: "Fuel (oil vs propane slot)" },
-  { key: "dateDelivered", label: "Date delivered" },
+  { key: "account", label: "Account #" },
+  { key: "fuelType", label: "Fuel" },
+  { key: "dateDelivered", label: "Date" },
   { key: "gallons", label: "Gallons" },
 ];
 
@@ -375,9 +335,9 @@ function importPreviewColumnsForMapping(map: SemanticField[]): { key: keyof Impo
   const cols = [...IMPORT_PAYLOAD_PREVIEW_COLUMNS];
   const has = (f: SemanticField) => map.includes(f);
   if (has("name") || has("nameFirst") || has("nameLast")) {
-    cols.push({ key: "name", label: "Name" });
+    cols.push({ key: "name", label: "Customer name" });
   }
-  if (has("companyName")) cols.push({ key: "companyName", label: "Company (not matched)" });
+  if (has("companyName")) cols.push({ key: "companyName", label: "Company" });
   if (has("address")) cols.push({ key: "address", label: "Address" });
   return cols;
 }
@@ -385,10 +345,19 @@ function importPreviewColumnsForMapping(map: SemanticField[]): { key: keyof Impo
 function formatImportPreviewCell(row: ImportPayloadRow, key: keyof ImportPayloadRow): string {
   const v = row[key];
   if (v == null || v === "") return "—";
-  return key === "gallons" ? String(v) : String(v);
+  return String(v);
 }
 
-/** Split a raw "FIRST LAST" string into name parts for the new-member prompt. */
+type ImportHistoryItem = {
+  importBatchId: string;
+  fileName: string;
+  totalRows: number;
+  appended: number;
+  createdMembers: number;
+  unmatched: number;
+  createdAt: string;
+};
+
 function splitSuggestedName(raw: string): { firstName: string; lastName: string } {
   const s = String(raw || "").trim();
   if (!s) return { firstName: "", lastName: "" };
@@ -403,9 +372,7 @@ export default function AdminDeliveryImportPage() {
 
   const [fileName, setFileName] = useState("");
   const [sheet, setSheet] = useState<ParsedSheet | null>(null);
-  /** One entry per imported sheet column (same length as sheet.allHeaders). */
   const [columnMapping, setColumnMapping] = useState<SemanticField[]>(() => [...STANDARD_SIX_FIELDS]);
-  // companySelection: "" (none), an OilCompany _id, or CUSTOM_COMPANY
   const [defaults, setDefaults] = useState({
     fuelType: "" as "" | "OIL" | "PROP" | "PROPANE",
     companySelection: "",
@@ -417,14 +384,45 @@ export default function AdminDeliveryImportPage() {
   const [report, setReport] = useState<ServerImportResponse | null>(null);
   const [reportMode, setReportMode] = useState<"validate" | "apply" | null>(null);
 
-  /**
-   * Per-validate confirmation state. Keyed by:
-   *  - memberId for first-delivery members (checkbox: apply their rows)
-   *  - groupKey for unmatched (toggle + first/last name to create a new member)
-   * Reset every time validate produces a fresh report.
-   */
   const [firstDeliveryConfirms, setFirstDeliveryConfirms] = useState<Record<string, boolean>>({});
   const [createMemberDecisions, setCreateMemberDecisions] = useState<Record<string, CreateMemberDecision>>({});
+
+  const [importHistory, setImportHistory] = useState<ImportHistoryItem[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [undoingBatchId, setUndoingBatchId] = useState<string | null>(null);
+  const [undoResult, setUndoResult] = useState<{ batchId: string; rowsRemoved: number; membersAffected: number } | null>(null);
+
+  function loadHistory() {
+    if (!token) return;
+    setHistoryLoading(true);
+    api<{ imports: ImportHistoryItem[] }>("/api/admin/deliveries/import-history", { token })
+      .then((r) => setImportHistory(r.imports))
+      .catch(() => setImportHistory([]))
+      .finally(() => setHistoryLoading(false));
+  }
+
+  useEffect(() => {
+    loadHistory();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  async function handleUndo(batchId: string, fileName: string) {
+    if (!token) return;
+    if (!window.confirm(`Undo this import?\n\nFile: ${fileName || batchId}\n\nThis will remove all delivery rows that were added in this import. This cannot be undone.`)) return;
+    setUndoingBatchId(batchId);
+    try {
+      const r = await api<{ ok: boolean; rowsRemoved: number; membersAffected: number }>(
+        `/api/admin/deliveries/import/${encodeURIComponent(batchId)}/undo`,
+        { method: "POST", token, body: JSON.stringify({}) }
+      );
+      setUndoResult({ batchId, rowsRemoved: r.rowsRemoved, membersAffected: r.membersAffected });
+      setImportHistory((prev) => prev.filter((i) => i.importBatchId !== batchId));
+    } catch {
+      alert("Undo failed — please try again.");
+    } finally {
+      setUndoingBatchId(null);
+    }
+  }
 
   useEffect(() => {
     if (!token) return;
@@ -433,8 +431,6 @@ export default function AdminDeliveryImportPage() {
       .catch(() => setOilCompanies([]));
   }, [token]);
 
-  // Resolve the actual company-name string to send for each row from the
-  // current dropdown selection (an OilCompany _id) or the custom text.
   const resolvedDefaultCompanyName = useMemo(() => {
     if (defaults.companySelection === CUSTOM_COMPANY) return defaults.customCompanyName.trim();
     if (!defaults.companySelection) return "";
@@ -470,9 +466,7 @@ export default function AdminDeliveryImportPage() {
         const maxCol = Math.min(Math.max(wide, 6), MAX_IMPORT_COLUMNS);
         const usedInFile = maxUsedColumnIndexFirstN(grid, maxCol);
         if (usedInFile < 1) {
-          setParseError(
-            "No data found in the sheet. Add at least one value on row 2 or below in an imported column."
-          );
+          setParseError("No data found in the file. Make sure the file has rows of data below the header row.");
           setSheet(null);
           return;
         }
@@ -512,7 +506,7 @@ export default function AdminDeliveryImportPage() {
         setSheet({ allHeaders, headers, rows, rowCellsWide, fullColumnCount: wide });
         setColumnMapping(mappingInit);
       } catch (err) {
-        setParseError(err instanceof Error ? err.message : "Failed to parse file");
+        setParseError(err instanceof Error ? err.message : "Failed to read file");
         setSheet(null);
       }
     };
@@ -553,7 +547,7 @@ export default function AdminDeliveryImportPage() {
       counts.set(f, (counts.get(f) || 0) + 1);
     }
     for (const [field, n] of counts) {
-      if (n > 1) mappingErrors.push(`${FIELD_LABELS[field]} is assigned to more than one column — use each import target at most once (except Ignore).`);
+      if (n > 1) mappingErrors.push(`"${FIELD_LABELS[field]}" is assigned to more than one column — please pick it only once.`);
     }
 
     const cols = {
@@ -578,10 +572,10 @@ export default function AdminDeliveryImportPage() {
 
     const missingFields: string[] = [];
     if (mappingErrors.length === 0) {
-      if (!cols.account) missingFields.push("account");
-      if (dateMode === "none") missingFields.push("dateDelivered (or Month + Year)");
-      if (!cols.gallons) missingFields.push("gallons");
-      if (!cols.fuelType && !defaults.fuelType) missingFields.push("fuelType");
+      if (!cols.account) missingFields.push("Account #");
+      if (dateMode === "none") missingFields.push("Date (or Month + Year)");
+      if (!cols.gallons) missingFields.push("Gallons");
+      if (!cols.fuelType && !defaults.fuelType) missingFields.push("Fuel type");
     }
 
     const rows = sheet.rows.map((r, i) => {
@@ -662,9 +656,6 @@ export default function AdminDeliveryImportPage() {
       setReport(r);
       setReportMode(dryRun ? "validate" : "apply");
       if (dryRun) {
-        // Seed defaults from the fresh dry-run: first-delivery members default
-        // to unchecked (admin must confirm), unmatched groups default to "skip"
-        // with the suggested name pre-filled.
         const fd: Record<string, boolean> = {};
         for (const m of r.firstDeliveryMembers || []) fd[m.memberId] = false;
         setFirstDeliveryConfirms(fd);
@@ -731,25 +722,20 @@ export default function AdminDeliveryImportPage() {
   return (
     <>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
-        <h1 style={{ margin: 0, fontSize: "1.35rem", fontWeight: 600 }}>Delivery summaries — Import</h1>
+        <h1 style={{ margin: 0, fontSize: "1.35rem", fontWeight: 600 }}>Import Delivery History</h1>
         {sheet && (
           <button type="button" className="admin-btn" onClick={reset}>
-            Reset
+            Start over
           </button>
         )}
       </div>
       <p style={{ color: "var(--admin-muted)", fontSize: "0.875rem", margin: "0.25rem 0 1.25rem" }}>
-        Up to <strong>{MAX_IMPORT_COLUMNS}</strong> columns (through the widest row) are loaded and can be mapped. Row 1
-        is <strong>Your header</strong> for reference. If a column is named <strong>YEAR</strong>, it is used for the
-        year field automatically when you load the file. Month + Year combine to the first day of that month. Choose a{" "}
-        <strong>default company</strong> only when creating new members from unmatched rows (not used for matching).
-        Matching uses <strong>account / oil ID</strong> only (oil ID for OIL rows, propane ID for PROPANE rows), not
-        company name or customer name. Unmatched rows are listed with hints so you can add missing IDs on the member or
-        create a member. Validate first, then apply.
+        Upload a monthly delivery file from your oil company. The system matches each row to a customer by their account number and adds the delivery to their record.
       </p>
 
+      {/* Step 1 */}
       <div className="admin-card">
-        <h2>1. Upload file</h2>
+        <h2>1. Choose file</h2>
         <input
           ref={inputRef}
           type="file"
@@ -759,31 +745,39 @@ export default function AdminDeliveryImportPage() {
         />
         {fileName && (
           <p style={{ margin: 0, color: "var(--admin-muted)", fontSize: "0.85rem" }}>
-            Loaded: <strong>{fileName}</strong>
-            {sheet ? ` — ${sheet.rows.length} data row${sheet.rows.length === 1 ? "" : "s"}` : ""}
+            <strong>{fileName}</strong>
+            {sheet ? ` — ${sheet.rows.length} row${sheet.rows.length === 1 ? "" : "s"} found` : ""}
           </p>
         )}
         {parseError && <p style={{ color: "#b91c1c", fontSize: "0.85rem", marginTop: "0.5rem" }}>{parseError}</p>}
       </div>
 
+      {/* Import history */}
+      <ImportHistoryPanel
+        history={importHistory}
+        loading={historyLoading}
+        undoingBatchId={undoingBatchId}
+        undoResult={undoResult}
+        onUndo={handleUndo}
+        onDismissResult={() => setUndoResult(null)}
+      />
+
       {sheet && sheet.rows.length > 0 && (
         <>
+          {/* Step 2 */}
           <div className="admin-card">
-            <h2>2. Column layout &amp; defaults</h2>
-            <p style={{ color: "var(--admin-muted)", fontSize: "0.8rem", marginTop: 0 }}>
-              <strong>Your header (row 1)</strong> lists every column in the loaded width (widest row). Map each column
-              with <strong>Import as</strong> (defaults match the classic six-column export; extras default to Ignore).
-              Map <strong>Name first</strong> and <strong>Name last</strong> on separate columns to build the customer name
-              for unmatched-row hints and new-member prompts. Month + Year combine as the first of the month. Default fuel
-              applies when no column maps to fuel type.
-              Choosing a target already used elsewhere swaps assignments (except <strong>Ignore</strong>).
+            <h2>2. Match columns</h2>
+            <p style={{ color: "var(--admin-muted)", fontSize: "0.8rem", marginTop: 0, marginBottom: "0.75rem" }}>
+              Tell the system what each column contains. The most common format is auto-detected — you usually don't need to change anything here.
             </p>
+
             {sheet.fullColumnCount > MAX_IMPORT_COLUMNS && (
-              <p style={{ color: "#b45309", fontSize: "0.8rem", marginTop: "0.35rem" }}>
-                This workbook has <strong>{sheet.fullColumnCount}</strong> columns; only the first{" "}
-                <strong>{MAX_IMPORT_COLUMNS}</strong> are loaded. Widen the cap in code if you need more.
+              <p style={{ color: "#b45309", fontSize: "0.8rem", margin: "0 0 0.5rem" }}>
+                This file has <strong>{sheet.fullColumnCount}</strong> columns; only the first{" "}
+                <strong>{MAX_IMPORT_COLUMNS}</strong> are loaded.
               </p>
             )}
+
             <p style={{ margin: "0 0 0.75rem" }}>
               <button
                 type="button"
@@ -802,16 +796,17 @@ export default function AdminDeliveryImportPage() {
                   );
                 }}
               >
-                Restore default column mapping
+                Reset to defaults
               </button>
             </p>
+
             <div className="admin-table-wrap" style={{ marginBottom: "0.75rem" }}>
               <table className="admin-table">
                 <thead>
                   <tr>
-                    <th>Col</th>
-                    <th>Your header (row 1)</th>
-                    <th>Import as</th>
+                    <th>Column</th>
+                    <th>Column header in file</th>
+                    <th>What it contains</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -831,7 +826,7 @@ export default function AdminDeliveryImportPage() {
                               applyColumnMappingChange(prev, i, e.target.value as SemanticField)
                             )
                           }
-                          aria-label={`Column ${columnIndexToLetter(i)} import as`}
+                          aria-label={`Column ${columnIndexToLetter(i)}`}
                         >
                           {IMPORT_AS_OPTION_ORDER.map((field) => (
                             <option key={field} value={field}>
@@ -845,6 +840,7 @@ export default function AdminDeliveryImportPage() {
                 </tbody>
               </table>
             </div>
+
             <div
               style={{
                 display: "grid",
@@ -856,7 +852,7 @@ export default function AdminDeliveryImportPage() {
               {!fuelTypeColumnMapped && (
                 <div>
                   <label style={{ display: "block", fontSize: "0.7rem", textTransform: "uppercase", color: "var(--admin-muted)", marginBottom: "0.25rem" }}>
-                    Default fuel type (whole file)
+                    Fuel type — applies to every row
                   </label>
                   <select
                     className="admin-input"
@@ -869,19 +865,19 @@ export default function AdminDeliveryImportPage() {
                     }
                     style={{ width: "100%" }}
                   >
-                    <option value="">— pick a default —</option>
+                    <option value="">— select fuel type —</option>
                     <option value="OIL">OIL</option>
                     <option value="PROP">PROP</option>
                     <option value="PROPANE">PROPANE</option>
                   </select>
                   <p style={{ color: "var(--admin-muted)", fontSize: "0.72rem", margin: "0.25rem 0 0" }}>
-                    Only needed because no column is mapped to <strong>Fuel type</strong>. Map a column instead to remove this.
+                    Set this if all rows in the file are the same fuel type and no column lists it.
                   </p>
                 </div>
               )}
               <div>
                 <label style={{ display: "block", fontSize: "0.7rem", textTransform: "uppercase", color: "var(--admin-muted)", marginBottom: "0.25rem" }}>
-                  Default company (whole file)
+                  Oil company (optional)
                 </label>
                 <select
                   className="admin-input"
@@ -895,13 +891,13 @@ export default function AdminDeliveryImportPage() {
                   }
                   style={{ width: "100%" }}
                 >
-                  <option value="">— optional: company for new members only —</option>
+                  <option value="">— optional: used only when creating new customers —</option>
                   {oilCompanies.map((c) => (
                     <option key={c._id} value={c._id}>
                       {c.active === false ? `${c.name} (inactive)` : c.name}
                     </option>
                   ))}
-                  <option value={CUSTOM_COMPANY}>Custom (type below)…</option>
+                  <option value={CUSTOM_COMPANY}>Other (type below)…</option>
                 </select>
                 {defaults.companySelection === CUSTOM_COMPANY && (
                   <input
@@ -916,25 +912,22 @@ export default function AdminDeliveryImportPage() {
                   defaults.companySelection !== CUSTOM_COMPANY &&
                   resolvedDefaultCompanyName && (
                     <p style={{ color: "var(--admin-muted)", fontSize: "0.72rem", margin: "0.25rem 0 0" }}>
-                      Used when creating new members from unmatched groups — not for row matching.
+                      Only assigned to newly created customers — not used for matching.
                     </p>
                   )}
               </div>
             </div>
-            {builtRows.dateMode === "date" && (
-              <p style={{ color: "var(--admin-muted)", fontSize: "0.8rem", margin: "0.75rem 0 0" }}>
-                Using the column mapped to <strong>Date delivered</strong> as each row’s delivery date.
-              </p>
-            )}
+
             {builtRows.dateMode === "monthYear" && (
               <p style={{ color: "var(--admin-muted)", fontSize: "0.8rem", margin: "0.75rem 0 0" }}>
-                Using <strong>Month + Year</strong> columns to synthesize dates as the first of the month
+                Month + Year columns will be combined into a delivery date (first of the month
                 {builtRows.rows.length > 0 && builtRows.rows[0].dateDelivered
-                  ? ` (e.g. row 1 → ${builtRows.rows[0].dateDelivered})`
+                  ? ` — e.g. row 1 → ${builtRows.rows[0].dateDelivered}`
                   : ""}
-                .
+                ).
               </p>
             )}
+
             {builtRows.mappingErrors.length > 0 && (
               <ul style={{ color: "#b91c1c", fontSize: "0.85rem", margin: "0.75rem 0 0", paddingLeft: "1.25rem" }}>
                 {builtRows.mappingErrors.map((err, i) => (
@@ -944,17 +937,16 @@ export default function AdminDeliveryImportPage() {
             )}
             {builtRows.missingFields.length > 0 && (
               <p style={{ color: "#b45309", fontSize: "0.85rem", margin: "0.75rem 0 0" }}>
-                Missing required field(s): {builtRows.missingFields.join(", ")}
+                Still needed before you can import: {builtRows.missingFields.join(", ")}
               </p>
             )}
           </div>
 
+          {/* Step 3 */}
           <div className="admin-card">
-            <h2>3. Import preview ({importPreviewRows.length} of {sheet.rows.length} rows)</h2>
+            <h2>3. Preview ({importPreviewRows.length} of {sheet.rows.length} rows)</h2>
             <p style={{ color: "var(--admin-muted)", fontSize: "0.75rem", margin: "-0.25rem 0 0.5rem" }}>
-              Each row below is the exact record sent when you <strong>Validate</strong> or <strong>Apply</strong> (after
-              column mapping and file defaults). Name first + Name last are merged into <strong>Name</strong>; Month +
-              Year become <strong>Date delivered</strong>.
+              This is a sample of what will be imported based on your column settings above.
             </p>
             <div className="admin-table-wrap">
               <table className="admin-table">
@@ -978,14 +970,12 @@ export default function AdminDeliveryImportPage() {
             </div>
           </div>
 
+          {/* Step 4 */}
           <div className="admin-card">
-            <h2>4. Validate &amp; apply</h2>
+            <h2>4. Check &amp; save</h2>
             <p style={{ color: "var(--admin-muted)", fontSize: "0.8rem", marginTop: 0 }}>
-              Validate runs the matcher without saving. Apply appends deliveries to members that matched; it skips
-              duplicates already on file. Rows that need attention: <strong>first delivery</strong> (matched member but
-              no history yet — confirm), <strong>unmatched</strong> (no member with that account / oil ID — review hints,
-              update IDs, or create a member), and <strong>ambiguous</strong> (more than one member matches — nothing is
-              imported until data is fixed).
+              <strong>Check first</strong> runs through the file without saving anything — it shows you which customers were found, which weren't, and anything that needs your attention.{" "}
+              <strong>Save deliveries</strong> writes the records to each customer's history.
             </p>
             <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
               <button
@@ -994,7 +984,7 @@ export default function AdminDeliveryImportPage() {
                 onClick={() => void postImport(true)}
                 disabled={!canRun || busy}
               >
-                {busy && reportMode === "validate" ? "Validating…" : "Validate (dry run)"}
+                {busy && reportMode === "validate" ? "Checking…" : "Check first (no changes)"}
               </button>
               <button
                 type="button"
@@ -1002,7 +992,7 @@ export default function AdminDeliveryImportPage() {
                 onClick={() => void postImport(false)}
                 disabled={!canRun || busy}
               >
-                {busy && reportMode === "apply" ? "Applying…" : "Apply import"}
+                {busy && reportMode === "apply" ? "Saving…" : "Save deliveries"}
               </button>
             </div>
           </div>
@@ -1037,9 +1027,9 @@ function formatImportErrorReason(reason: string, detail?: Record<string, unknown
     const ids = Array.isArray(detail?.candidateMemberIds)
       ? (detail.candidateMemberIds as string[]).join(", ")
       : "";
-    return `Multiple members share this account / oil ID; it was not imported. Resolve duplicate IDs on members. Candidates: ${ids || "(none)"}`;
+    return `This account number is linked to more than one customer — not imported. Please fix the duplicate on the customer records, then re-import. Customer IDs: ${ids || "(none)"}`;
   }
-  if (reason === "duplicate_skipped") return "Same date, fuel, and gallons already on file — skipped.";
+  if (reason === "duplicate_skipped") return "Already saved — skipped.";
   return reason;
 }
 
@@ -1058,9 +1048,9 @@ function UnmatchedRowsDetailTable({
       <h3 style={{ margin: "0.5rem 0", fontSize: "0.9rem" }}>{title}</h3>
       <p style={{ color: "var(--admin-muted)", fontSize: "0.78rem", margin: "0 0 0.5rem" }}>
         {mode === "apply"
-          ? "These rows were discarded on Apply (group decision was Skip). Nothing is stored — re-import the file and choose Match or Create to keep them."
-          : "Use hints to update the member's oil or propane account ID, or set the group decision above to Match / Create. Skipped rows are discarded — they are not saved anywhere."}
-        {" "}Name and address come from the file only when mapped.
+          ? "These rows were skipped because no action was chosen. To save them, re-import the file and choose “Link to customer” or “Create new customer” for each one."
+          : "No customer was found for these account numbers. Use the hint to update the customer’s account number, or choose an action in the table above."}
+        {" "}Name and address are shown when available from the file.
       </p>
       <div className="admin-table-wrap" style={{ marginBottom: "0.75rem", maxHeight: "420px", overflowY: "auto" }}>
         <table className="admin-table">
@@ -1069,11 +1059,11 @@ function UnmatchedRowsDetailTable({
               <th>Row #</th>
               <th>Fuel</th>
               <th>Company</th>
-              <th>Account</th>
+              <th>Account #</th>
               <th>Name</th>
               <th>Address</th>
               <th>Hint</th>
-              <th>Members</th>
+              <th>Customer</th>
             </tr>
           </thead>
           <tbody>
@@ -1092,7 +1082,7 @@ function UnmatchedRowsDetailTable({
                   {u.hint?.memberIds?.length ? (
                     u.hint.memberIds.map((id) => (
                       <Link key={id} to={`/admin/members/${id}`} style={{ marginRight: "0.5rem" }} title={id}>
-                        Profile
+                        View
                       </Link>
                     ))
                   ) : (
@@ -1123,33 +1113,31 @@ function ImportReportCard({
 
   return (
     <div className="admin-card">
-      <h2>{isValidate ? "Validation result" : "Import result"}</h2>
+      <h2>{isValidate ? "Check results" : "Import complete"}</h2>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "0.5rem", marginBottom: "1rem" }}>
         <Stat label="Total rows" value={s.totalRows} />
-        <Stat label="Matched" value={s.matched} ok />
-        {s.appended != null && <Stat label="Appended" value={s.appended} ok />}
+        <Stat label="Customers found" value={s.matched} ok />
+        {s.appended != null && <Stat label="Deliveries saved" value={s.appended} ok />}
         {firstDeliveryMembers.length > 0 && (
-          <Stat label="First-delivery customers" value={firstDeliveryMembers.length} warn />
+          <Stat label="Need confirmation" value={firstDeliveryMembers.length} warn />
         )}
         {s.createdMembers != null && s.createdMembers > 0 && (
-          <Stat label="New members" value={s.createdMembers} ok />
+          <Stat label="New customers added" value={s.createdMembers} ok />
         )}
         {s.matchedExistingGroups != null && s.matchedExistingGroups > 0 && (
-          <Stat label="Matched to existing" value={s.matchedExistingGroups} ok />
+          <Stat label="Linked to existing" value={s.matchedExistingGroups} ok />
         )}
         {s.skippedFirstDelivery != null && s.skippedFirstDelivery > 0 && (
-          <Stat label="Skipped (unconfirmed)" value={s.skippedFirstDelivery} warn />
+          <Stat label="Waiting for confirmation" value={s.skippedFirstDelivery} warn />
         )}
-        <Stat label="Unmatched" value={s.unmatched} warn={s.unmatched > 0} />
-        <Stat label="Ambiguous" value={s.ambiguous} warn={s.ambiguous > 0} />
-        <Stat label="Invalid / dup" value={s.invalid} warn={s.invalid > 0} />
+        <Stat label="Not found" value={s.unmatched} warn={s.unmatched > 0} />
+        <Stat label="Duplicate accounts" value={s.ambiguous} warn={s.ambiguous > 0} />
+        <Stat label="Skipped / already saved" value={s.invalid} warn={s.invalid > 0} />
       </div>
 
       {isValidate && report.ambiguous.length > 0 && (
         <p style={{ color: "#b45309", fontSize: "0.82rem", margin: "0 0 0.75rem", padding: "0.5rem 0.65rem", background: "rgba(180,83,9,0.08)", borderRadius: "6px" }}>
-          <strong>Ambiguous:</strong> {report.ambiguous.length} row{report.ambiguous.length === 1 ? "" : "s"} match more
-          than one member. They are <strong>never</strong> imported automatically — fix the underlying member records
-          (duplicate account / oil IDs on multiple members), then run the import again.
+          <strong>Duplicate account numbers:</strong> {report.ambiguous.length} row{report.ambiguous.length === 1 ? "" : "s"} matched more than one customer and were <strong>not saved</strong>. Please fix the duplicate account numbers on the affected customer records, then run the import again.
         </p>
       )}
 
@@ -1171,7 +1159,7 @@ function ImportReportCard({
 
       {!isValidate && (report.createdMembers?.length ?? 0) > 0 && (
         <ReportTable
-          title="New members created"
+          title="New customers created"
           rows={(report.createdMembers || []).map((c) => ({
             "Member #": c.memberNumber,
             Name: `${c.firstName} ${c.lastName}`.trim(),
@@ -1181,21 +1169,21 @@ function ImportReportCard({
 
       {!isValidate && (report.matchedExisting?.length ?? 0) > 0 && (
         <ReportTable
-          title="Matched to existing members"
+          title="Linked to existing customers"
           rows={(report.matchedExisting || []).map((m) => ({
             "Member #": m.memberNumber,
             Name: m.memberName || "(unnamed)",
             Fuel: m.fuelType,
-            Account: m.account,
+            "Account #": m.account,
             "Rows added": m.rowsAppended,
-            "Account stamped": m.stampedAccount ? "yes" : "(already on file)",
+            "Account saved": m.stampedAccount ? "yes" : "(already on file)",
           }))}
         />
       )}
 
       {report.unmatched.length > 0 && (
         <UnmatchedRowsDetailTable
-          title={isValidate ? "Unmatched rows (needs follow-up)" : "Unmatched rows — discarded on Apply"}
+          title={isValidate ? "Customers not found — needs follow-up" : "Skipped rows (no action chosen)"}
           rows={report.unmatched}
           mode={mode}
         />
@@ -1203,19 +1191,19 @@ function ImportReportCard({
 
       {report.ambiguous.length > 0 && (
         <ReportTable
-          title="Ambiguous rows (multiple member candidates)"
+          title="Duplicate account numbers — not imported"
           rows={report.ambiguous.map((a) => ({
             "Row #": a.rowNumber,
             Company: a.companyName,
-            Account: a.account,
-            "Candidate IDs": a.candidateMemberIds.join(", "),
+            "Account #": a.account,
+            "Affected customer IDs": a.candidateMemberIds.join(", "),
           }))}
         />
       )}
 
       {report.errors.length > 0 && (
         <ReportTable
-          title="Invalid / duplicate / not imported"
+          title="Skipped rows"
           rows={report.errors.map((e) => ({
             "Row #": e.rowNumber,
             Reason: formatImportErrorReason(e.reason, e.detail),
@@ -1240,11 +1228,10 @@ function FirstDeliveryConfirmTable({
   return (
     <>
       <h3 style={{ margin: "0.5rem 0", fontSize: "0.9rem" }}>
-        First-delivery confirmation ({members.length})
+        First-time deliveries — confirm to include ({members.length})
       </h3>
       <p style={{ color: "var(--admin-muted)", fontSize: "0.78rem", margin: "0 0 0.5rem" }}>
-        These customers exist but have <strong>no prior delivery history</strong>. Confirm each one
-        before their rows will be imported — Apply skips any that are left unchecked.
+        These customers are in the system but have <strong>no delivery history yet</strong>. Check the box next to each one to include their deliveries when you click <strong>Save deliveries</strong>. Unchecked customers will be skipped.
       </p>
       <div className="admin-table-wrap" style={{ marginBottom: "0.75rem", maxHeight: "320px", overflowY: "auto" }}>
         <table className="admin-table">
@@ -1268,8 +1255,8 @@ function FirstDeliveryConfirmTable({
                 </label>
               </th>
               <th>Member #</th>
-              <th>Name</th>
-              <th>Rows in import</th>
+              <th>Customer name</th>
+              <th>Deliveries in file</th>
             </tr>
           </thead>
           <tbody>
@@ -1278,7 +1265,7 @@ function FirstDeliveryConfirmTable({
                 <td>
                   <input
                     type="checkbox"
-                    aria-label={`Confirm first delivery for ${m.name || m.memberNumber}`}
+                    aria-label={`Include deliveries for ${m.name || m.memberNumber}`}
                     checked={Boolean(confirms[m.memberId])}
                     onChange={(e) =>
                       setConfirms((prev) => ({ ...prev, [m.memberId]: e.target.checked }))
@@ -1309,23 +1296,23 @@ function UnmatchedGroupConfirmTable({
   return (
     <>
       <h3 style={{ margin: "0.5rem 0", fontSize: "0.9rem" }}>
-        Unrecognized customers ({groups.length})
+        Customers not found ({groups.length})
       </h3>
       <p style={{ color: "var(--admin-muted)", fontSize: "0.78rem", margin: "0 0 0.5rem" }}>
-        No member has these <strong>account / oil IDs</strong> on file. Choose one per group: <strong>Skip</strong>{" "}
-        (default — these rows are <em>discarded</em>, not saved), <strong>Match to existing member</strong> (search by
-        name or member #; the account is stamped onto their record so future imports auto-match), or{" "}
-        <strong>Create new member</strong> (name pre-filled from the file).
+        No customer record was found for these account numbers. For each one, choose what to do:{" "}
+        <strong>Skip</strong> (don't save — the rows are discarded),{" "}
+        <strong>Link to existing customer</strong> (search and attach; the account number will be saved so future imports match automatically), or{" "}
+        <strong>Create new customer</strong> (adds a new record using the name from the file).
       </p>
       <div className="admin-table-wrap" style={{ marginBottom: "0.75rem", maxHeight: "420px", overflowY: "auto" }}>
         <table className="admin-table">
           <thead>
             <tr>
-              <th style={{ minWidth: "12rem" }}>Decision</th>
+              <th style={{ minWidth: "14rem" }}>Action</th>
               <th>Fuel</th>
               <th>Company</th>
-              <th>Account</th>
-              <th>Hint</th>
+              <th>Account #</th>
+              <th>Note</th>
               <th>Rows</th>
               <th colSpan={2}>Details</th>
             </tr>
@@ -1352,14 +1339,14 @@ function UnmatchedGroupConfirmTable({
                   <td>
                     <select
                       className="admin-input"
-                      style={{ minWidth: "10rem", fontSize: "0.8rem" }}
+                      style={{ minWidth: "12rem", fontSize: "0.8rem" }}
                       value={d.mode}
                       onChange={(e) => update({ mode: e.target.value as UnmatchedGroupMode })}
-                      aria-label={`Decision for ${g.account}`}
+                      aria-label={`Action for account ${g.account}`}
                     >
                       <option value="skip">Skip (discard rows)</option>
-                      <option value="match">Match to existing member</option>
-                      <option value="create">Create new member</option>
+                      <option value="match">Link to existing customer</option>
+                      <option value="create">Create new customer</option>
                     </select>
                   </td>
                   <td>{g.fuelType}</td>
@@ -1401,7 +1388,7 @@ function UnmatchedGroupConfirmTable({
                       />
                     ) : (
                       <span style={{ color: "var(--admin-muted)", fontSize: "0.78rem" }}>
-                        Rows for this group will be discarded on Apply.
+                        These rows will not be saved.
                       </span>
                     )}
                   </td>
@@ -1415,7 +1402,6 @@ function UnmatchedGroupConfirmTable({
   );
 }
 
-/** Inline async picker — types a query, debounces, calls /api/admin/members?q=. */
 function MemberSearchPicker({
   value,
   label,
@@ -1459,7 +1445,6 @@ function MemberSearchPicker({
         }>(`/api/admin/members?q=${encodeURIComponent(q)}`, { token, signal: ctrl.signal });
         setResults(r.members.slice(0, 8));
       } catch {
-        // Aborted or failed — surface no results.
         setResults([]);
       } finally {
         setBusy(false);
@@ -1474,7 +1459,7 @@ function MemberSearchPicker({
   if (value) {
     return (
       <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", flexWrap: "wrap" }}>
-        <span style={{ fontSize: "0.82rem" }}>{label || `Member ${value}`}</span>
+        <span style={{ fontSize: "0.82rem" }}>{label || `Customer ${value}`}</span>
         <button
           type="button"
           className="admin-btn"
@@ -1496,7 +1481,7 @@ function MemberSearchPicker({
         className="admin-input"
         style={{ minWidth: "16rem", fontSize: "0.8rem" }}
         value={query}
-        placeholder="Search name, member #, email…"
+        placeholder="Search by name or member #…"
         aria-invalid={invalid ? true : undefined}
         onFocus={() => setOpen(true)}
         onBlur={() => window.setTimeout(() => setOpen(false), 150)}
@@ -1526,7 +1511,7 @@ function MemberSearchPicker({
             <div style={{ padding: "0.4rem 0.6rem", color: "var(--admin-muted)" }}>Searching…</div>
           )}
           {!busy && results.length === 0 && (
-            <div style={{ padding: "0.4rem 0.6rem", color: "var(--admin-muted)" }}>No matches.</div>
+            <div style={{ padding: "0.4rem 0.6rem", color: "var(--admin-muted)" }}>No matches found.</div>
           )}
           {results.map((m) => {
             const lp = (m.legacyProfile || {}) as Record<string, unknown>;
@@ -1559,6 +1544,103 @@ function MemberSearchPicker({
               </button>
             );
           })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ImportHistoryPanel({
+  history,
+  loading,
+  undoingBatchId,
+  undoResult,
+  onUndo,
+  onDismissResult,
+}: {
+  history: ImportHistoryItem[];
+  loading: boolean;
+  undoingBatchId: string | null;
+  undoResult: { batchId: string; rowsRemoved: number; membersAffected: number } | null;
+  onUndo: (batchId: string, fileName: string) => void;
+  onDismissResult: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  if (loading && history.length === 0) return null;
+  if (!loading && history.length === 0 && !undoResult) return null;
+
+  return (
+    <div className="admin-card" style={{ marginBottom: "1rem" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h2 style={{ margin: 0 }}>Previous imports</h2>
+        {history.length > 3 && (
+          <button
+            type="button"
+            className="admin-btn"
+            style={{ fontSize: "0.8rem", padding: "0.2rem 0.55rem" }}
+            onClick={() => setExpanded((v) => !v)}
+          >
+            {expanded ? "Show less" : `Show all ${history.length}`}
+          </button>
+        )}
+      </div>
+
+      {undoResult && (
+        <div style={{ margin: "0.75rem 0 0", padding: "0.6rem 0.75rem", background: "rgba(21,128,61,0.08)", border: "1px solid rgba(21,128,61,0.25)", borderRadius: "6px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: "0.5rem" }}>
+          <span style={{ fontSize: "0.85rem", color: "#15803d" }}>
+            <strong>Undone.</strong> Removed {undoResult.rowsRemoved} delivery row{undoResult.rowsRemoved === 1 ? "" : "s"} from {undoResult.membersAffected} customer{undoResult.membersAffected === 1 ? "" : "s"}.
+          </span>
+          <button type="button" className="admin-btn" style={{ fontSize: "0.75rem", padding: "0.15rem 0.4rem" }} onClick={onDismissResult}>Dismiss</button>
+        </div>
+      )}
+
+      {history.length === 0 && !loading ? null : (
+        <div className="admin-table-wrap" style={{ marginTop: "0.75rem" }}>
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>File</th>
+                <th>Rows saved</th>
+                <th>New customers</th>
+                <th>Not found</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {(expanded ? history : history.slice(0, 3)).map((item) => {
+                const isUndoing = undoingBatchId === item.importBatchId;
+                const date = item.createdAt
+                  ? new Date(item.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+                  : "—";
+                return (
+                  <tr key={item.importBatchId}>
+                    <td style={{ whiteSpace: "nowrap", fontSize: "0.85rem" }}>{date}</td>
+                    <td style={{ fontSize: "0.85rem", maxWidth: "16rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={item.fileName}>
+                      {item.fileName || <span style={{ color: "var(--admin-muted)" }}>—</span>}
+                    </td>
+                    <td style={{ fontSize: "0.85rem" }}>{item.appended}</td>
+                    <td style={{ fontSize: "0.85rem" }}>{item.createdMembers || 0}</td>
+                    <td style={{ fontSize: "0.85rem", color: item.unmatched > 0 ? "#b45309" : undefined }}>
+                      {item.unmatched || 0}
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="admin-btn"
+                        style={{ fontSize: "0.75rem", padding: "0.2rem 0.5rem", color: "#b91c1c", borderColor: "#fca5a5" }}
+                        disabled={isUndoing || undoingBatchId !== null}
+                        onClick={() => onUndo(item.importBatchId, item.fileName)}
+                      >
+                        {isUndoing ? "Undoing…" : "Undo"}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
