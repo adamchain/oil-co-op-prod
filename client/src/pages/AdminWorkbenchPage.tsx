@@ -531,6 +531,7 @@ export default function AdminWorkbenchPage() {
             m.legacyProfile && typeof m.legacyProfile === "object"
               ? Object.values(m.legacyProfile as Record<string, unknown>)
               : [];
+          const noteHistoryTexts = (m.notesHistory || []).map((n) => n.text);
           const haystack = [
             m.memberNumber,
             m.firstName,
@@ -544,6 +545,9 @@ export default function AdminWorkbenchPage() {
             ...stateSynonyms(m.state),
             m.postalCode,
             m.notes,
+            ...noteHistoryTexts,
+            m.oilCompanyId?.name,
+            m.status,
             ...legacyValues,
           ]
             .filter(Boolean)

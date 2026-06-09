@@ -366,14 +366,53 @@ function splitSuggestedName(raw: string): { firstName: string; lastName: string 
   return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
 }
 
+// ── Draft persistence ────────────────────────────────────────────────────────
+
+const DRAFT_KEY = "delivery-import-draft-v1";
+
+type ImportDraft = {
+  fileName: string;
+  sheet: ParsedSheet | null;
+  columnMapping: SemanticField[];
+  defaults: { fuelType: "" | "OIL" | "PROP" | "PROPANE"; companySelection: string; customCompanyName: string };
+  report: ServerImportResponse | null;
+  reportMode: "validate" | "apply" | null;
+  firstDeliveryConfirms: Record<string, boolean>;
+  createMemberDecisions: Record<string, CreateMemberDecision>;
+};
+
+function loadDraft(): Partial<ImportDraft> {
+  try {
+    const raw = sessionStorage.getItem(DRAFT_KEY);
+    if (!raw) return {};
+    return JSON.parse(raw) as Partial<ImportDraft>;
+  } catch {
+    return {};
+  }
+}
+
+function saveDraft(draft: Partial<ImportDraft>): void {
+  try {
+    sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  } catch {
+    // Storage quota exceeded or unavailable — silently ignore
+  }
+}
+
+function clearDraft(): void {
+  try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+
 export default function AdminDeliveryImportPage() {
   const { token } = useAuth();
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const [fileName, setFileName] = useState("");
-  const [sheet, setSheet] = useState<ParsedSheet | null>(null);
-  const [columnMapping, setColumnMapping] = useState<SemanticField[]>(() => [...STANDARD_SIX_FIELDS]);
-  const [defaults, setDefaults] = useState({
+  const [fileName, setFileName] = useState<string>(() => loadDraft().fileName ?? "");
+  const [sheet, setSheet] = useState<ParsedSheet | null>(() => loadDraft().sheet ?? null);
+  const [columnMapping, setColumnMapping] = useState<SemanticField[]>(() => loadDraft().columnMapping ?? [...STANDARD_SIX_FIELDS]);
+  const [defaults, setDefaults] = useState(() => loadDraft().defaults ?? {
     fuelType: "" as "" | "OIL" | "PROP" | "PROPANE",
     companySelection: "",
     customCompanyName: "",
@@ -381,11 +420,16 @@ export default function AdminDeliveryImportPage() {
   const [oilCompanies, setOilCompanies] = useState<OilCompany[]>([]);
   const [parseError, setParseError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [report, setReport] = useState<ServerImportResponse | null>(null);
-  const [reportMode, setReportMode] = useState<"validate" | "apply" | null>(null);
+  const [report, setReport] = useState<ServerImportResponse | null>(() => loadDraft().report ?? null);
+  const [reportMode, setReportMode] = useState<"validate" | "apply" | null>(() => loadDraft().reportMode ?? null);
 
-  const [firstDeliveryConfirms, setFirstDeliveryConfirms] = useState<Record<string, boolean>>({});
-  const [createMemberDecisions, setCreateMemberDecisions] = useState<Record<string, CreateMemberDecision>>({});
+  const [firstDeliveryConfirms, setFirstDeliveryConfirms] = useState<Record<string, boolean>>(() => loadDraft().firstDeliveryConfirms ?? {});
+  const [createMemberDecisions, setCreateMemberDecisions] = useState<Record<string, CreateMemberDecision>>(() => loadDraft().createMemberDecisions ?? {});
+
+  // Persist draft whenever any import state changes so navigation doesn't lose progress
+  useEffect(() => {
+    saveDraft({ fileName, sheet, columnMapping, defaults, report, reportMode, firstDeliveryConfirms, createMemberDecisions });
+  }, [fileName, sheet, columnMapping, defaults, report, reportMode, firstDeliveryConfirms, createMemberDecisions]);
 
   const [importHistory, setImportHistory] = useState<ImportHistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -680,6 +724,7 @@ export default function AdminDeliveryImportPage() {
   }
 
   function reset() {
+    clearDraft();
     setFileName("");
     setSheet(null);
     setReport(null);
