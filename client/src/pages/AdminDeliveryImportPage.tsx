@@ -920,58 +920,7 @@ export default function AdminDeliveryImportPage() {
                   </p>
                 </div>
               )}
-              <div>
-                <label style={{ display: "block", fontSize: "0.7rem", textTransform: "uppercase", color: "var(--admin-muted)", marginBottom: "0.25rem" }}>
-                  Oil company (optional)
-                </label>
-                <select
-                  className="admin-input"
-                  value={defaults.companySelection}
-                  onChange={(e) =>
-                    setDefaults((d) => ({
-                      ...d,
-                      companySelection: e.target.value,
-                      ...(e.target.value === CUSTOM_COMPANY ? {} : { customCompanyName: "" }),
-                    }))
-                  }
-                  style={{ width: "100%" }}
-                >
-                  <option value="">— optional: used only when creating new customers —</option>
-                  {oilCompanies.map((c) => (
-                    <option key={c._id} value={c._id}>
-                      {c.active === false ? `${c.name} (inactive)` : c.name}
-                    </option>
-                  ))}
-                  <option value={CUSTOM_COMPANY}>Other (type below)…</option>
-                </select>
-                {defaults.companySelection === CUSTOM_COMPANY && (
-                  <input
-                    className="admin-input"
-                    value={defaults.customCompanyName}
-                    onChange={(e) => setDefaults((d) => ({ ...d, customCompanyName: e.target.value }))}
-                    placeholder="e.g. Saveway Petroleum"
-                    style={{ width: "100%", marginTop: "0.35rem" }}
-                  />
-                )}
-                {defaults.companySelection &&
-                  defaults.companySelection !== CUSTOM_COMPANY &&
-                  resolvedDefaultCompanyName && (
-                    <p style={{ color: "var(--admin-muted)", fontSize: "0.72rem", margin: "0.25rem 0 0" }}>
-                      Only assigned to newly created customers — not used for matching.
-                    </p>
-                  )}
-              </div>
             </div>
-
-            {builtRows.dateMode === "monthYear" && (
-              <p style={{ color: "var(--admin-muted)", fontSize: "0.8rem", margin: "0.75rem 0 0" }}>
-                Month + Year columns will be combined into a delivery date (first of the month
-                {builtRows.rows.length > 0 && builtRows.rows[0].dateDelivered
-                  ? ` — e.g. row 1 → ${builtRows.rows[0].dateDelivered}`
-                  : ""}
-                ).
-              </p>
-            )}
 
             {builtRows.mappingErrors.length > 0 && (
               <ul style={{ color: "#b91c1c", fontSize: "0.85rem", margin: "0.75rem 0 0", paddingLeft: "1.25rem" }}>

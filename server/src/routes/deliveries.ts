@@ -142,11 +142,14 @@ router.delete("/members/:id/:rowId", async (req: AuthedRequest, res) => {
 
 const importRowSchema = z.object({
   rowNumber: z.number().int().positive().optional(),
-  fuelType: z.string().min(1),
-  account: z.string().min(1),
+  // Blank cells are allowed through so the tolerant per-row loop can report them
+  // as readable row errors (invalid_fuel_type / invalid_date / missing_account)
+  // instead of failing the whole upload when a few rows are blank/subtotals.
+  fuelType: z.string().optional().default(""),
+  account: z.string().optional().default(""),
   /** Optional — not used for matching; stored on new members when created from import. */
   companyName: z.string().optional().default(""),
-  dateDelivered: z.string().min(1),
+  dateDelivered: z.string().optional().default(""),
   gallons: z.number().finite().nonnegative(),
   /** Customer name from the import file — display-only; matching uses account / oil ID only. */
   name: z.string().optional(),
