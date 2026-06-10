@@ -1374,6 +1374,71 @@ button.admin-wb-panel-title.admin-wb-panel-toggle:hover {
   grid-column: span 3;
 }
 
+/* ── Payment History view ── */
+.admin-wb-panel .admin-form-row-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.35rem 0.6rem;
+  margin-bottom: 0.4rem;
+}
+
+.admin-wb-panel .admin-form-row-wrap:last-child {
+  margin-bottom: 0;
+}
+
+.admin-wb-panel .admin-field {
+  font-size: 0.56rem;
+  font-weight: 600;
+  color: var(--wb-muted);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  display: flex;
+  flex-direction: column;
+  gap: 0.14rem;
+  min-width: 0;
+  flex: 0 0 auto;
+}
+
+.admin-wb-panel .admin-field-xs { width: 52px; }
+.admin-wb-panel .admin-field-sm { width: 110px; }
+.admin-wb-panel .admin-field-md { width: 150px; }
+.admin-wb-panel .admin-field-lg { width: 320px; max-width: 100%; }
+.admin-wb-panel .admin-field-block { flex: 1 1 100%; width: 100%; }
+
+.admin-wb-panel .admin-field textarea.admin-input {
+  resize: vertical;
+  font-weight: 500;
+  font-size: 0.8rem;
+}
+
+.admin-pay-status-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem 0.8rem;
+  margin-bottom: 0.5rem;
+}
+
+@media (max-width: 700px) {
+  .admin-pay-status-grid { grid-template-columns: 1fr; }
+}
+
+.admin-pay-status-label {
+  font-size: 0.56rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--wb-muted);
+  margin-bottom: 0.2rem;
+}
+
+.admin-checkbox-grid.admin-pay-flags {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 0.3rem 1rem;
+  margin-top: 0.1rem;
+}
+
 @media (max-width: 850px) {
   .admin-wb-panel .admin-form-grid-4 {
     grid-template-columns: repeat(2, 1fr);

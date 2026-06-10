@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../authContext";
 import DeliveryHistoryModal from "../components/DeliveryHistoryModal";
-import PaymentHistoryModal from "../components/PaymentHistoryModal";
+import PaymentHistoryView from "../components/PaymentHistoryView";
 import {
   MemberFilterWidget,
   buildFilterFields,
@@ -208,7 +208,7 @@ function parseDeliveryRows(raw: unknown): DeliveryHistoryRow[] {
     });
 }
 
-type WorkbenchFormState = {
+export type WorkbenchFormState = {
   firstName: string;
   lastName: string;
   email: string;
@@ -351,7 +351,6 @@ export default function AdminWorkbenchPage() {
   const [mailToEmail, setMailToEmail] = useState("");
   const [mailSending, setMailSending] = useState(false);
   const [deliveryHistoryOpen, setDeliveryHistoryOpen] = useState(false);
-  const [paymentHistoryOpen, setPaymentHistoryOpen] = useState(false);
 
   const [collapsedPanels, setCollapsedPanels] = useState<Set<string>>(loadCollapsedPanels);
 
@@ -673,16 +672,8 @@ export default function AdminWorkbenchPage() {
   useEffect(() => {
     if (!current) {
       setDeliveryHistoryOpen(false);
-      setPaymentHistoryOpen(false);
     }
   }, [current?._id]);
-
-  useEffect(() => {
-    if (activeTab !== "PAYMENT HISTORY") return;
-    if (!current) return;
-    setPaymentHistoryOpen(true);
-    setActiveTab("Data Entry");
-  }, [activeTab, current]);
 
   const worksheetMembers = useMemo(() => {
     const getValue = (m: Member, key: "memberNumber" | "name" | "address" | "city" | "phone" | "oilCompany" | "notes" | "status") => {
@@ -831,40 +822,6 @@ export default function AdminWorkbenchPage() {
       serializeWorkbenchForm(form) !== baselineSerializedRef.current,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [form, current?._id, saveTick]
-  );
-
-  const paymentModalMember = useMemo(
-    () => ({
-      memberNumber: current?.memberNumber || String(form.legacyProfile.legacyId || ""),
-      createdAt: current?.createdAt,
-      firstName: form.firstName,
-      lastName: form.lastName,
-      email: form.email,
-      phone: form.phone,
-      phone2: String(form.legacyProfile.phone2 || ""),
-      typePhone1: String(form.legacyProfile.typePhone1 || "HOME"),
-      typePhone2: String(form.legacyProfile.typePhone2 || "HOME"),
-      addressLine1: form.addressLine1,
-      addressLine2: form.addressLine2,
-      city: form.city,
-      state: form.state,
-      postalCode: form.postalCode,
-      oilCompanyName: selectedOilCompanyName,
-      oilId: String(form.legacyProfile.oilId || ""),
-      propaneId: String(form.legacyProfile.propaneId || ""),
-      registrationFee: String(form.legacyProfile.registrationFee || ""),
-      regDtPaid: String(form.legacyProfile.regDtPaid || ""),
-      regCheckCredit: String(form.legacyProfile.regCheckCredit || ""),
-      registrationPaymentStatus: String(form.legacyProfile.registrationPaymentStatus || ""),
-      ccType: String(form.legacyProfile.ccType || ""),
-      ccLast4: String(form.legacyProfile.ccLast4 || ""),
-      ccExp: String(form.legacyProfile.ccExp || ""),
-      ccName: String(form.legacyProfile.ccName || ""),
-      deliveryHistory: Boolean(form.legacyProfile.deliveryHistory),
-      delinquent: Boolean(form.legacyProfile.delinquent),
-      notPaidCurrentYr: Boolean(form.legacyProfile.notPaidCurrentYr),
-    }),
-    [current?.memberNumber, current?.createdAt, form, selectedOilCompanyName]
   );
 
   const downloadText = (filename: string, content: string, mime = "text/plain;charset=utf-8") => {
@@ -1412,13 +1369,7 @@ export default function AdminWorkbenchPage() {
           <button
             key={tab}
             className={`admin-wb-tab${tab === activeTab ? " active" : ""}`}
-            onClick={() => {
-              if (tab === "PAYMENT HISTORY") {
-                if (current) setPaymentHistoryOpen(true);
-                return;
-              }
-              setActiveTab(tab);
-            }}
+            onClick={() => setActiveTab(tab)}
           >
             {tab}
           </button>
@@ -2001,7 +1952,13 @@ export default function AdminWorkbenchPage() {
         )}
 
         {activeTab === "PAYMENT HISTORY" && current && (
-          <p className="admin-meta">Payment History opens in a modal for the selected member.</p>
+          <PaymentHistoryView
+            form={form}
+            setForm={setForm}
+            billing={billing}
+            member={current}
+            oilCompanyName={selectedOilCompanyName}
+          />
         )}
 
         {activeTab === "PAYMENT HISTORY" && !current && (
@@ -2797,12 +2754,6 @@ export default function AdminWorkbenchPage() {
               }
             : undefined
         }
-      />
-      <PaymentHistoryModal
-        open={paymentHistoryOpen}
-        onClose={() => setPaymentHistoryOpen(false)}
-        member={paymentModalMember}
-        billing={billing}
       />
     </div>
   );
