@@ -384,7 +384,7 @@ type ImportDraft = {
 
 function loadDraft(): Partial<ImportDraft> {
   try {
-    const raw = sessionStorage.getItem(DRAFT_KEY);
+    const raw = localStorage.getItem(DRAFT_KEY);
     if (!raw) return {};
     return JSON.parse(raw) as Partial<ImportDraft>;
   } catch {
@@ -394,14 +394,14 @@ function loadDraft(): Partial<ImportDraft> {
 
 function saveDraft(draft: Partial<ImportDraft>): void {
   try {
-    sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
   } catch {
     // Storage quota exceeded or unavailable — silently ignore
   }
 }
 
 function clearDraft(): void {
-  try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
+  try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -1009,6 +1009,8 @@ export default function AdminDeliveryImportPage() {
           createMemberDecisions={createMemberDecisions}
           setCreateMemberDecisions={setCreateMemberDecisions}
           confirmedFirstDeliveryMembers={confirmedFirstDeliveryMembers}
+          onRevalidate={sheet && builtRows.rows.length > 0 ? () => void postImport(true) : undefined}
+          busy={busy}
         />
       )}
     </>
@@ -1023,6 +1025,8 @@ type ImportReportCardProps = {
   createMemberDecisions: Record<string, CreateMemberDecision>;
   setCreateMemberDecisions: React.Dispatch<React.SetStateAction<Record<string, CreateMemberDecision>>>;
   confirmedFirstDeliveryMembers: FirstDeliveryMemberInfo[];
+  onRevalidate?: () => void;
+  busy?: boolean;
 };
 
 function formatImportErrorReason(reason: string, detail?: Record<string, unknown>): string {
@@ -1109,20 +1113,40 @@ function ImportReportCard({
   createMemberDecisions,
   setCreateMemberDecisions,
   confirmedFirstDeliveryMembers,
+  onRevalidate,
+  busy,
 }: ImportReportCardProps) {
   const s = report.summary;
   const firstDeliveryMembers = report.firstDeliveryMembers || [];
   const unmatchedGroups = report.unmatchedGroups || [];
   const isValidate = mode === "validate";
-  const [fdTab, setFdTab] = React.useState<"pending" | "confirmed">("pending");
+  const hasUnresolved = !isValidate && (s.unmatched > 0 || (s.skippedFirstDelivery ?? 0) > 0);
+  const [fdTab, setFdTab] = useState<"pending" | "confirmed">("pending");
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!isValidate && confirmedFirstDeliveryMembers.length > 0) setFdTab("confirmed");
   }, [isValidate, confirmedFirstDeliveryMembers.length]);
 
   return (
     <div className="admin-card">
       <h2>{isValidate ? "Check results" : "Import complete"}</h2>
+      {hasUnresolved && onRevalidate && (
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: "0.75rem", padding: "0.6rem 0.75rem", marginBottom: "0.85rem", background: "rgba(180,83,9,0.08)", border: "1px solid rgba(180,83,9,0.3)", borderRadius: "6px" }}>
+          <div style={{ fontSize: "0.82rem", color: "#92400e" }}>
+            <strong>{s.unmatched + (s.skippedFirstDelivery ?? 0)} row{s.unmatched + (s.skippedFirstDelivery ?? 0) === 1 ? "" : "s"} still need attention.</strong>{" "}
+            Fix more customer records, then click <strong>Check again</strong> to pick up where you left off. The file stays loaded — you can leave and come back later.
+          </div>
+          <button
+            type="button"
+            className="admin-btn"
+            onClick={onRevalidate}
+            disabled={busy}
+            style={{ whiteSpace: "nowrap" }}
+          >
+            {busy ? "Checking…" : "Check again"}
+          </button>
+        </div>
+      )}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "0.5rem", marginBottom: "1rem" }}>
         <Stat label="Total rows" value={s.totalRows} />
         <Stat label="Customers found" value={s.matched} ok />
