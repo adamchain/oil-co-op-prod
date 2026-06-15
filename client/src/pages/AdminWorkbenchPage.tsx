@@ -531,14 +531,33 @@ export default function AdminWorkbenchPage() {
               ? Object.values(m.legacyProfile as Record<string, unknown>)
               : [];
           const noteHistoryTexts = (m.notesHistory || []).map((n) => n.text);
+          const lp = (m.legacyProfile || {}) as Record<string, unknown>;
+          const fullNameParts = [
+            m.firstName,
+            lp.midName1,
+            m.lastName,
+            lp.suffix1,
+            lp.firstName2,
+            lp.midName2,
+            lp.lastName2,
+            lp.suffix2,
+          ].filter(Boolean).map((x) => String(x).trim()).filter(Boolean);
+          const combinedFullName = fullNameParts.join(" ");
+          const fullAddress = [m.addressLine1, m.addressLine2, m.city, m.state, m.postalCode]
+            .filter(Boolean)
+            .map((x) => String(x).trim())
+            .filter(Boolean)
+            .join(" ");
           const haystack = [
             m.memberNumber,
             m.firstName,
             m.lastName,
+            combinedFullName,
             m.email,
             m.phone,
             m.addressLine1,
             m.addressLine2,
+            fullAddress,
             m.city,
             m.state,
             ...stateSynonyms(m.state),

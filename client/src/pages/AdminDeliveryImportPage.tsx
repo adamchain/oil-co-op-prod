@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
 import * as XLSX from "xlsx";
 import { api } from "../api";
 import { useAuth } from "../authContext";
@@ -1040,71 +1039,6 @@ function formatImportErrorReason(reason: string, detail?: Record<string, unknown
   return reason;
 }
 
-function UnmatchedRowsDetailTable({
-  title,
-  rows,
-  mode,
-}: {
-  title: string;
-  rows: ServerImportResponse["unmatched"];
-  mode: "validate" | "apply" | null;
-}) {
-  if (rows.length === 0) return null;
-  return (
-    <>
-      <h3 style={{ margin: "0.5rem 0", fontSize: "0.9rem" }}>{title}</h3>
-      <p style={{ color: "var(--admin-muted)", fontSize: "0.78rem", margin: "0 0 0.5rem" }}>
-        {mode === "apply"
-          ? "These rows were skipped because no action was chosen. To save them, re-import the file and choose “Link to customer” or “Create new customer” for each one."
-          : "No customer was found for these account numbers. Use the hint to update the customer’s account number, or choose an action in the table above."}
-        {" "}Name and address are shown when available from the file.
-      </p>
-      <div className="admin-table-wrap" style={{ marginBottom: "0.75rem", maxHeight: "420px", overflowY: "auto" }}>
-        <table className="admin-table">
-          <thead>
-            <tr>
-              <th>Row #</th>
-              <th>Fuel</th>
-              <th>Company</th>
-              <th>Account #</th>
-              <th>Name</th>
-              <th>Address</th>
-              <th>Hint</th>
-              <th>Customer</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((u, i) => (
-              <tr key={`${u.rowNumber}-${i}`}>
-                <td>{u.rowNumber}</td>
-                <td>{u.fuelType}</td>
-                <td>{u.companyName}</td>
-                <td>{u.account}</td>
-                <td>{u.name || "—"}</td>
-                <td style={{ maxWidth: "10rem", fontSize: "0.78rem" }}>{u.address || "—"}</td>
-                <td style={{ maxWidth: "22rem", fontSize: "0.78rem" }} title={u.hint?.message}>
-                  {u.hint?.message || "—"}
-                </td>
-                <td style={{ whiteSpace: "nowrap", fontSize: "0.78rem" }}>
-                  {u.hint?.memberIds?.length ? (
-                    u.hint.memberIds.map((id) => (
-                      <Link key={id} to={`/admin/members/${id}`} style={{ marginRight: "0.5rem" }} title={id}>
-                        View
-                      </Link>
-                    ))
-                  ) : (
-                    "—"
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </>
-  );
-}
-
 function ImportReportCard({
   report,
   mode,
@@ -1240,14 +1174,6 @@ function ImportReportCard({
             "Rows added": m.rowsAppended,
             "Account saved": m.stampedAccount ? "yes" : "(already on file)",
           }))}
-        />
-      )}
-
-      {report.unmatched.length > 0 && (
-        <UnmatchedRowsDetailTable
-          title={isValidate ? "Customers not found — needs follow-up" : "Skipped rows (no action chosen)"}
-          rows={report.unmatched}
-          mode={mode}
         />
       )}
 
