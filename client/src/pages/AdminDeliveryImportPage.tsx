@@ -379,6 +379,7 @@ type ImportDraft = {
   reportMode: "validate" | "apply" | null;
   firstDeliveryConfirms: Record<string, boolean>;
   createMemberDecisions: Record<string, CreateMemberDecision>;
+  confirmedFirstDeliveryMembers: FirstDeliveryMemberInfo[];
 };
 
 function loadDraft(): Partial<ImportDraft> {
@@ -425,11 +426,12 @@ export default function AdminDeliveryImportPage() {
 
   const [firstDeliveryConfirms, setFirstDeliveryConfirms] = useState<Record<string, boolean>>(() => loadDraft().firstDeliveryConfirms ?? {});
   const [createMemberDecisions, setCreateMemberDecisions] = useState<Record<string, CreateMemberDecision>>(() => loadDraft().createMemberDecisions ?? {});
+  const [confirmedFirstDeliveryMembers, setConfirmedFirstDeliveryMembers] = useState<FirstDeliveryMemberInfo[]>(() => loadDraft().confirmedFirstDeliveryMembers ?? []);
 
   // Persist draft whenever any import state changes so navigation doesn't lose progress
   useEffect(() => {
-    saveDraft({ fileName, sheet, columnMapping, defaults, report, reportMode, firstDeliveryConfirms, createMemberDecisions });
-  }, [fileName, sheet, columnMapping, defaults, report, reportMode, firstDeliveryConfirms, createMemberDecisions]);
+    saveDraft({ fileName, sheet, columnMapping, defaults, report, reportMode, firstDeliveryConfirms, createMemberDecisions, confirmedFirstDeliveryMembers });
+  }, [fileName, sheet, columnMapping, defaults, report, reportMode, firstDeliveryConfirms, createMemberDecisions, confirmedFirstDeliveryMembers]);
 
   const [importHistory, setImportHistory] = useState<ImportHistoryItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -660,6 +662,9 @@ export default function AdminDeliveryImportPage() {
 
   async function postImport(dryRun: boolean) {
     if (!token || builtRows.rows.length === 0) return;
+    const confirmedSnapshot = dryRun
+      ? []
+      : (report?.firstDeliveryMembers || []).filter((m) => firstDeliveryConfirms[m.memberId]);
     setBusy(true);
     try {
       const confirmedFirstDelivery = Object.entries(firstDeliveryConfirms)
@@ -699,6 +704,7 @@ export default function AdminDeliveryImportPage() {
       });
       setReport(r);
       setReportMode(dryRun ? "validate" : "apply");
+      if (!dryRun) setConfirmedFirstDeliveryMembers(confirmedSnapshot);
       if (dryRun) {
         const fd: Record<string, boolean> = {};
         for (const m of r.firstDeliveryMembers || []) fd[m.memberId] = false;
@@ -734,6 +740,7 @@ export default function AdminDeliveryImportPage() {
     setColumnMapping([...STANDARD_SIX_FIELDS]);
     setFirstDeliveryConfirms({});
     setCreateMemberDecisions({});
+    setConfirmedFirstDeliveryMembers([]);
     if (inputRef.current) inputRef.current.value = "";
   }
 
@@ -1001,6 +1008,7 @@ export default function AdminDeliveryImportPage() {
           setFirstDeliveryConfirms={setFirstDeliveryConfirms}
           createMemberDecisions={createMemberDecisions}
           setCreateMemberDecisions={setCreateMemberDecisions}
+          confirmedFirstDeliveryMembers={confirmedFirstDeliveryMembers}
         />
       )}
     </>
@@ -1014,6 +1022,7 @@ type ImportReportCardProps = {
   setFirstDeliveryConfirms: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   createMemberDecisions: Record<string, CreateMemberDecision>;
   setCreateMemberDecisions: React.Dispatch<React.SetStateAction<Record<string, CreateMemberDecision>>>;
+  confirmedFirstDeliveryMembers: FirstDeliveryMemberInfo[];
 };
 
 function formatImportErrorReason(reason: string, detail?: Record<string, unknown>): string {
@@ -1099,11 +1108,17 @@ function ImportReportCard({
   setFirstDeliveryConfirms,
   createMemberDecisions,
   setCreateMemberDecisions,
+  confirmedFirstDeliveryMembers,
 }: ImportReportCardProps) {
   const s = report.summary;
   const firstDeliveryMembers = report.firstDeliveryMembers || [];
   const unmatchedGroups = report.unmatchedGroups || [];
   const isValidate = mode === "validate";
+  const [fdTab, setFdTab] = React.useState<"pending" | "confirmed">("pending");
+
+  React.useEffect(() => {
+    if (!isValidate && confirmedFirstDeliveryMembers.length > 0) setFdTab("confirmed");
+  }, [isValidate, confirmedFirstDeliveryMembers.length]);
 
   return (
     <div className="admin-card">
@@ -1113,16 +1128,18 @@ function ImportReportCard({
         <Stat label="Customers found" value={s.matched} ok />
         {s.appended != null && <Stat label="Deliveries saved" value={s.appended} ok />}
         {firstDeliveryMembers.length > 0 && (
-          <Stat label="Need confirmation" value={firstDeliveryMembers.length} warn />
+          <Stat
+            label="Need confirmation"
+            value={firstDeliveryMembers.length}
+            warn
+            onClick={() => document.getElementById("first-delivery-section")?.scrollIntoView({ behavior: "smooth" })}
+          />
         )}
         {s.createdMembers != null && s.createdMembers > 0 && (
           <Stat label="New customers added" value={s.createdMembers} ok />
         )}
         {s.matchedExistingGroups != null && s.matchedExistingGroups > 0 && (
           <Stat label="Linked to existing" value={s.matchedExistingGroups} ok />
-        )}
-        {s.skippedFirstDelivery != null && s.skippedFirstDelivery > 0 && (
-          <Stat label="Waiting for confirmation" value={s.skippedFirstDelivery} warn />
         )}
         <Stat label="Not found" value={s.unmatched} warn={s.unmatched > 0} />
         <Stat label="Duplicate accounts" value={s.ambiguous} warn={s.ambiguous > 0} />
@@ -1135,14 +1152,6 @@ function ImportReportCard({
         </p>
       )}
 
-      {isValidate && firstDeliveryMembers.length > 0 && (
-        <FirstDeliveryConfirmTable
-          members={firstDeliveryMembers}
-          confirms={firstDeliveryConfirms}
-          setConfirms={setFirstDeliveryConfirms}
-        />
-      )}
-
       {isValidate && unmatchedGroups.length > 0 && (
         <UnmatchedGroupConfirmTable
           groups={unmatchedGroups}
@@ -1150,6 +1159,41 @@ function ImportReportCard({
           setDecisions={setCreateMemberDecisions}
         />
       )}
+
+      {(isValidate && firstDeliveryMembers.length > 0) || confirmedFirstDeliveryMembers.length > 0 ? (
+        <div id="first-delivery-section">
+          <div style={{ display: "flex", gap: 0, borderBottom: "2px solid var(--wb-border)", marginBottom: "0.75rem" }}>
+            {isValidate && firstDeliveryMembers.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setFdTab("pending")}
+                style={{ padding: "0.35rem 0.85rem", fontSize: "0.82rem", fontWeight: 600, border: "none", borderBottom: fdTab === "pending" ? "2px solid var(--admin-primary, #b91c1c)" : "2px solid transparent", background: "none", cursor: "pointer", color: fdTab === "pending" ? "var(--admin-primary, #b91c1c)" : "inherit", marginBottom: "-2px" }}
+              >
+                Pending ({firstDeliveryMembers.length})
+              </button>
+            )}
+            {confirmedFirstDeliveryMembers.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setFdTab("confirmed")}
+                style={{ padding: "0.35rem 0.85rem", fontSize: "0.82rem", fontWeight: 600, border: "none", borderBottom: fdTab === "confirmed" ? "2px solid #15803d" : "2px solid transparent", background: "none", cursor: "pointer", color: fdTab === "confirmed" ? "#15803d" : "inherit", marginBottom: "-2px" }}
+              >
+                Confirmed ({confirmedFirstDeliveryMembers.length})
+              </button>
+            )}
+          </div>
+          {fdTab === "pending" && isValidate && firstDeliveryMembers.length > 0 && (
+            <FirstDeliveryConfirmTable
+              members={firstDeliveryMembers}
+              confirms={firstDeliveryConfirms}
+              setConfirms={setFirstDeliveryConfirms}
+            />
+          )}
+          {fdTab === "confirmed" && confirmedFirstDeliveryMembers.length > 0 && (
+            <ConfirmedFirstDeliveryTable members={confirmedFirstDeliveryMembers} />
+          )}
+        </div>
+      ) : null}
 
       {!isValidate && (report.createdMembers?.length ?? 0) > 0 && (
         <ReportTable
@@ -1209,6 +1253,36 @@ function ImportReportCard({
   );
 }
 
+function ConfirmedFirstDeliveryTable({ members }: { members: FirstDeliveryMemberInfo[] }) {
+  return (
+    <>
+      <p style={{ color: "var(--admin-muted)", fontSize: "0.78rem", margin: "0 0 0.5rem" }}>
+        Deliveries for these customers were saved successfully.
+      </p>
+      <div className="admin-table-wrap" style={{ marginBottom: "0.75rem", maxHeight: "320px", overflowY: "auto" }}>
+        <table className="admin-table">
+          <thead>
+            <tr>
+              <th>Member #</th>
+              <th>Customer name</th>
+              <th>Deliveries saved</th>
+            </tr>
+          </thead>
+          <tbody>
+            {members.map((m) => (
+              <tr key={m.memberId}>
+                <td>{m.memberNumber || "—"}</td>
+                <td>{m.name || "—"}</td>
+                <td>{m.rowCount}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
 function FirstDeliveryConfirmTable({
   members,
   confirms,
@@ -1221,9 +1295,6 @@ function FirstDeliveryConfirmTable({
   const allChecked = members.every((m) => confirms[m.memberId]);
   return (
     <>
-      <h3 style={{ margin: "0.5rem 0", fontSize: "0.9rem" }}>
-        First-time deliveries — confirm to include ({members.length})
-      </h3>
       <p style={{ color: "var(--admin-muted)", fontSize: "0.78rem", margin: "0 0 0.5rem" }}>
         These customers are in the system but have <strong>no delivery history yet</strong>. Check the box next to each one to include their deliveries when you click <strong>Save deliveries</strong>. Unchecked customers will be skipped.
       </p>
@@ -1641,10 +1712,15 @@ function ImportHistoryPanel({
   );
 }
 
-function Stat({ label, value, ok, warn }: { label: string; value: number; ok?: boolean; warn?: boolean }) {
+function Stat({ label, value, ok, warn, onClick }: { label: string; value: number; ok?: boolean; warn?: boolean; onClick?: () => void }) {
   const color = ok ? "#15803d" : warn ? "#b45309" : "var(--admin-text)";
   return (
-    <div className="admin-stat" style={{ padding: "0.5rem 0.75rem" }}>
+    <div
+      className="admin-stat"
+      style={{ padding: "0.5rem 0.75rem", cursor: onClick ? "pointer" : undefined }}
+      onClick={onClick}
+      title={onClick ? `Go to ${label}` : undefined}
+    >
       <strong style={{ color, fontSize: "1.4rem" }}>{value}</strong>
       <span>{label}</span>
     </div>

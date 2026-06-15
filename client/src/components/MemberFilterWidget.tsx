@@ -46,8 +46,8 @@ export const STATIC_FILTER_FIELDS: FilterFieldDef[] = [
   { key: "legacyProfile.originalStartDate", label: "Original Start Date", type: "date", group: "Identity" },
 
   // Address
-  { key: "addressLine1", label: "Street", type: "text", group: "Address" },
-  { key: "addressLine2", label: "Address Line 2", type: "text", group: "Address" },
+  { key: "addressLine1", label: "Address 1", type: "text", group: "Address" },
+  { key: "legacyProfile.mailAddr", label: "Mailing Address", type: "text", group: "Address" },
   { key: "legacyProfile.aptNo1", label: "Apt No", type: "text", group: "Address" },
   { key: "city", label: "City", type: "text", group: "Address" },
   { key: "state", label: "State", type: "text", group: "Address" },
@@ -99,6 +99,7 @@ export const STATIC_FILTER_FIELDS: FilterFieldDef[] = [
 
   // Oil
   { key: "oilCompanyId._id", label: "Oil Company", type: "ref", group: "Oil" },
+  { key: "legacyProfile.oilId", label: "Oil ID", type: "text", group: "Oil" },
   { key: "legacyProfile.oilStartDate", label: "Oil Start Date", type: "date", group: "Oil" },
   {
     key: "legacyProfile.oilWorkbenchStatus",
@@ -117,6 +118,7 @@ export const STATIC_FILTER_FIELDS: FilterFieldDef[] = [
 
   // Propane
   { key: "legacyProfile.propaneCompanyName", label: "Propane Company", type: "ref", group: "Propane" },
+  { key: "legacyProfile.propaneId", label: "Propane ID", type: "text", group: "Propane" },
   {
     key: "legacyProfile.propaneStatus",
     label: "Propane Status",
