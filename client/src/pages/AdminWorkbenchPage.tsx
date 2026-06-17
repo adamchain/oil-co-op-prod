@@ -96,7 +96,12 @@ const WB_OIL_STATUS = ["ACTIVE", "INACTIVE", "PROSPECTIVE", "RESIDENT", "NO OIL"
 const WB_PROPANE_STATUS = ["ACTIVE", "INACTIVE", "PROSPECTIVE", "RESIDENT", "NO PROPANE", "UNKNOWN"] as const;
 const ELECTRIC_STATUS = ["ELECTRIC", "PENDING", "INTERESTED", "UNKNOWN", "DROPPED"] as const;
 const PHONE_TYPE = ["HOME", "WORK", "CELL"] as const;
-const HOW_JOINED = ["PHO", "WEB", "REF", "MAIL"] as const;
+const HOW_JOINED = [
+  { value: "WEB", label: "Web" },
+  { value: "PHO", label: "Phone" },
+  { value: "EVENT", label: "Event" },
+  { value: "MAIL", label: "Mail" },
+] as const;
 const REFERRAL_SOURCE = ["CCAG", "MEMBER", "OTHER"] as const;
 const MAILING_TEMPLATES = {
   newMember: {
@@ -1720,8 +1725,8 @@ export default function AdminWorkbenchPage() {
                     <label style={{ flex: "0 0 auto", width: "120px" }}>
                       How Joined
                       <select className="admin-input" value={legacyValue("howJoined") || "WEB"} onChange={(e) => setLegacy("howJoined", e.target.value)}>
-                        {HOW_JOINED.map((s) => (
-                          <option key={s} value={s}>{s}</option>
+                        {HOW_JOINED.map((h) => (
+                          <option key={h.value} value={h.value}>{h.label}</option>
                         ))}
                       </select>
                     </label>

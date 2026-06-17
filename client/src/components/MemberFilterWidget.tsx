@@ -61,17 +61,7 @@ export const STATIC_FILTER_FIELDS: FilterFieldDef[] = [
   { key: "legacyProfile.email2", label: "Email 2", type: "text", group: "Contact" },
 
   // Status & Workflow
-  {
-    key: "signedUpVia",
-    label: "Signed Up Via",
-    type: "enum",
-    group: "Status",
-    options: [
-      { value: "web", label: "Web" },
-      { value: "phone", label: "Phone" },
-      { value: "admin", label: "Admin" },
-    ],
-  },
+  { key: "legacyProfile.emailOptOut", label: "Opted Out", type: "boolean", group: "Status" },
   { key: "legacyProfile.workbenchMemberStatus", label: "Workbench Status", type: "text", group: "Status" },
   {
     key: "legacyProfile.howJoined",
@@ -79,10 +69,10 @@ export const STATIC_FILTER_FIELDS: FilterFieldDef[] = [
     type: "enum",
     group: "Status",
     options: [
-      { value: "PHO", label: "Phone (PHO)" },
-      { value: "WEB", label: "Web (WEB)" },
-      { value: "REF", label: "Referral (REF)" },
-      { value: "MAIL", label: "Mail (MAIL)" },
+      { value: "WEB", label: "Web" },
+      { value: "PHO", label: "Phone" },
+      { value: "EVENT", label: "Event" },
+      { value: "MAIL", label: "Mail" },
     ],
   },
   {
