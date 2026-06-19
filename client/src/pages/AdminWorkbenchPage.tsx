@@ -96,7 +96,7 @@ const WB_OIL_STATUS = ["ACTIVE", "INACTIVE", "PROSPECTIVE", "RESIDENT", "NO OIL"
 const WB_PROPANE_STATUS = ["ACTIVE", "INACTIVE", "PROSPECTIVE", "RESIDENT", "NO PROPANE", "UNKNOWN"] as const;
 const ELECTRIC_STATUS = ["ELECTRIC", "PENDING", "INTERESTED", "UNKNOWN", "DROPPED"] as const;
 const PHONE_TYPE = ["HOME", "WORK", "CELL"] as const;
-const HOW_JOINED = ["PHO", "WEB", "REF", "MAIL"] as const;
+const HOW_JOINED = ["WEB", "PHONE", "EVENT", "MAIL"] as const;
 const REFERRAL_SOURCE = ["CCAG", "MEMBER", "OTHER"] as const;
 const MAILING_TEMPLATES = {
   newMember: {

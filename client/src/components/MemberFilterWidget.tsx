@@ -59,30 +59,19 @@ export const STATIC_FILTER_FIELDS: FilterFieldDef[] = [
   { key: "legacyProfile.phone3", label: "Phone 3", type: "text", group: "Contact" },
   { key: "email", label: "Email", type: "text", group: "Contact" },
   { key: "legacyProfile.email2", label: "Email 2", type: "text", group: "Contact" },
+  { key: "legacyProfile.emailOptOut", label: "Opted Out", type: "boolean", group: "Contact" },
 
   // Status & Workflow
-  {
-    key: "signedUpVia",
-    label: "Signed Up Via",
-    type: "enum",
-    group: "Status",
-    options: [
-      { value: "web", label: "Web" },
-      { value: "phone", label: "Phone" },
-      { value: "admin", label: "Admin" },
-    ],
-  },
-  { key: "legacyProfile.workbenchMemberStatus", label: "Workbench Status", type: "text", group: "Status" },
   {
     key: "legacyProfile.howJoined",
     label: "How Joined",
     type: "enum",
     group: "Status",
     options: [
-      { value: "PHO", label: "Phone (PHO)" },
-      { value: "WEB", label: "Web (WEB)" },
-      { value: "REF", label: "Referral (REF)" },
-      { value: "MAIL", label: "Mail (MAIL)" },
+      { value: "WEB", label: "Web" },
+      { value: "PHONE", label: "Phone" },
+      { value: "EVENT", label: "Event" },
+      { value: "MAIL", label: "Mail" },
     ],
   },
   {
@@ -316,9 +305,9 @@ export function evaluateFilter(
       let text = empty ? "" : String(raw);
       // For howJoined, fall back to signedUpVia for members who lack a legacyProfile value
       if (!text && filter.field === "legacyProfile.howJoined") {
-        const via = String(getValueAtPath(member, "signedUpVia") || "").toLowerCase().trim();
-        if (via === "web") text = "WEB";
-        else if (via === "phone") text = "PHO";
+        const via = String(getValueAtPath(member, "signedUpVia") || "").toUpperCase().trim();
+        if (via === "WEB") text = "WEB";
+        else if (via === "PHONE") text = "PHONE";
       }
       if (filter.operator === "is") return text === filter.value;
       if (filter.operator === "is_not") return text !== filter.value;
