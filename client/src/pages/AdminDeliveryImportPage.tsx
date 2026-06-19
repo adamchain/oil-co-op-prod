@@ -1324,12 +1324,11 @@ function UnmatchedGroupConfirmTable({
           <thead>
             <tr>
               <th style={{ minWidth: "14rem" }}>Action</th>
+              <th>Last Name</th>
+              <th>First Name</th>
+              <th>Acct #</th>
               <th>Fuel</th>
-              <th>Company</th>
-              <th>Account #</th>
-              <th>Note</th>
-              <th>Rows</th>
-              <th colSpan={2}>Details</th>
+              <th>Details</th>
             </tr>
           </thead>
           <tbody>
@@ -1349,6 +1348,7 @@ function UnmatchedGroupConfirmTable({
                 }));
               const nameMissing = d.mode === "create" && (!d.firstName.trim() || !d.lastName.trim());
               const matchMissing = d.mode === "match" && !d.matchMemberId.trim();
+              const suggested = splitSuggestedName(g.suggestedName);
               return (
                 <tr key={g.groupKey}>
                   <td>
@@ -1364,14 +1364,11 @@ function UnmatchedGroupConfirmTable({
                       <option value="create">Create new customer</option>
                     </select>
                   </td>
-                  <td>{g.fuelType}</td>
-                  <td>{g.companyName}</td>
+                  <td>{suggested.lastName || "—"}</td>
+                  <td>{suggested.firstName || "—"}</td>
                   <td>{g.account}</td>
-                  <td style={{ maxWidth: "14rem", fontSize: "0.78rem" }} title={g.hint?.message}>
-                    {g.hint?.message || "—"}
-                  </td>
-                  <td>{g.rowCount}</td>
-                  <td colSpan={2}>
+                  <td>{g.fuelType}</td>
+                  <td>
                     {d.mode === "create" ? (
                       <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap" }}>
                         <input
