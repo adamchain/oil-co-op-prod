@@ -20,6 +20,7 @@ import AdminOilCompaniesPage from "./pages/AdminOilCompaniesPage";
 import AdminDeliveryImportPage from "./pages/AdminDeliveryImportPage";
 import AdminDeliverySearchPage from "./pages/AdminDeliverySearchPage";
 import AdminAddCustomerPage from "./pages/AdminAddCustomerPage";
+import AdminCallbacksPage from "./pages/AdminCallbacksPage";
 
 function RequireAuth({ admin }: { admin?: boolean }) {
   const { token, member } = useAuth();
@@ -56,6 +57,7 @@ export default function App() {
             <Route path="deliveries/import" element={<AdminDeliveryImportPage />} />
             <Route path="deliveries/search" element={<AdminDeliverySearchPage />} />
             <Route path="renewals" element={<AdminRenewalsPage />} />
+            <Route path="callbacks" element={<AdminCallbacksPage />} />
             <Route path="communications" element={<AdminCommunicationsPage />} />
             <Route path="exceptions" element={<AdminExceptionsPage />} />
             <Route path="reports" element={<AdminReportsPage />} />

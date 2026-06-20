@@ -32,6 +32,9 @@ export default function AdminLayout() {
           <NavLink to="/admin/deliveries/import" className={linkClass} onClick={() => setSidebarOpen(false)}>
             Import deliveries
           </NavLink>
+          <NavLink to="/admin/callbacks" className={linkClass} onClick={() => setSidebarOpen(false)}>
+            Callbacks
+          </NavLink>
           <NavLink to="/admin/communications" className={linkClass} onClick={() => setSidebarOpen(false)}>
             Communications
           </NavLink>
