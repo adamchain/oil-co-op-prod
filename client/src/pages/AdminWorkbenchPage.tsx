@@ -312,6 +312,99 @@ function loadCollapsedPanels(): Set<string> {
   return new Set();
 }
 
+type WorksheetColumn = {
+  key: string;
+  label: string;
+  group: string;
+  get: (m: Member) => string;
+};
+
+const lpStr = (m: Member, key: string): string => {
+  const v = (m.legacyProfile as Record<string, unknown> | undefined)?.[key];
+  if (v === undefined || v === null || v === "") return "";
+  if (typeof v === "boolean") return v ? "Yes" : "";
+  return String(v);
+};
+
+const WORKSHEET_COLUMNS: WorksheetColumn[] = [
+  { key: "memberNumber", label: "Member #", group: "Identity", get: (m) => m.memberNumber || "" },
+  { key: "firstName", label: "First Name", group: "Identity", get: (m) => m.firstName || "" },
+  { key: "lastName", label: "Last Name", group: "Identity", get: (m) => m.lastName || "" },
+  { key: "name", label: "Full Name", group: "Identity", get: (m) => `${m.firstName || ""} ${m.lastName || ""}`.trim() },
+  { key: "midName1", label: "Mid Name", group: "Identity", get: (m) => lpStr(m, "midName1") },
+  { key: "suffix1", label: "Suffix", group: "Identity", get: (m) => lpStr(m, "suffix1") },
+  { key: "firstName2", label: "Second First Name", group: "Identity", get: (m) => lpStr(m, "firstName2") },
+  { key: "lastName2", label: "Second Last Name", group: "Identity", get: (m) => lpStr(m, "lastName2") },
+  { key: "newMemberDt", label: "New Member Date", group: "Identity", get: (m) => lpStr(m, "newMemberDt") },
+  { key: "originalStartDate", label: "Original Start Date", group: "Identity", get: (m) => lpStr(m, "originalStartDate") },
+  { key: "standardMembership", label: "Standard Member", group: "Identity", get: (m) => lpStr(m, "standardMembership") },
+  { key: "seniorMember", label: "Senior Member", group: "Identity", get: (m) => lpStr(m, "seniorMember") },
+  { key: "lowVolume", label: "Low Volume", group: "Identity", get: (m) => lpStr(m, "lowVolume") },
+  { key: "waiveFeeLifetime", label: "Lifetime Member", group: "Identity", get: (m) => lpStr(m, "waiveFeeLifetime") },
+
+  { key: "address", label: "Address", group: "Address", get: (m) => [m.addressLine1, m.addressLine2].filter(Boolean).join(", ") },
+  { key: "addressLine1", label: "Address 1", group: "Address", get: (m) => m.addressLine1 || "" },
+  { key: "aptNo1", label: "Apt #", group: "Address", get: (m) => lpStr(m, "aptNo1") },
+  { key: "mailAddr", label: "Mailing Address", group: "Address", get: (m) => lpStr(m, "mailAddr") },
+  { key: "city", label: "City", group: "Address", get: (m) => m.city || "" },
+  { key: "state", label: "State", group: "Address", get: (m) => m.state || "" },
+  { key: "postalCode", label: "Zip", group: "Address", get: (m) => m.postalCode || "" },
+
+  { key: "phone", label: "Phone 1", group: "Contact", get: (m) => m.phone || "" },
+  { key: "phone2", label: "Phone 2", group: "Contact", get: (m) => lpStr(m, "phone2") },
+  { key: "phone3", label: "Phone 3", group: "Contact", get: (m) => lpStr(m, "phone3") },
+  { key: "email", label: "Email", group: "Contact", get: (m) => m.email || "" },
+  { key: "email2", label: "Email 2", group: "Contact", get: (m) => lpStr(m, "email2") },
+  { key: "emailOptOut", label: "Opted Out", group: "Contact", get: (m) => lpStr(m, "emailOptOut") },
+
+  { key: "howJoined", label: "How Joined", group: "Status", get: (m) => lpStr(m, "howJoined") },
+  { key: "referralSource", label: "Referral Source", group: "Status", get: (m) => lpStr(m, "referralSource") },
+  { key: "referredById", label: "Referred By ID", group: "Status", get: (m) => lpStr(m, "referredById") },
+  { key: "dateReferred", label: "Date Referred", group: "Status", get: (m) => lpStr(m, "dateReferred") },
+  { key: "callBack", label: "Call Back", group: "Status", get: (m) => lpStr(m, "callBack") },
+  { key: "callBackDate", label: "Call Back Date", group: "Status", get: (m) => lpStr(m, "callBackDate") },
+  { key: "status", label: "Status", group: "Status", get: (m) => m.status || "" },
+
+  { key: "oilCompany", label: "Oil Company", group: "Oil", get: (m) => m.oilCompanyId?.name || "" },
+  { key: "oilId", label: "Oil ID", group: "Oil", get: (m) => lpStr(m, "oilId") },
+  { key: "oilStartDate", label: "Oil Start Date", group: "Oil", get: (m) => lpStr(m, "oilStartDate") },
+  { key: "oilWorkbenchStatus", label: "Oil Status", group: "Oil", get: (m) => lpStr(m, "oilWorkbenchStatus") },
+  { key: "nrdOil", label: "NRD-Oil", group: "Oil", get: (m) => lpStr(m, "nrdOil") },
+
+  { key: "propaneCompanyName", label: "Propane Company", group: "Propane", get: (m) => lpStr(m, "propaneCompanyName") },
+  { key: "propaneId", label: "Propane ID", group: "Propane", get: (m) => lpStr(m, "propaneId") },
+  { key: "propaneStartDate", label: "Propane Start Date", group: "Propane", get: (m) => lpStr(m, "propaneStartDate") },
+  { key: "propaneStatus", label: "Propane Status", group: "Propane", get: (m) => lpStr(m, "propaneStatus") },
+  { key: "nrdProp", label: "NRD-Prop", group: "Propane", get: (m) => lpStr(m, "nrdProp") },
+
+  { key: "electricStatus", label: "Electric Status", group: "Electric", get: (m) => lpStr(m, "electricStatus") },
+  { key: "electricSignUpDate", label: "Electric Sign Up Date", group: "Electric", get: (m) => lpStr(m, "electricSignUpDate") },
+  { key: "electricStartDate", label: "Electric Start Date", group: "Electric", get: (m) => lpStr(m, "electricStartDate") },
+  { key: "electricAccountNumber", label: "Electric Account #", group: "Electric", get: (m) => lpStr(m, "electricAccountNumber") },
+  { key: "droppedDate", label: "Electric Dropped Date", group: "Electric", get: (m) => lpStr(m, "droppedDate") },
+  { key: "delinquent", label: "Delinquent", group: "Electric", get: (m) => lpStr(m, "delinquent") },
+  { key: "notPaidCurrentYr", label: "Not Paid Current Yr", group: "Electric", get: (m) => lpStr(m, "notPaidCurrentYr") },
+
+  { key: "notes", label: "Notes", group: "Misc", get: (m) => m.notes || "" },
+];
+
+const WORKSHEET_COLUMN_KEYS = WORKSHEET_COLUMNS.map((c) => c.key);
+const WORKSHEET_COLS_STORAGE_KEY = "workbench.worksheetColumns";
+
+function loadWorksheetVisibleColumns(): string[] {
+  try {
+    const raw = localStorage.getItem(WORKSHEET_COLS_STORAGE_KEY);
+    if (!raw) return WORKSHEET_COLUMN_KEYS;
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return WORKSHEET_COLUMN_KEYS;
+    const known = new Set(WORKSHEET_COLUMN_KEYS);
+    const filtered = (parsed as unknown[]).filter((k): k is string => typeof k === "string" && known.has(k));
+    return filtered.length > 0 ? filtered : WORKSHEET_COLUMN_KEYS;
+  } catch {
+    return WORKSHEET_COLUMN_KEYS;
+  }
+}
+
 export default function AdminWorkbenchPage() {
   const { token } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -321,11 +414,26 @@ export default function AdminWorkbenchPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [filters, setFilters] = useState<MemberFilter[]>(() => decodeFilters(searchParams.get("filters") || ""));
   const [quickSearch, setQuickSearch] = useState<string>(() => searchParams.get("q") || "");
-  const [worksheetSort, setWorksheetSort] = useState<{ key: "memberNumber" | "name" | "address" | "city" | "phone" | "oilCompany" | "notes" | "status"; dir: "asc" | "desc" }>({
+  const [worksheetSort, setWorksheetSort] = useState<{ key: string; dir: "asc" | "desc" }>({
     key: "name",
     dir: "asc",
   });
+  const [worksheetVisibleColumns, setWorksheetVisibleColumns] = useState<string[]>(() => loadWorksheetVisibleColumns());
+  const [worksheetColumnPickerOpen, setWorksheetColumnPickerOpen] = useState(false);
   const [worksheetPage, setWorksheetPage] = useState(1);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(WORKSHEET_COLS_STORAGE_KEY, JSON.stringify(worksheetVisibleColumns));
+    } catch {
+      /* ignore quota errors */
+    }
+  }, [worksheetVisibleColumns]);
+
+  const activeWorksheetColumns = useMemo(() => {
+    const visible = new Set(worksheetVisibleColumns);
+    return WORKSHEET_COLUMNS.filter((c) => visible.has(c.key));
+  }, [worksheetVisibleColumns]);
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   const [oilCompanies, setOilCompanies] = useState<OilCompany[]>([]);
@@ -695,35 +803,16 @@ export default function AdminWorkbenchPage() {
   }, [current?._id]);
 
   const worksheetMembers = useMemo(() => {
-    const getValue = (m: Member, key: "memberNumber" | "name" | "address" | "city" | "phone" | "oilCompany" | "notes" | "status") => {
-      switch (key) {
-        case "memberNumber":
-          return m.memberNumber || "";
-        case "name":
-          return `${m.firstName || ""} ${m.lastName || ""}`.trim();
-        case "address":
-          return [m.addressLine1, m.addressLine2].filter(Boolean).join(", ");
-        case "city":
-          return m.city || "";
-        case "phone":
-          return m.phone || "";
-        case "oilCompany":
-          return m.oilCompanyId?.name || "";
-        case "notes":
-          return m.notes || "";
-        case "status":
-          return m.status || "";
-        default:
-          return "";
-      }
-    };
+    const sortCol = WORKSHEET_COLUMNS.find((c) => c.key === worksheetSort.key);
     const out = [...filteredMembers];
-    out.sort((a, b) => {
-      const av = getValue(a, worksheetSort.key).toLowerCase();
-      const bv = getValue(b, worksheetSort.key).toLowerCase();
-      const cmp = av.localeCompare(bv, undefined, { numeric: true, sensitivity: "base" });
-      return worksheetSort.dir === "asc" ? cmp : -cmp;
-    });
+    if (sortCol) {
+      out.sort((a, b) => {
+        const av = sortCol.get(a).toLowerCase();
+        const bv = sortCol.get(b).toLowerCase();
+        const cmp = av.localeCompare(bv, undefined, { numeric: true, sensitivity: "base" });
+        return worksheetSort.dir === "asc" ? cmp : -cmp;
+      });
+    }
     return out;
   }, [filteredMembers, worksheetSort]);
 
@@ -753,7 +842,7 @@ export default function AdminWorkbenchPage() {
     setWorksheetPage((p) => Math.min(p, worksheetTotalPages));
   }, [worksheetTotalPages]);
 
-  function toggleWorksheetSort(key: "memberNumber" | "name" | "address" | "city" | "phone" | "oilCompany" | "notes" | "status") {
+  function toggleWorksheetSort(key: string) {
     setWorksheetSort((prev) => (prev.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
   }
 
@@ -1185,23 +1274,13 @@ export default function AdminWorkbenchPage() {
   };
 
   const generateWorksheetCsv = (rows: Member[]) => {
+    const cols = activeWorksheetColumns.length > 0 ? activeWorksheetColumns : WORKSHEET_COLUMNS;
     downloadCsv(
       `worksheet-${fileNameStamp()}.csv`,
-      ["Member #", "Name", "Address", "City", "State", "Zip", "Phone", "Oil Company", "Notes", "Status"],
-      rows.map((m) => [
-        m.memberNumber || "",
-        `${m.firstName || ""} ${m.lastName || ""}`.trim(),
-        [m.addressLine1, m.addressLine2].filter(Boolean).join(", "),
-        m.city || "",
-        m.state || "",
-        m.postalCode || "",
-        m.phone || "",
-        m.oilCompanyId?.name || "",
-        m.notes || "",
-        m.status || "",
-      ])
+      cols.map((c) => c.label),
+      rows.map((m) => cols.map((c) => c.get(m)))
     );
-    setActionMessage(`Worksheet export generated (${rows.length} rows).`);
+    setActionMessage(`Worksheet export generated (${rows.length} rows, ${cols.length} columns).`);
   };
 
   const mailingAudience = () => {
@@ -2224,9 +2303,98 @@ export default function AdminWorkbenchPage() {
                 Displays the same row-style data as search results. Click any row to load that member in Data Entry.
               </p>
               <div className="admin-toolbar" style={{ marginBottom: "0.6rem", justifyContent: "space-between" }}>
-                <button type="button" className="admin-btn" onClick={() => generateWorksheetCsv(worksheetMembers)}>
-                  Export Worksheet to Excel
-                </button>
+                <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap", position: "relative" }}>
+                  <button type="button" className="admin-btn" onClick={() => generateWorksheetCsv(worksheetMembers)}>
+                    Export Worksheet to Excel
+                  </button>
+                  <button
+                    type="button"
+                    className="admin-btn admin-btn-ghost"
+                    onClick={() => setWorksheetColumnPickerOpen((v) => !v)}
+                  >
+                    Columns ({activeWorksheetColumns.length}/{WORKSHEET_COLUMNS.length})
+                  </button>
+                  {worksheetColumnPickerOpen && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        top: "100%",
+                        left: 0,
+                        marginTop: "0.35rem",
+                        background: "var(--admin-card-bg, #fff)",
+                        border: "1px solid var(--wb-border, #d1d5db)",
+                        borderRadius: "6px",
+                        boxShadow: "0 6px 18px rgba(0,0,0,0.12)",
+                        padding: "0.75rem",
+                        zIndex: 50,
+                        minWidth: "320px",
+                        maxHeight: "440px",
+                        overflowY: "auto",
+                      }}
+                    >
+                      <div style={{ display: "flex", gap: "0.4rem", marginBottom: "0.5rem" }}>
+                        <button
+                          type="button"
+                          className="admin-btn admin-btn-ghost"
+                          onClick={() => setWorksheetVisibleColumns(WORKSHEET_COLUMN_KEYS)}
+                        >
+                          Select all
+                        </button>
+                        <button
+                          type="button"
+                          className="admin-btn admin-btn-ghost"
+                          onClick={() => setWorksheetVisibleColumns([])}
+                        >
+                          Clear
+                        </button>
+                        <button
+                          type="button"
+                          className="admin-btn admin-btn-ghost"
+                          onClick={() => setWorksheetColumnPickerOpen(false)}
+                          style={{ marginLeft: "auto" }}
+                        >
+                          Close
+                        </button>
+                      </div>
+                      {Array.from(
+                        WORKSHEET_COLUMNS.reduce((acc, c) => {
+                          const list = acc.get(c.group) || [];
+                          list.push(c);
+                          acc.set(c.group, list);
+                          return acc;
+                        }, new Map<string, WorksheetColumn[]>())
+                      ).map(([group, cols]) => (
+                        <div key={group} style={{ marginBottom: "0.6rem" }}>
+                          <div style={{ fontSize: "0.75rem", fontWeight: 700, textTransform: "uppercase", color: "var(--admin-muted)", marginBottom: "0.25rem" }}>
+                            {group}
+                          </div>
+                          {cols.map((c) => {
+                            const checked = worksheetVisibleColumns.includes(c.key);
+                            return (
+                              <label key={c.key} style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.85rem", padding: "0.15rem 0" }}>
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={(e) => {
+                                    setWorksheetVisibleColumns((prev) => {
+                                      if (e.target.checked) {
+                                        if (prev.includes(c.key)) return prev;
+                                        const next = WORKSHEET_COLUMN_KEYS.filter((k) => prev.includes(k) || k === c.key);
+                                        return next;
+                                      }
+                                      return prev.filter((k) => k !== c.key);
+                                    });
+                                  }}
+                                />
+                                {c.label}
+                              </label>
+                            );
+                          })}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <div style={{ display: "flex", gap: "0.35rem", alignItems: "center", flexWrap: "wrap" }}>
                   <span className="admin-meta">
                     {worksheetMembers.length} member(s) • Page {Math.min(worksheetPage, worksheetTotalPages)} of {worksheetTotalPages}
@@ -2241,14 +2409,22 @@ export default function AdminWorkbenchPage() {
                 <table className="admin-table">
                   <thead>
                     <tr>
-                      <th><button type="button" className="admin-btn admin-btn-ghost" onClick={() => toggleWorksheetSort("memberNumber")}>ID</button></th>
-                      <th><button type="button" className="admin-btn admin-btn-ghost" onClick={() => toggleWorksheetSort("name")}>Name</button></th>
-                      <th><button type="button" className="admin-btn admin-btn-ghost" onClick={() => toggleWorksheetSort("address")}>Address</button></th>
-                      <th><button type="button" className="admin-btn admin-btn-ghost" onClick={() => toggleWorksheetSort("city")}>City</button></th>
-                      <th><button type="button" className="admin-btn admin-btn-ghost" onClick={() => toggleWorksheetSort("phone")}>Phone</button></th>
-                      <th><button type="button" className="admin-btn admin-btn-ghost" onClick={() => toggleWorksheetSort("oilCompany")}>Oil Co</button></th>
-                      <th><button type="button" className="admin-btn admin-btn-ghost" onClick={() => toggleWorksheetSort("notes")}>Notes</button></th>
-                      <th><button type="button" className="admin-btn admin-btn-ghost" onClick={() => toggleWorksheetSort("status")}>Status</button></th>
+                      {activeWorksheetColumns.map((c) => {
+                        const isSorted = worksheetSort.key === c.key;
+                        return (
+                          <th key={c.key}>
+                            <button
+                              type="button"
+                              className="admin-btn admin-btn-ghost"
+                              onClick={() => toggleWorksheetSort(c.key)}
+                              title={`Sort by ${c.label}`}
+                            >
+                              {c.label}
+                              {isSorted ? (worksheetSort.dir === "asc" ? " ▲" : " ▼") : ""}
+                            </button>
+                          </th>
+                        );
+                      })}
                     </tr>
                   </thead>
                   <tbody>
@@ -2264,14 +2440,19 @@ export default function AdminWorkbenchPage() {
                           }}
                           style={{ cursor: "pointer", background: rowActive ? "rgba(194, 65, 12, 0.06)" : undefined }}
                         >
-                          <td style={{ fontWeight: 600 }}>{m.memberNumber || "—"}</td>
-                          <td style={{ fontWeight: 600 }}>{m.firstName} {m.lastName}</td>
-                          <td style={{ fontWeight: 600 }}>{[m.addressLine1, m.addressLine2].filter(Boolean).join(", ") || "—"}</td>
-                          <td style={{ fontWeight: 600 }}>{m.city || "—"}</td>
-                          <td style={{ fontWeight: 600 }}>{m.phone || "—"}</td>
-                          <td style={{ fontWeight: 600 }}>{m.oilCompanyId?.name || "—"}</td>
-                          <td style={{ fontWeight: 600 }}>{m.notes || "—"}</td>
-                          <td><span className={`admin-pill${m.status === "active" ? " ok" : ""}`}>{m.status}</span></td>
+                          {activeWorksheetColumns.map((c) => {
+                            if (c.key === "status") {
+                              return (
+                                <td key={c.key}>
+                                  <span className={`admin-pill${m.status === "active" ? " ok" : ""}`}>{m.status}</span>
+                                </td>
+                              );
+                            }
+                            const v = c.get(m);
+                            return (
+                              <td key={c.key} style={{ fontWeight: 600 }}>{v || "—"}</td>
+                            );
+                          })}
                         </tr>
                       );
                     })}
@@ -2280,6 +2461,9 @@ export default function AdminWorkbenchPage() {
               </div>
               {worksheetPageRows.length === 0 && (
                 <p className="admin-meta" style={{ marginTop: "0.75rem" }}>No members match the current search/filter.</p>
+              )}
+              {activeWorksheetColumns.length === 0 && (
+                <p className="admin-meta" style={{ marginTop: "0.75rem" }}>No columns selected. Use the Columns button to choose what to display.</p>
               )}
             </div>
           </div>
