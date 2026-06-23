@@ -1504,6 +1504,70 @@ button.admin-wb-panel-title.admin-wb-panel-toggle:hover {
   font-size: 0.74rem;
 }
 
+/* ───────── Payment History view: compact form + right-side history ───────── */
+.admin-pay-view {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+/* Form panels on the left, renewal history pinned to the right of them. */
+.admin-pay-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+  gap: 0.4rem;
+  align-items: start;
+}
+
+.admin-pay-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.admin-pay-history {
+  min-width: 0;
+}
+
+.admin-pay-history .admin-table-wrap {
+  border-radius: var(--wb-radius);
+}
+
+/* Tighter table so the 7 columns fit the narrower right rail. */
+.admin-pay-history .admin-table th,
+.admin-pay-history .admin-table td {
+  padding: 0.3rem 0.45rem;
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+/* Compact the form panels across the board. */
+.admin-pay-view .admin-wb-grid {
+  gap: 0.4rem;
+}
+
+.admin-pay-view .admin-wb-panel {
+  padding: 0.45rem 0.55rem 0.5rem;
+}
+
+.admin-pay-view .admin-wb-panel .admin-form-row-wrap {
+  gap: 0.3rem 0.5rem;
+  margin-bottom: 0.3rem;
+}
+
+.admin-pay-view .admin-pay-status-grid {
+  gap: 0.3rem 0.6rem;
+  margin-bottom: 0.35rem;
+}
+
+/* Drop the history beneath the form once the rail no longer fits. */
+@media (max-width: 950px) {
+  .admin-pay-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 .admin-wb-status-row {
   display: flex;
   gap: 0.35rem 0.6rem;

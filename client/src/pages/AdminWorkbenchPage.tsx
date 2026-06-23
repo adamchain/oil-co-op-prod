@@ -1139,6 +1139,22 @@ export default function AdminWorkbenchPage() {
       return { ...f, legacyProfile: nextLegacy };
     });
 
+  // Toggling Call Back persists immediately rather than waiting for the
+  // debounced autosave — otherwise navigating to the Callbacks page or
+  // refreshing before the timer fires drops the change.
+  const toggleCallBack = (checked: boolean) => {
+    const next = {
+      ...formRef.current,
+      legacyProfile: { ...formRef.current.legacyProfile, callBack: checked },
+    };
+    setForm(next);
+    if (current) {
+      void persistWorkbench(next, current._id).then((ok) =>
+        flashSaveToast(ok ? "Saved" : "Save failed", ok)
+      );
+    }
+  };
+
   const legacyValue = (key: string) => String(form.legacyProfile[key] ?? "");
 
   const legacyBool = (key: string) => Boolean(form.legacyProfile[key]);
@@ -1765,7 +1781,7 @@ export default function AdminWorkbenchPage() {
                   style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "0.5rem 0.7rem" }}
                 >
                   <label style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.7rem", fontWeight: 600, whiteSpace: "nowrap" }}>
-                    <input type="checkbox" checked={legacyBool("callBack")} onChange={(e) => setLegacy("callBack", e.target.checked)} />
+                    <input type="checkbox" checked={legacyBool("callBack")} onChange={(e) => toggleCallBack(e.target.checked)} />
                     Call Back
                   </label>
                   <input
