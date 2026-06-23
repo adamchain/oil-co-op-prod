@@ -69,7 +69,7 @@ export default function AdminCallbacksPage() {
       await api(`/api/admin/members/${memberId}`, {
         method: "PATCH",
         token,
-        body: JSON.stringify({ legacyProfile: { callBack: false, callBackDate: "" } }),
+        body: JSON.stringify({ legacyProfile: { callBack: false } }),
       });
       setMembers((prev) =>
         prev.map((m) =>
@@ -79,7 +79,6 @@ export default function AdminCallbacksPage() {
                 legacyProfile: {
                   ...(m.legacyProfile || {}),
                   callBack: false,
-                  callBackDate: "",
                 },
               }
             : m
@@ -98,7 +97,7 @@ export default function AdminCallbacksPage() {
     <>
       <p style={{ color: "var(--admin-muted)", fontSize: "0.875rem", margin: "0 0 1rem" }}>
         Members flagged for a call back in the workbench. Click a row to open the member in the workbench, or
-        remove from the list (this clears the &quot;Call Back&quot; checkbox and date on the member record).
+        remove from the list (this un-checks the &quot;Call Back&quot; box but keeps the date and notes on the member record).
       </p>
       <div className="admin-card">
         <div className="admin-toolbar" style={{ marginBottom: "0.6rem", justifyContent: "space-between" }}>
@@ -110,32 +109,29 @@ export default function AdminCallbacksPage() {
           <table className="admin-table">
             <thead>
               <tr>
-                <th>Call Back Date</th>
                 <th>Name</th>
                 <th>Phone</th>
-                <th>Phone 2</th>
-                <th>Phone 3</th>
+                <th>Call Back Date</th>
+                <th>Notes</th>
                 <th style={{ width: "1%", whiteSpace: "nowrap" }}>Action</th>
               </tr>
             </thead>
             <tbody>
               {callbackRows.map((m) => {
                 const lp = (m.legacyProfile || {}) as Record<string, unknown>;
-                const phone2 = String(lp.phone2 || "").trim();
-                const phone3 = String(lp.phone3 || "").trim();
+                const notes = String(lp.callBackNotes || "").trim();
                 return (
                   <tr
                     key={m._id}
                     style={{ cursor: "pointer" }}
                     onClick={() => goToWorkbench(m._id)}
                   >
-                    <td style={{ fontWeight: 600 }}>{formatDate(lp.callBackDate)}</td>
                     <td style={{ fontWeight: 600 }}>
                       {m.firstName} {m.lastName}
                     </td>
                     <td>{m.phone || "—"}</td>
-                    <td>{phone2 || "—"}</td>
-                    <td>{phone3 || "—"}</td>
+                    <td style={{ fontWeight: 600 }}>{formatDate(lp.callBackDate)}</td>
+                    <td style={{ whiteSpace: "pre-wrap" }}>{notes || "—"}</td>
                     <td onClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"

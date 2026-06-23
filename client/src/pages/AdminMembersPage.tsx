@@ -66,7 +66,7 @@ export default function AdminMembersPage() {
           <input
             type="search"
             className="admin-input"
-            placeholder="Search name, email, phone, member #…"
+            placeholder="Search name, email, phone, member #, referral (e.g. CCAG)…"
             value={draftQ}
             onChange={(e) => setDraftQ(e.target.value)}
             onKeyDown={(e) => {

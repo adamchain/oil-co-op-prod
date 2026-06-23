@@ -437,6 +437,9 @@ export default function AdminWorkbenchPage() {
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   const [oilCompanies, setOilCompanies] = useState<OilCompany[]>([]);
+  const [referralSources, setReferralSources] = useState<string[]>([...REFERRAL_SOURCE]);
+  const [referralCustom, setReferralCustom] = useState("");
+  const [referralCustomOpen, setReferralCustomOpen] = useState(false);
   const [propaneCompanies, setPropaneCompanies] = useState<PropaneCompany[]>([]);
   const [billing, setBilling] = useState<BillingEvent[]>([]);
   const [communications, setCommunications] = useState<Comm[]>([]);
@@ -540,6 +543,37 @@ export default function AdminWorkbenchPage() {
     setOilCompanies(rows);
   }
 
+  async function loadReferralSources() {
+    if (!token) return;
+    try {
+      const { referralSources: rows } = await api<{ referralSources: string[] }>(
+        "/api/admin/referral-sources",
+        { token }
+      );
+      if (rows.length) setReferralSources(rows);
+    } catch {
+      // Non-fatal: fall back to the built-in defaults.
+    }
+  }
+
+  // Persist a new referral option to the global list, then return its
+  // canonical value (existing options are reused case-insensitively).
+  async function addReferralSource(raw: string): Promise<string | null> {
+    const value = raw.trim();
+    if (!token || !value) return null;
+    try {
+      const { value: saved } = await api<{ value: string }>("/api/admin/referral-sources", {
+        method: "POST",
+        token,
+        body: JSON.stringify({ value }),
+      });
+      await loadReferralSources();
+      return saved;
+    } catch {
+      return null;
+    }
+  }
+
   async function loadPropaneCompanies() {
     if (!token) return;
     try {
@@ -583,6 +617,7 @@ export default function AdminWorkbenchPage() {
   useEffect(() => {
     void loadOilCompanies();
     void loadPropaneCompanies();
+    void loadReferralSources();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
@@ -591,6 +626,7 @@ export default function AdminWorkbenchPage() {
     function onFocus() {
       void loadOilCompanies();
       void loadPropaneCompanies();
+      void loadReferralSources();
     }
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
@@ -1739,6 +1775,14 @@ export default function AdminWorkbenchPage() {
                     onChange={(e) => setLegacy("callBackDate", e.target.value)}
                     style={{ width: "140px" }}
                   />
+                  <input
+                    className="admin-input"
+                    type="text"
+                    placeholder="Call back notes"
+                    value={legacyValue("callBackNotes")}
+                    onChange={(e) => setLegacy("callBackNotes", e.target.value)}
+                    style={{ flex: "1 1 180px", minWidth: "180px" }}
+                  />
                 </div>
                 <label className="admin-form-span-4 admin-note-field">
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.25rem" }}>
@@ -1806,11 +1850,61 @@ export default function AdminWorkbenchPage() {
                     </label>
                     <label style={{ flex: "0 0 auto", width: "120px" }}>
                       Referral
-                      <select className="admin-input" value={legacyValue("referralSource") || "OTHER"} onChange={(e) => setLegacy("referralSource", e.target.value)}>
-                        {REFERRAL_SOURCE.map((s) => (
-                          <option key={s} value={s}>{s}</option>
-                        ))}
-                      </select>
+                      {referralCustomOpen ? (
+                        <div style={{ display: "flex", gap: "0.25rem" }}>
+                          <input
+                            className="admin-input"
+                            autoFocus
+                            placeholder="New source"
+                            value={referralCustom}
+                            onChange={(e) => setReferralCustom(e.target.value)}
+                            onKeyDown={async (e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                const saved = await addReferralSource(referralCustom);
+                                if (saved) setLegacy("referralSource", saved);
+                                setReferralCustom("");
+                                setReferralCustomOpen(false);
+                              } else if (e.key === "Escape") {
+                                setReferralCustom("");
+                                setReferralCustomOpen(false);
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            className="admin-btn admin-btn-ghost"
+                            onClick={async () => {
+                              const saved = await addReferralSource(referralCustom);
+                              if (saved) setLegacy("referralSource", saved);
+                              setReferralCustom("");
+                              setReferralCustomOpen(false);
+                            }}
+                          >
+                            Save
+                          </button>
+                        </div>
+                      ) : (
+                        <select
+                          className="admin-input"
+                          value={legacyValue("referralSource") || "OTHER"}
+                          onChange={(e) => {
+                            if (e.target.value === "__CUSTOM__") {
+                              setReferralCustom("");
+                              setReferralCustomOpen(true);
+                              return;
+                            }
+                            setLegacy("referralSource", e.target.value);
+                          }}
+                        >
+                          {Array.from(
+                            new Set([...referralSources, legacyValue("referralSource")].filter(Boolean) as string[])
+                          ).map((s) => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                          <option value="__CUSTOM__">+ Add custom…</option>
+                        </select>
+                      )}
                     </label>
                   </div>
                   <div style={{ display: "flex", flexWrap: "wrap", alignItems: "end", gap: "0.35rem 0.7rem", justifyContent: "space-between", width: "100%" }}>
@@ -2345,7 +2439,7 @@ export default function AdminWorkbenchPage() {
                           className="admin-btn admin-btn-ghost"
                           onClick={() => setWorksheetVisibleColumns([])}
                         >
-                          Clear
+                          Deselect all
                         </button>
                         <button
                           type="button"

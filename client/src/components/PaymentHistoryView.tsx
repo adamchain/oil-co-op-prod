@@ -14,6 +14,25 @@ type BillingEvent = {
 const OIL_STATUS = ["ACTIVE", "INACTIVE", "PROSPECTIVE", "RESIDENT", "NO OIL", "UNKNOWN"] as const;
 const PROPANE_STATUS = ["ACTIVE", "INACTIVE", "PROSPECTIVE", "RESIDENT", "NO PROPANE", "UNKNOWN"] as const;
 const PHONE_TYPE = ["HOME", "WORK", "CELL"] as const;
+const CARD_TYPES = ["VISA", "MASTERCARD", "AMEX", "DISCOVER"] as const;
+
+const isAmexType = (type: string) => type.trim().toUpperCase() === "AMEX";
+
+// Format a raw card-number string into spaced groups (Amex = 4-6-5, others = 4-4-4-4).
+function formatCardNumber(value: string, amex: boolean): string {
+  const digits = value.replace(/\D/g, "").slice(0, amex ? 15 : 16);
+  if (amex) {
+    return [digits.slice(0, 4), digits.slice(4, 10), digits.slice(10, 15)].filter(Boolean).join(" ");
+  }
+  return (digits.match(/.{1,4}/g) ?? []).join(" ");
+}
+
+// Format an expiration string into MM/YY.
+function formatExpiry(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 4);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+}
 
 type PaymentHistoryViewProps = {
   form: WorkbenchFormState;
@@ -30,6 +49,20 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
     setForm((f) => ({ ...f, legacyProfile: { ...f.legacyProfile, [key]: value } }));
 
   const regStatus = legacyValue("registrationPaymentStatus").toLowerCase();
+  const cardType = legacyValue("ccType");
+  const amex = isAmexType(cardType);
+  const cvvLength = amex ? 4 : 3;
+
+  // Switching card type re-formats the stored number and trims the security code length.
+  const changeCardType = (type: string) =>
+    setForm((f) => {
+      const nextAmex = isAmexType(type);
+      const lp = { ...f.legacyProfile };
+      lp.ccType = type;
+      lp.ccNumber = formatCardNumber(String(lp.ccNumber ?? ""), nextAmex);
+      lp.ccCvv = String(lp.ccCvv ?? "").replace(/\D/g, "").slice(0, nextAmex ? 4 : 3);
+      return { ...f, legacyProfile: lp };
+    });
 
   const annualRows = useMemo(
     () =>
@@ -40,9 +73,9 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
   );
 
   return (
-    <div className="admin-wb-grid">
-      {/* ───────── Left column: record context + registration ───────── */}
-      <div className="admin-wb-col">
+    <div style={{ display: "flex", flexDirection: "column", gap: "0.55rem" }}>
+      {/* ───────── Row 1: Member (left) + Status (right) ───────── */}
+      <div className="admin-wb-grid">
         <div className="admin-wb-panel">
           <div className="admin-wb-panel-title">Member</div>
 
@@ -56,10 +89,6 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
             <label className="admin-field admin-field-md">
               New Member Dt
               <input className="admin-input" type="date" value={legacyValue("newMemberDt")} onChange={(e) => setLegacy("newMemberDt", e.target.value)} />
-            </label>
-            <label className="admin-field admin-field-sm">
-              Cluster
-              <input className="admin-input" value={legacyValue("cluster")} onChange={(e) => setLegacy("cluster", e.target.value)} />
             </label>
           </div>
 
@@ -116,9 +145,6 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
                 ))}
               </select>
             </label>
-          </div>
-
-          <div className="admin-form-row-wrap">
             <label className="admin-field admin-field-md">
               Phone 2
               <input className="admin-input" value={legacyValue("phone2")} onChange={(e) => setLegacy("phone2", e.target.value)} />
@@ -133,19 +159,46 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
             </label>
           </div>
 
-          <div className="admin-form-row-wrap">
-            <label className="admin-field admin-field-md">
-              Oil Co
-              <span className="admin-input admin-input-static" aria-readonly="true">{oilCompanyName || "—"}</span>
-            </label>
-            <label className="admin-field admin-field-sm">
-              Oil ID
-              <input className="admin-input" value={legacyValue("oilId")} onChange={(e) => setLegacy("oilId", e.target.value)} />
-            </label>
-            <label className="admin-field admin-field-sm">
-              Propane ID
-              <input className="admin-input" value={legacyValue("propaneId")} onChange={(e) => setLegacy("propaneId", e.target.value)} />
-            </label>
+          {/* Company info split into two columns: oil (left) + propane (right) */}
+          <div className="admin-pay-status-grid" style={{ marginTop: "0.1rem", marginBottom: 0 }}>
+            <div>
+              <div className="admin-pay-status-label">Oil Company</div>
+              <div className="admin-form-row-wrap">
+                <label className="admin-field admin-field-md">
+                  Company
+                  <span className="admin-input admin-input-static" aria-readonly="true">{oilCompanyName || "—"}</span>
+                </label>
+                <label className="admin-field admin-field-sm">
+                  Oil ID
+                  <input className="admin-input" value={legacyValue("oilId")} onChange={(e) => setLegacy("oilId", e.target.value)} />
+                </label>
+              </div>
+              <div className="admin-form-row-wrap">
+                <label className="admin-field admin-field-md">
+                  Start Date
+                  <input className="admin-input" type="date" value={legacyValue("oilStartDate")} onChange={(e) => setLegacy("oilStartDate", e.target.value)} />
+                </label>
+              </div>
+            </div>
+            <div>
+              <div className="admin-pay-status-label">Propane Company</div>
+              <div className="admin-form-row-wrap">
+                <label className="admin-field admin-field-md">
+                  Company
+                  <input className="admin-input" value={legacyValue("propaneCompanyName")} onChange={(e) => setLegacy("propaneCompanyName", e.target.value)} />
+                </label>
+                <label className="admin-field admin-field-sm">
+                  Propane ID
+                  <input className="admin-input" value={legacyValue("propaneId")} onChange={(e) => setLegacy("propaneId", e.target.value)} />
+                </label>
+              </div>
+              <div className="admin-form-row-wrap">
+                <label className="admin-field admin-field-md">
+                  Start Date
+                  <input className="admin-input" type="date" value={legacyValue("propaneStartDate")} onChange={(e) => setLegacy("propaneStartDate", e.target.value)} />
+                </label>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -186,19 +239,29 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
             </div>
           </div>
 
+          {/* Membership tiers — mirror the main dashboard view (same legacy keys, saved globally) */}
+          <div className="admin-pay-status-label">Membership</div>
           <div className="admin-checkbox-grid admin-pay-flags">
             <label>
-              <input type="checkbox" checked={legacyBool("waiveFeeYear")} onChange={(e) => setLegacy("waiveFeeYear", e.target.checked)} />
-              Waive fee for year
+              <input type="checkbox" checked={legacyBool("standardMembership")} onChange={(e) => setLegacy("standardMembership", e.target.checked)} />
+              Standard
             </label>
             <label>
               <input type="checkbox" checked={legacyBool("seniorMember")} onChange={(e) => setLegacy("seniorMember", e.target.checked)} />
               Senior
             </label>
             <label>
-              <input type="checkbox" checked={legacyBool("waiveFeeLifetime")} onChange={(e) => setLegacy("waiveFeeLifetime", e.target.checked)} />
-              Lifetime Member
+              <input type="checkbox" checked={legacyBool("lowVolume")} onChange={(e) => setLegacy("lowVolume", e.target.checked)} />
+              Low Volume
             </label>
+            <label>
+              <input type="checkbox" checked={legacyBool("waiveFeeLifetime")} onChange={(e) => setLegacy("waiveFeeLifetime", e.target.checked)} />
+              Lifetime
+            </label>
+          </div>
+
+          <div className="admin-pay-status-label" style={{ marginTop: "0.45rem" }}>Flags</div>
+          <div className="admin-checkbox-grid admin-pay-flags">
             <label>
               <input type="checkbox" checked={legacyBool("delinquent")} onChange={(e) => setLegacy("delinquent", e.target.checked)} />
               Delinquent
@@ -211,26 +274,31 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
               <input type="checkbox" checked={legacyBool("deliveryHistory")} onChange={(e) => setLegacy("deliveryHistory", e.target.checked)} />
               Delivery History
             </label>
+            <label>
+              <input type="checkbox" checked={legacyBool("notPaidCurrentYr")} onChange={(e) => setLegacy("notPaidCurrentYr", e.target.checked)} />
+              Not Paid Current Yr
+            </label>
           </div>
         </div>
+      </div>
 
-        <div className="admin-wb-panel">
-          <div className="admin-wb-panel-title">Registration</div>
-          <div className="admin-form-row-wrap">
-            <label className="admin-field admin-field-sm">
-              Registration Fee
-              <input className="admin-input" value={legacyValue("registrationFee")} onChange={(e) => setLegacy("registrationFee", e.target.value)} />
-            </label>
-            <label className="admin-field admin-field-md">
-              Dt Paid
-              <input className="admin-input" type="date" value={legacyValue("regDtPaid")} onChange={(e) => setLegacy("regDtPaid", e.target.value)} />
-            </label>
-            <label className="admin-field admin-field-sm">
-              Check / Credit
-              <input className="admin-input" value={legacyValue("regCheckCredit")} onChange={(e) => setLegacy("regCheckCredit", e.target.value)} />
-            </label>
-          </div>
-          <div className="admin-checkbox-grid admin-pay-flags">
+      {/* ───────── Row 2: Registration (full width) ───────── */}
+      <div className="admin-wb-panel">
+        <div className="admin-wb-panel-title">Registration</div>
+        <div className="admin-form-row-wrap">
+          <label className="admin-field admin-field-sm">
+            Registration Fee
+            <input className="admin-input" value={legacyValue("registrationFee")} onChange={(e) => setLegacy("registrationFee", e.target.value)} />
+          </label>
+          <label className="admin-field admin-field-md">
+            Dt Paid
+            <input className="admin-input" type="date" value={legacyValue("regDtPaid")} onChange={(e) => setLegacy("regDtPaid", e.target.value)} />
+          </label>
+          <label className="admin-field admin-field-sm">
+            Check / Credit
+            <input className="admin-input" value={legacyValue("regCheckCredit")} onChange={(e) => setLegacy("regCheckCredit", e.target.value)} />
+          </label>
+          <div className="admin-checkbox-grid admin-pay-flags" style={{ alignSelf: "flex-end", paddingBottom: "0.14rem" }}>
             <label>
               <input
                 type="checkbox"
@@ -247,10 +315,6 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
               />
               Registration Waived
             </label>
-            <label>
-              <input type="checkbox" checked={legacyBool("notPaidCurrentYr")} onChange={(e) => setLegacy("notPaidCurrentYr", e.target.checked)} />
-              Not Paid Current Yr
-            </label>
           </div>
           <label className="admin-field admin-field-block">
             Payment Notes
@@ -262,70 +326,100 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
             />
           </label>
         </div>
+      </div>
 
-        <div className="admin-wb-panel">
-          <div className="admin-wb-panel-title">Credit Card</div>
-          <div className="admin-form-row-wrap">
-            <label className="admin-field admin-field-sm">
-              Card Type
-              <input className="admin-input" value={legacyValue("ccType")} onChange={(e) => setLegacy("ccType", e.target.value)} />
-            </label>
-            <label className="admin-field admin-field-md">
-              Card Number
-              <input className="admin-input" value={legacyValue("ccNumber")} onChange={(e) => setLegacy("ccNumber", e.target.value)} />
-            </label>
-            <label className="admin-field admin-field-sm">
-              Expiration
-              <input className="admin-input" value={legacyValue("ccExp")} onChange={(e) => setLegacy("ccExp", e.target.value)} />
-            </label>
-          </div>
-          <label className="admin-field admin-field-block">
+      {/* ───────── Row 3: Credit Card (full width) ───────── */}
+      <div className="admin-wb-panel">
+        <div className="admin-wb-panel-title">Credit Card</div>
+        <div className="admin-form-row-wrap">
+          <label className="admin-field admin-field-sm">
+            Card Type
+            <select className="admin-input" value={cardType} onChange={(e) => changeCardType(e.target.value)}>
+              <option value="">—</option>
+              {CARD_TYPES.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </label>
+          <label className="admin-field admin-field-md">
+            Card Number
+            <input
+              className="admin-input"
+              inputMode="numeric"
+              autoComplete="cc-number"
+              placeholder={amex ? "•••• •••••• •••••" : "•••• •••• •••• ••••"}
+              value={legacyValue("ccNumber")}
+              onChange={(e) => setLegacy("ccNumber", formatCardNumber(e.target.value, amex))}
+            />
+          </label>
+          <label className="admin-field admin-field-xs">
+            Exp
+            <input
+              className="admin-input"
+              inputMode="numeric"
+              autoComplete="cc-exp"
+              placeholder="MM/YY"
+              value={legacyValue("ccExp")}
+              onChange={(e) => setLegacy("ccExp", formatExpiry(e.target.value))}
+            />
+          </label>
+          <label className="admin-field admin-field-xs">
+            {amex ? "CID" : "CVV"}
+            <input
+              className="admin-input"
+              inputMode="numeric"
+              autoComplete="cc-csc"
+              maxLength={cvvLength}
+              placeholder={amex ? "••••" : "•••"}
+              value={legacyValue("ccCvv")}
+              onChange={(e) => setLegacy("ccCvv", e.target.value.replace(/\D/g, "").slice(0, cvvLength))}
+            />
+          </label>
+          <label className="admin-field admin-field-md">
             Name on Card
             <input className="admin-input" value={legacyValue("ccName")} onChange={(e) => setLegacy("ccName", e.target.value)} />
           </label>
         </div>
       </div>
 
-      {/* ───────── Right column: renewal fee history ───────── */}
-      <div className="admin-wb-col">
-        <div className="admin-wb-panel">
-          <div className="admin-wb-panel-title">Renewal Fee History</div>
-          <div className="admin-table-wrap">
-            <table className="admin-table">
-              <thead>
+      {/* ───────── Row 4: Renewal fee history (full width) ───────── */}
+      <div className="admin-wb-panel">
+        <div className="admin-wb-panel-title">Renewal Fee History</div>
+        <div className="admin-table-wrap">
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Billing Year</th>
+                <th>Fee Waived</th>
+                <th>Date Received</th>
+                <th>Amount Received</th>
+                <th>Payment Method</th>
+                <th>New / Renew</th>
+                <th>Check Number</th>
+              </tr>
+            </thead>
+            <tbody>
+              {annualRows.length === 0 ? (
                 <tr>
-                  <th>Billing Year</th>
-                  <th>Fee Waived</th>
-                  <th>Date Received</th>
-                  <th>Amount Received</th>
-                  <th>Payment Method</th>
-                  <th>New / Renew</th>
-                  <th>Check Number</th>
+                  <td colSpan={7} className="admin-modal-table-empty">
+                    No renewal payments yet.
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {annualRows.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="admin-modal-table-empty">
-                      No renewal payments yet.
-                    </td>
+              ) : (
+                annualRows.map((b) => (
+                  <tr key={b._id}>
+                    <td>{b.billingYear ?? new Date(b.createdAt).getFullYear()}</td>
+                    <td>{b.status === "waived" ? "Yes" : "No"}</td>
+                    <td>{new Date(b.createdAt).toLocaleDateString()}</td>
+                    <td>{b.status === "waived" ? "—" : `$${(b.amountCents / 100).toFixed(2)}`}</td>
+                    <td>{b.status === "waived" ? "—" : b.status === "pending" ? "CHECK" : "CARD"}</td>
+                    <td>Renew</td>
+                    <td>—</td>
                   </tr>
-                ) : (
-                  annualRows.map((b) => (
-                    <tr key={b._id}>
-                      <td>{b.billingYear ?? new Date(b.createdAt).getFullYear()}</td>
-                      <td>{b.status === "waived" ? "Yes" : "No"}</td>
-                      <td>{new Date(b.createdAt).toLocaleDateString()}</td>
-                      <td>{b.status === "waived" ? "—" : `$${(b.amountCents / 100).toFixed(2)}`}</td>
-                      <td>{b.status === "waived" ? "—" : b.status === "pending" ? "CHECK" : "CARD"}</td>
-                      <td>Renew</td>
-                      <td>—</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

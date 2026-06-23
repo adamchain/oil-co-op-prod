@@ -5,6 +5,7 @@ import crypto from "crypto";
 import { requireAuth, requireAdmin, type AuthedRequest } from "../middleware/auth.js";
 import { Member } from "../models/Member.js";
 import { OilCompany } from "../models/OilCompany.js";
+import { ReferralSource, DEFAULT_REFERRAL_SOURCES } from "../models/ReferralSource.js";
 import { BillingEvent } from "../models/BillingEvent.js";
 import { ActivityLog } from "../models/ActivityLog.js";
 import { CommunicationLog } from "../models/CommunicationLog.js";
@@ -215,6 +216,7 @@ router.get("/members", async (req, res) => {
       { "legacyProfile.nextStep": rx },
       { "legacyProfile.referredById": rx },
       { "legacyProfile.dateReferred": rx },
+      { "legacyProfile.referralSource": rx },
       { "legacyProfile.contactNote": rx },
     ];
   };
@@ -585,6 +587,42 @@ router.get("/oil-companies", async (req, res) => {
   const filter = includeInactive ? {} : { active: true };
   const list = await OilCompany.find(filter).sort({ name: 1 }).lean();
   res.json({ oilCompanies: list });
+});
+
+router.get("/referral-sources", async (_req, res) => {
+  // Seed defaults on first use so the dropdown is never empty.
+  if ((await ReferralSource.estimatedDocumentCount()) === 0) {
+    await ReferralSource.insertMany(
+      DEFAULT_REFERRAL_SOURCES.map((value) => ({ value })),
+      { ordered: false }
+    ).catch(() => {});
+  }
+  const list = await ReferralSource.find({ active: true }).sort({ value: 1 }).lean();
+  res.json({ referralSources: list.map((r) => r.value) });
+});
+
+const referralSourceSchema = z.object({ value: z.string().trim().min(1) });
+
+router.post("/referral-sources", async (req, res) => {
+  const parsed = referralSourceSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const value = parsed.data.value.trim();
+  // Case-insensitive dedupe: reuse the existing option if it already exists.
+  const existing = (await ReferralSource.findOne({
+    value: { $regex: `^${value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, $options: "i" },
+  }).lean()) as { _id: unknown; value: string; active: boolean } | null;
+  if (existing) {
+    if (!existing.active) {
+      await ReferralSource.updateOne({ _id: existing._id }, { active: true });
+    }
+    res.status(200).json({ value: existing.value });
+    return;
+  }
+  await ReferralSource.create({ value });
+  res.status(201).json({ value });
 });
 
 router.get("/propane-companies", async (_req, res) => {
