@@ -16,14 +16,19 @@ import { applyTemplateVariables } from "./emailTemplateStore.js";
 
 let transporter: nodemailer.Transporter | null = null;
 
+// Resolves the content for a triggered alert email. Returns null when the
+// template's alert has been turned off in admin (`enabled: false`) so the
+// caller skips sending entirely — manual admin sends use sendMemberEmail
+// directly and are not gated here.
 async function resolveTemplate(
   key: EmailTemplateKey,
   fallback: { subject: string; text: string; html: string },
   variables: Record<string, unknown>
-) {
+): Promise<{ subject: string; text: string; html: string } | null> {
   const dbTemplate = (await EmailTemplate.findOne({ key })
-    .select("subject html text")
-    .lean()) as { subject?: string; html?: string; text?: string } | null;
+    .select("subject html text enabled")
+    .lean()) as { subject?: string; html?: string; text?: string; enabled?: boolean } | null;
+  if (dbTemplate?.enabled === false) return null;
   if (!dbTemplate || !dbTemplate.subject || !dbTemplate.html) {
     return fallback;
   }
@@ -141,6 +146,7 @@ export async function sendWelcomeEmail(member: MemberDoc) {
     }
   );
 
+  if (!resolved) return;
   await sendMemberEmail(member._id, member.email, resolved.subject, resolved.text, resolved.html);
 }
 
@@ -197,6 +203,7 @@ export async function sendRenewalReminderEmail(
     }
   );
 
+  if (!resolved) return;
   await sendMemberEmail(member._id, member.email, resolved.subject, resolved.text, resolved.html);
 }
 
@@ -244,6 +251,7 @@ export async function sendPaymentSuccessEmail(
     }
   );
 
+  if (!resolved) return;
   await sendMemberEmail(member._id, member.email, resolved.subject, resolved.text, resolved.html);
 }
 
@@ -279,6 +287,7 @@ export async function sendPaymentFailedEmail(
     }
   );
 
+  if (!resolved) return;
   await sendMemberEmail(member._id, member.email, resolved.subject, resolved.text, resolved.html);
 }
 
@@ -320,6 +329,7 @@ export async function sendPaymentLinkEmail(
     }
   );
 
+  if (!resolved) return;
   await sendMemberEmail(member._id, member.email, resolved.subject, resolved.text, resolved.html);
 }
 
@@ -353,5 +363,6 @@ export async function sendOilCompanyAssignedEmail(
     }
   );
 
+  if (!resolved) return;
   await sendMemberEmail(member._id, member.email, resolved.subject, resolved.text, resolved.html);
 }
