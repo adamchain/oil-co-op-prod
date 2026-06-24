@@ -1542,9 +1542,11 @@ button.admin-wb-panel-title.admin-wb-panel-toggle:hover {
   white-space: nowrap;
 }
 
-/* Compact the form panels across the board. */
+/* Compact the form panels across the board. Narrow the member column so the
+   status column gets more room. */
 .admin-pay-view .admin-wb-grid {
   gap: 0.4rem;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
 }
 
 .admin-pay-view .admin-wb-panel {

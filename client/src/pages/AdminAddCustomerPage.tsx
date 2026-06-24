@@ -107,7 +107,7 @@ export default function AdminAddCustomerPage() {
     setLoading(true);
     try {
       const payload = {
-        email: form.email,
+        email: form.email.trim() || undefined,
         password: form.password,
         firstName: form.firstName,
         lastName: form.lastName,
@@ -269,7 +269,6 @@ export default function AdminAddCustomerPage() {
                       <input
                         className="admin-input"
                         type="email"
-                        required
                         value={form.email}
                         onChange={(e) => setForm({ ...form, email: e.target.value })}
                       />

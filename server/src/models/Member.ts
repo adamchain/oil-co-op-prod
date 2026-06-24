@@ -25,7 +25,7 @@ const noteEntrySchema = new Schema(
 const memberSchema = new Schema(
   {
     memberNumber: { type: String, unique: true, sparse: true },
-    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    email: { type: String, required: false, unique: true, sparse: true, lowercase: true, trim: true },
     passwordHash: { type: String, required: true },
     firstName: { type: String, required: true, trim: true },
     lastName: { type: String, required: true, trim: true },

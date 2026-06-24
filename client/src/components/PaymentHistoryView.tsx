@@ -149,6 +149,9 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
                     ))}
                   </select>
                 </label>
+              </div>
+
+              <div className="admin-form-row-wrap">
                 <label className="admin-field admin-field-md">
                   Phone 2
                   <input className="admin-input" value={legacyValue("phone2")} onChange={(e) => setLegacy("phone2", e.target.value)} />
@@ -374,7 +377,7 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
 
         {/* ───────── Renewal fee history (right of member/status) ───────── */}
         <div className="admin-wb-panel admin-pay-history">
-          <div className="admin-wb-panel-title">Renewal Fee History</div>
+          <div className="admin-wb-panel-title">Payment History</div>
           <div className="admin-table-wrap">
             <table className="admin-table">
               <thead>

@@ -57,7 +57,7 @@ function getTransporter() {
 
 export async function sendMemberEmail(
   memberId: mongoose.Types.ObjectId,
-  to: string,
+  to: string | null | undefined,
   subject: string,
   text: string,
   html?: string

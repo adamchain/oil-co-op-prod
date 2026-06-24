@@ -983,13 +983,18 @@ export default function AdminWorkbenchPage() {
     downloadText(filename, body, "text/csv;charset=utf-8");
   };
 
-  const openPrintPreview = (title: string, body: string, triggerPrint = false) => {
+  const openPrintPreview = (title: string, body: string, triggerPrint = false, blackAndWhite = false) => {
     const w = window.open("", "_blank", "width=960,height=720");
     if (!w) {
       setActionMessage("Popup blocked. Please allow popups for print preview.");
       return;
     }
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escHtml(title)}</title><style>body{font-family:Arial,sans-serif;padding:24px;line-height:1.4}h1{margin-top:0;font-size:20px}table{border-collapse:collapse;width:100%;margin-top:12px}th,td{border:1px solid #ddd;padding:6px;font-size:12px;text-align:left}th{background:#f6f6f6}pre{white-space:pre-wrap;font-family:inherit}</style></head><body>${body}</body></html>`;
+    // Force everything to black & white (overrides the inline colors used in the
+    // branded letter) so the printout has no color by default.
+    const bwStyles = blackAndWhite
+      ? `*{color:#000 !important;border-color:#000 !important;background-color:#fff !important;box-shadow:none !important}img,svg{filter:grayscale(100%) !important}html{-webkit-print-color-adjust:exact;print-color-adjust:exact}`
+      : "";
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escHtml(title)}</title><style>body{font-family:Arial,sans-serif;padding:24px;line-height:1.4}h1{margin-top:0;font-size:20px}table{border-collapse:collapse;width:100%;margin-top:12px}th,td{border:1px solid #ddd;padding:6px;font-size:12px;text-align:left}th{background:#f6f6f6}pre{white-space:pre-wrap;font-family:inherit}${bwStyles}</style></head><body>${body}</body></html>`;
     try {
       w.document.open();
       w.document.write(html);
@@ -2278,7 +2283,7 @@ export default function AdminWorkbenchPage() {
                   type="button"
                   className="admin-btn"
                   style={{ minWidth: "130px" }}
-                  onClick={() => openPrintPreview("Mailing Letter", mailingPreviewHtml, true)}
+                  onClick={() => openPrintPreview("Mailing Letter", mailingPreviewHtml, true, true)}
                 >
                   Print Letter
                 </button>

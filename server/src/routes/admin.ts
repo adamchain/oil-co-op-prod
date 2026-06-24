@@ -307,10 +307,17 @@ router.get("/members/:id", async (req, res) => {
   res.json({ member, billing, activity, communications, referral });
 });
 
+// Email is optional everywhere — treat a blank string as "no email" rather than
+// rejecting it, so members can be saved without an email address.
+const optionalEmail = z.preprocess(
+  (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+  z.string().email().optional()
+);
+
 const patchMemberSchema = z.object({
   firstName: z.string().min(1).optional(),
   lastName: z.string().min(1).optional(),
-  email: z.string().email().optional(),
+  email: optionalEmail,
   phone: z.string().optional(),
   addressLine1: z.string().optional(),
   addressLine2: z.string().optional(),
@@ -340,7 +347,6 @@ router.patch("/members/:id", async (req: AuthedRequest, res) => {
     res.status(404).json({ error: "Not found" });
     return;
   }
-  const prevOil = member.oilCompanyId?.toString();
   const body = parsed.data;
   if (body.oilCompanyId !== undefined) {
     if (body.oilCompanyId === null) {
@@ -386,18 +392,7 @@ router.patch("/members/:id", async (req: AuthedRequest, res) => {
     new mongoose.Types.ObjectId(req.userId!)
   );
 
-  const newOil = member.oilCompanyId?.toString();
-  if (body.oilCompanyId !== undefined && newOil && newOil !== prevOil) {
-    const oc = await OilCompany.findById(member.oilCompanyId);
-    if (member.notificationSettings?.emailEnabled && member.notificationSettings?.oilCompanyUpdates) {
-      await sendMemberEmail(
-        member._id,
-        member.email,
-        "Your oil company has been assigned",
-        `Hello ${member.firstName},\n\nYour heating oil broker has linked your membership to: ${oc?.name || "your oil company"}.\n`
-      );
-    }
-  }
+  // Note: assigning an oil company no longer sends an automatic email to the member.
 
   res.json({ member });
 });
@@ -405,7 +400,7 @@ router.patch("/members/:id", async (req: AuthedRequest, res) => {
 const createMemberSchema = z.object({
   firstName: z.string().min(1),
   lastName: z.string().min(1),
-  email: z.string().email().optional(),
+  email: optionalEmail,
   phone: z.string().optional().default(""),
   addressLine1: z.string().optional().default(""),
   addressLine2: z.string().optional().default(""),
@@ -466,13 +461,14 @@ router.post("/members", async (req: AuthedRequest, res) => {
     return;
   }
   const payload = parsed.data;
-  const email =
-    payload.email?.toLowerCase().trim() ||
-    `member-${Date.now()}-${Math.floor(Math.random() * 10000)}@oilcoop.local`;
-  const exists = await Member.findOne({ email }).lean();
-  if (exists) {
-    res.status(400).json({ error: "Email already in use" });
-    return;
+  // Email is optional — members can be saved without one.
+  const email = payload.email?.toLowerCase().trim() || undefined;
+  if (email) {
+    const exists = await Member.findOne({ email }).lean();
+    if (exists) {
+      res.status(400).json({ error: "Email already in use" });
+      return;
+    }
   }
 
   const passwordHash = await bcrypt.hash(`Temp-${Date.now()}`, 10);

@@ -9,11 +9,15 @@ import { nextJuneFirstAfterSignup } from "../utils/juneBilling.js";
 import { applyReferralCredit, findReferrerByToken } from "../services/referrals.js";
 import { confirmPaymentIntent } from "../services/stripeBilling.js";
 import { createProfileAndCharge } from "../services/authorizeNet.js";
-import { sendWelcomeEmail, sendMemberEmail } from "../services/mail.js";
+import { sendWelcomeEmail } from "../services/mail.js";
 import { logActivity } from "../services/activity.js";
 
 export const registerMemberSchema = z.object({
-  email: z.string().email(),
+  // Email is optional — a blank string is treated as "no email".
+  email: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().email().optional()
+  ),
   password: z.string().min(8),
   firstName: z.string().min(1),
   lastName: z.string().min(1),
@@ -71,11 +75,14 @@ export async function registerMember(
 ): Promise<RegisterMemberResult> {
   const signedUpVia = options.signedUpVia ?? "web";
   const sendWelcome = options.sendWelcomeEmail !== false;
-  const notifyOil = options.notifyOilCompanyAssignment !== false;
 
-  const exists = await Member.findOne({ email: body.email.toLowerCase() });
-  if (exists) {
-    return { ok: false, status: 409, error: "Email already registered" };
+  // Email is optional — members can be registered without one.
+  const email = body.email?.toLowerCase().trim() || undefined;
+  if (email) {
+    const exists = await Member.findOne({ email });
+    if (exists) {
+      return { ok: false, status: 409, error: "Email already registered" };
+    }
   }
 
   let oilCompanyObjectId: mongoose.Types.ObjectId | null = null;
@@ -112,7 +119,7 @@ export async function registerMember(
     if (authorizeNetEnabled && body.cardNumber && body.cardExpiry && body.cardCvv) {
       const authnetResult = await createProfileAndCharge({
         merchantCustomerId: memberNumber,
-        email: body.email.toLowerCase(),
+        email: email || "",
         cardNumber: body.cardNumber,
         expirationDate: body.cardExpiry,
         cardCode: body.cardCvv,
@@ -172,7 +179,7 @@ export async function registerMember(
 
   const member = await Member.create({
     memberNumber,
-    email: body.email.toLowerCase(),
+    email,
     passwordHash,
     firstName: body.firstName,
     lastName: body.lastName,
@@ -239,17 +246,7 @@ export async function registerMember(
     await sendWelcomeEmail(member);
   }
 
-  if (oilCompanyObjectId && notifyOil) {
-    const oc = await OilCompany.findById(oilCompanyObjectId);
-    if (member.notificationSettings?.emailEnabled && member.notificationSettings?.oilCompanyUpdates) {
-      await sendMemberEmail(
-        member._id,
-        member.email,
-        "Your oil company has been assigned",
-        `Hello ${member.firstName},\n\nYour heating oil broker has linked your membership to: ${oc?.name || "your oil company"}.\n`
-      );
-    }
-  }
+  // Note: assigning an oil company no longer sends an automatic email to the member.
 
   return { ok: true, member };
 }
