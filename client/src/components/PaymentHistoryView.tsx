@@ -163,84 +163,73 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
                 </label>
               </div>
 
-              {/* Company info split into two columns: oil (left) + propane (right) */}
-              <div className="admin-pay-status-grid" style={{ marginTop: "0.1rem", marginBottom: 0 }}>
-                <div>
-                  <div className="admin-pay-status-label">Oil Company</div>
-                  <div className="admin-form-row-wrap">
-                    <label className="admin-field admin-field-md">
-                      Company
-                      <span className="admin-input admin-input-static" aria-readonly="true">{oilCompanyName || "—"}</span>
-                    </label>
-                    <label className="admin-field admin-field-sm">
-                      Oil ID
-                      <input className="admin-input" value={legacyValue("oilId")} onChange={(e) => setLegacy("oilId", e.target.value)} />
-                    </label>
-                    <label className="admin-field admin-field-md">
-                      Start Date
-                      <input className="admin-input" type="date" value={legacyValue("oilStartDate")} onChange={(e) => setLegacy("oilStartDate", e.target.value)} />
-                    </label>
-                  </div>
-                </div>
-                <div>
-                  <div className="admin-pay-status-label">Propane Company</div>
-                  <div className="admin-form-row-wrap">
-                    <label className="admin-field admin-field-md">
-                      Company
-                      <input className="admin-input" value={legacyValue("propaneCompanyName")} onChange={(e) => setLegacy("propaneCompanyName", e.target.value)} />
-                    </label>
-                    <label className="admin-field admin-field-sm">
-                      Propane ID
-                      <input className="admin-input" value={legacyValue("propaneId")} onChange={(e) => setLegacy("propaneId", e.target.value)} />
-                    </label>
-                    <label className="admin-field admin-field-md">
-                      Start Date
-                      <input className="admin-input" type="date" value={legacyValue("propaneStartDate")} onChange={(e) => setLegacy("propaneStartDate", e.target.value)} />
-                    </label>
-                  </div>
-                </div>
-              </div>
             </div>
 
             <div className="admin-wb-panel">
               <div className="admin-wb-panel-title">Status</div>
-              <div className="admin-pay-status-grid">
-                <div>
-                  <div className="admin-pay-status-label">Oil</div>
-                  <div className="admin-wb-status-row">
-                    {OIL_STATUS.map((s) => (
-                      <label key={s} className={`on-${s === "ACTIVE" ? "active" : s === "INACTIVE" ? "inactive" : s === "PROSPECTIVE" ? "prospect" : s === "NO OIL" ? "noOil" : "unknown"}`}>
-                        <input
-                          type="radio"
-                          name="pay-oil-status"
-                          checked={(legacyValue("oilWorkbenchStatus") || "ACTIVE") === s}
-                          onChange={() => setLegacy("oilWorkbenchStatus", s)}
-                        />
-                        {s}
-                      </label>
-                    ))}
-                  </div>
-                </div>
-                <div>
-                  <div className="admin-pay-status-label">Propane</div>
-                  <div className="admin-wb-status-row">
-                    {PROPANE_STATUS.map((s) => (
-                      <label key={s} className={`on-${s === "ACTIVE" ? "active" : s === "INACTIVE" ? "inactive" : s === "PROSPECTIVE" ? "prospect" : s === "NO PROPANE" ? "noOil" : "unknown"}`}>
-                        <input
-                          type="radio"
-                          name="pay-propane-status"
-                          checked={(legacyValue("propaneStatus") || "UNKNOWN") === s}
-                          onChange={() => setLegacy("propaneStatus", s)}
-                        />
-                        {s}
-                      </label>
-                    ))}
-                  </div>
-                </div>
+
+              {/* ── OIL status + company ── */}
+              <div className="admin-pay-status-label">OIL</div>
+              <div className="admin-wb-status-row">
+                {OIL_STATUS.map((s) => (
+                  <label key={s} className={`on-${s === "ACTIVE" ? "active" : s === "INACTIVE" ? "inactive" : s === "PROSPECTIVE" ? "prospect" : s === "NO OIL" ? "noOil" : "unknown"}`}>
+                    <input
+                      type="radio"
+                      name="pay-oil-status"
+                      checked={(legacyValue("oilWorkbenchStatus") || "ACTIVE") === s}
+                      onChange={() => setLegacy("oilWorkbenchStatus", s)}
+                    />
+                    {s}
+                  </label>
+                ))}
+              </div>
+              <div className="admin-form-row-wrap">
+                <label className="admin-field admin-field-md">
+                  Company
+                  <span className="admin-input admin-input-static" aria-readonly="true">{oilCompanyName || "—"}</span>
+                </label>
+                <label className="admin-field admin-field-sm">
+                  ID#
+                  <input className="admin-input" value={legacyValue("oilId")} onChange={(e) => setLegacy("oilId", e.target.value)} />
+                </label>
+                <label className="admin-field admin-field-md">
+                  Start Date
+                  <input className="admin-input" type="date" value={legacyValue("oilStartDate")} onChange={(e) => setLegacy("oilStartDate", e.target.value)} />
+                </label>
+              </div>
+
+              {/* ── PROPANE status + company ── */}
+              <div className="admin-pay-status-label" style={{ marginTop: "0.45rem" }}>Propane</div>
+              <div className="admin-wb-status-row">
+                {PROPANE_STATUS.map((s) => (
+                  <label key={s} className={`on-${s === "ACTIVE" ? "active" : s === "INACTIVE" ? "inactive" : s === "PROSPECTIVE" ? "prospect" : s === "NO PROPANE" ? "noOil" : "unknown"}`}>
+                    <input
+                      type="radio"
+                      name="pay-propane-status"
+                      checked={(legacyValue("propaneStatus") || "UNKNOWN") === s}
+                      onChange={() => setLegacy("propaneStatus", s)}
+                    />
+                    {s}
+                  </label>
+                ))}
+              </div>
+              <div className="admin-form-row-wrap">
+                <label className="admin-field admin-field-md">
+                  Company
+                  <input className="admin-input" value={legacyValue("propaneCompanyName")} onChange={(e) => setLegacy("propaneCompanyName", e.target.value)} />
+                </label>
+                <label className="admin-field admin-field-sm">
+                  ID#
+                  <input className="admin-input" value={legacyValue("propaneId")} onChange={(e) => setLegacy("propaneId", e.target.value)} />
+                </label>
+                <label className="admin-field admin-field-md">
+                  Start Date
+                  <input className="admin-input" type="date" value={legacyValue("propaneStartDate")} onChange={(e) => setLegacy("propaneStartDate", e.target.value)} />
+                </label>
               </div>
 
               {/* Membership tiers — mirror the main dashboard view (same legacy keys, saved globally) */}
-              <div className="admin-pay-status-label">Membership</div>
+              <div className="admin-pay-status-label" style={{ marginTop: "0.45rem" }}>Membership</div>
               <div className="admin-checkbox-grid admin-pay-flags">
                 <label>
                   <input type="checkbox" checked={legacyBool("standardMembership")} onChange={(e) => setLegacy("standardMembership", e.target.checked)} />
