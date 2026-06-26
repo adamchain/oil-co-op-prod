@@ -274,8 +274,8 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
             </div>
           </div>
 
-          {/* ───────── Registration (full width) ───────── */}
-          <div className="admin-wb-panel">
+          {/* ───────── Registration (condensed left) ───────── */}
+          <div className="admin-wb-panel admin-pay-compact">
             <div className="admin-wb-panel-title">Registration</div>
             <div className="admin-form-row-wrap">
               <label className="admin-field admin-field-sm">
@@ -320,8 +320,8 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
             </div>
           </div>
 
-          {/* ───────── Credit Card (full width) ───────── */}
-          <div className="admin-wb-panel">
+          {/* ───────── Credit Card (condensed left) ───────── */}
+          <div className="admin-wb-panel admin-pay-compact">
             <div className="admin-wb-panel-title">Credit Card</div>
             <div className="admin-form-row-wrap">
               <label className="admin-field admin-field-sm">
