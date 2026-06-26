@@ -2,80 +2,14 @@ import cron from "node-cron";
 import { Member } from "../models/Member.js";
 import { BillingEvent } from "../models/BillingEvent.js";
 import { config, stripeEnabled, authorizeNetEnabled } from "../config.js";
-import { followingJuneFirst, daysUntil, juneFirstYear } from "../utils/juneBilling.js";
+import { followingJuneFirst, juneFirstYear } from "../utils/juneBilling.js";
 import { chargeAnnualForCustomer } from "./stripeBilling.js";
 import { chargeCustomerProfile } from "./authorizeNet.js";
-import { sendMemberEmail } from "./mail.js";
 import { logActivity } from "./activity.js";
-import { EmailTemplate } from "../models/EmailTemplate.js";
 
-function reminderYearForJuneBilling(d: Date): number {
-  return d.getUTCFullYear();
-}
-
-async function sendJuneReminders() {
-  const renewalTemplate = await EmailTemplate.findOne({ key: "renewalReminder" })
-    .select("enabled")
-    .lean<{ enabled?: boolean } | null>();
-  if (renewalTemplate?.enabled === false) return;
-
-  const today = new Date();
-  const members = await Member.find({
-    role: "member",
-    status: "active",
-    nextAnnualBillingDate: { $exists: true },
-  });
-
-  for (const m of members) {
-    const ns = m.notificationSettings;
-    if (!ns?.emailEnabled || !ns?.renewalReminders) continue;
-    const target = new Date(m.nextAnnualBillingDate);
-    const d = daysUntil(target, today);
-    const cycleYear = reminderYearForJuneBilling(target);
-
-    if (m.reminderCycleYear !== cycleYear) {
-      m.reminderSent30d = false;
-      m.reminderSent7d = false;
-      m.reminderSent1d = false;
-      m.reminderCycleYear = cycleYear;
-      await m.save();
-    }
-
-    const subjectPrefix = "Annual membership — June 1 billing";
-
-    if (d === 30 && !m.reminderSent30d) {
-      await sendMemberEmail(
-        m._id,
-        m.email,
-        `${subjectPrefix} (30 days)`,
-        `Hello ${m.firstName},\n\nThis is a reminder that your annual co-op membership fee will be billed on ${target.toDateString()}.\n\n` +
-          (m.autoRenew && m.paymentMethod === "card"
-            ? "Your card on file will be charged automatically.\n"
-            : "Please arrange payment (check instructions are available from the office).\n")
-      );
-      m.reminderSent30d = true;
-      await m.save();
-    } else if (d === 7 && !m.reminderSent7d) {
-      await sendMemberEmail(
-        m._id,
-        m.email,
-        `${subjectPrefix} (7 days)`,
-        `Hello ${m.firstName},\n\nYour annual membership fee will be billed in one week (${target.toDateString()}).\n`
-      );
-      m.reminderSent7d = true;
-      await m.save();
-    } else if (d === 1 && !m.reminderSent1d) {
-      await sendMemberEmail(
-        m._id,
-        m.email,
-        `${subjectPrefix} (tomorrow)`,
-        `Hello ${m.firstName},\n\nYour annual membership fee will be billed tomorrow (${target.toDateString()}).\n`
-      );
-      m.reminderSent1d = true;
-      await m.save();
-    }
-  }
-}
+// Note: this co-op does not send any email automatically. The June 1 cron below
+// still charges cards on file, but never emails members — staff send any
+// receipts, reminders, or notices manually from the admin UI.
 
 async function runJuneFirstAnnualBilling() {
   const today = new Date();
@@ -155,14 +89,6 @@ async function runJuneFirstAnnualBilling() {
         description: "Awaiting check / card setup",
         billingYear: year,
       });
-      if (m.notificationSettings?.emailEnabled && m.notificationSettings?.billingNotices) {
-        await sendMemberEmail(
-          m._id,
-          m.email,
-          "Annual membership — payment needed",
-          `Hello ${m.firstName},\n\nYour annual membership fee of $${(amount / 100).toFixed(2)} is due. Please mail a check or call the office to pay by card.\n`
-        );
-      }
       m.nextAnnualBillingDate = followingJuneFirst(j1);
       m.reminderSent30d = false;
       m.reminderSent7d = false;
@@ -206,16 +132,6 @@ async function runJuneFirstAnnualBilling() {
           processor: "authnet",
           transactionId: authnetResult.transactionId,
         });
-
-        // Send confirmation email
-        if (m.notificationSettings?.emailEnabled && m.notificationSettings?.billingNotices) {
-          await sendMemberEmail(
-            m._id,
-            m.email,
-            "Annual membership — payment received",
-            `Hello ${m.firstName},\n\nYour annual membership fee of $${(amount / 100).toFixed(2)} has been charged to your card on file (ending ${authnetResult.accountLast4}).\n\nTransaction ID: ${authnetResult.transactionId}\n\nThank you for your continued membership!\n`
-          );
-        }
         continue;
       } else {
         // Authorize.Net charge failed
@@ -231,16 +147,6 @@ async function runJuneFirstAnnualBilling() {
           error: authnetResult.error,
           processor: "authnet",
         });
-
-        // Send failure notification
-        if (m.notificationSettings?.emailEnabled && m.notificationSettings?.billingNotices) {
-          await sendMemberEmail(
-            m._id,
-            m.email,
-            "Annual membership — payment failed",
-            `Hello ${m.firstName},\n\nWe were unable to process your annual membership fee of $${(amount / 100).toFixed(2)}.\n\nPlease call the office to update your payment information or arrange an alternative payment method.\n`
-          );
-        }
         continue;
       }
     }
@@ -309,8 +215,7 @@ async function runJuneFirstAnnualBilling() {
 
 export function startScheduledJobs() {
   cron.schedule("5 12 * * *", () => {
-    void sendJuneReminders();
     void runJuneFirstAnnualBilling();
   });
-  console.info("Cron scheduled: daily 12:05 UTC — June reminders + June 1 annual billing");
+  console.info("Cron scheduled: daily 12:05 UTC — June 1 annual billing (no automatic emails)");
 }

@@ -16,7 +16,6 @@ import {
   createCustomerProfile,
   addPaymentProfile,
 } from "../services/authorizeNet.js";
-import { sendPaymentSuccessEmail } from "../services/mail.js";
 import { logActivity } from "../services/activity.js";
 import { nextJuneFirstAfterSignup } from "../utils/juneBilling.js";
 
@@ -267,14 +266,7 @@ router.post("/link/:token/pay", async (req, res) => {
     cardSaved: body.saveCard,
   });
 
-  // Send confirmation email
-  await sendPaymentSuccessEmail(
-    member,
-    chargeResult.amountCents,
-    chargeResult.transactionId,
-    chargeResult.accountLast4,
-    paymentToken.billingYear || new Date().getFullYear()
-  );
+  // No automatic confirmation email — staff send receipts manually if needed.
 
   res.json({
     ok: true,

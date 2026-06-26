@@ -14,7 +14,7 @@ import { PaymentToken } from "../models/PaymentToken.js";
 import { EmailTemplate, EMAIL_TEMPLATE_KEYS } from "../models/EmailTemplate.js";
 import { logActivity } from "../services/activity.js";
 import { registerMember, registerMemberSchema } from "../services/memberRegistration.js";
-import { sendMemberEmail, sendPaymentLinkEmail, sendOilCompanyAssignedEmail } from "../services/mail.js";
+import { sendMemberEmail, sendPaymentLinkEmail } from "../services/mail.js";
 import { applyTemplateVariables, ensureEmailTemplates } from "../services/emailTemplateStore.js";
 import { nextJuneFirstAfterSignup } from "../utils/juneBilling.js";
 import { expandStateQuery, US_STATE_ABBR_TO_NAME } from "../utils/stateAbbreviations.js";
@@ -127,7 +127,12 @@ router.post("/email-templates/:key/test", async (req: AuthedRequest, res) => {
     parsed.data.to,
     subject,
     text || "This is a test email preview.",
-    html
+    html,
+    {
+      firstName: "John",
+      fullName: "John Smith",
+      addressLines: ["123 Main Street", "Hartford, CT 06103"],
+    }
   );
 
   res.json({ ok: true });

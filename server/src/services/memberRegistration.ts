@@ -9,7 +9,6 @@ import { nextJuneFirstAfterSignup } from "../utils/juneBilling.js";
 import { applyReferralCredit, findReferrerByToken } from "../services/referrals.js";
 import { confirmPaymentIntent } from "../services/stripeBilling.js";
 import { createProfileAndCharge } from "../services/authorizeNet.js";
-import { sendWelcomeEmail } from "../services/mail.js";
 import { logActivity } from "../services/activity.js";
 
 export const registerMemberSchema = z.object({
@@ -41,7 +40,6 @@ export type RegisterMemberInput = z.infer<typeof registerMemberSchema>;
 export type RegisterMemberOptions = {
   signedUpVia?: "web" | "phone" | "admin";
   adminId?: string;
-  sendWelcomeEmail?: boolean;
   notifyOilCompanyAssignment?: boolean;
 };
 
@@ -74,7 +72,6 @@ export async function registerMember(
   options: RegisterMemberOptions = {}
 ): Promise<RegisterMemberResult> {
   const signedUpVia = options.signedUpVia ?? "web";
-  const sendWelcome = options.sendWelcomeEmail !== false;
 
   // Email is optional — members can be registered without one.
   const email = body.email?.toLowerCase().trim() || undefined;
@@ -242,11 +239,8 @@ export async function registerMember(
     options.adminId ? new mongoose.Types.ObjectId(options.adminId) : undefined
   );
 
-  if (sendWelcome) {
-    await sendWelcomeEmail(member);
-  }
-
-  // Note: assigning an oil company no longer sends an automatic email to the member.
+  // No automatic emails: staff send any welcome/confirmation manually from the
+  // admin UI. Assigning an oil company likewise never emails the member.
 
   return { ok: true, member };
 }

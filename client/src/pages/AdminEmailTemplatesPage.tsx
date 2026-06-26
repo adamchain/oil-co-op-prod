@@ -72,6 +72,54 @@ function applyVariables(template: string): string {
   });
 }
 
+// Mirrors the server-side shared letterhead/footer (services/emailTemplates.ts)
+// so the preview shows exactly how a sent mailing looks. Only the middle changes.
+const ORG = {
+  name: "Citizen's Oil Co-op, Inc",
+  tagline: "Heat for Less!",
+  addressLines: ["P.O. Box 271718", "West Hartford, CT 06127"],
+  phone: "Phone / Fax 860.561.6011",
+  email: "hutson@oilco-op.com",
+  website: "oilco-op.com",
+  signerName: "Rosemary A. Stanko",
+  signerTitle: "President",
+};
+
+function wrapLetterPreview(middleHtml: string): string {
+  const date = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  return `
+    <div style="background:#f5f5f4;padding:24px;">
+      <div style="max-width:640px;margin:0 auto;background:#fff;border-radius:8px;padding:40px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;line-height:1.6;color:#1c1917;">
+        <table width="100%" style="border-bottom:2px solid #1c1917;padding-bottom:8px;">
+          <tr>
+            <td style="vertical-align:top;">
+              <div style="font-size:22px;font-weight:700;">${ORG.name}</div>
+              ${ORG.addressLines.map((l) => `<div style="font-size:12px;color:#57534e;">${l}</div>`).join("")}
+            </td>
+            <td style="vertical-align:top;text-align:right;">
+              <div style="font-size:20px;font-weight:700;">"${ORG.tagline}"</div>
+              <div style="font-size:12px;color:#57534e;">${ORG.phone}</div>
+              <div style="font-size:12px;color:#57534e;">${ORG.email}</div>
+            </td>
+          </tr>
+        </table>
+        <div style="font-size:13px;margin:24px 0 16px;">${date}</div>
+        <div style="font-size:13px;line-height:1.5;margin-bottom:16px;">${sampleData.firstName} ${sampleData.lastName}<br>123 Main Street<br>Hartford, CT 06103</div>
+        <div style="font-size:14px;margin-bottom:16px;">Dear ${sampleData.firstName}:</div>
+        <div style="font-size:14px;">${middleHtml}</div>
+        <div style="margin-top:24px;font-size:14px;">
+          <div>Sincerely,</div>
+          <div style="margin-top:28px;font-weight:600;">${ORG.signerName}</div>
+          <div style="color:#57534e;">${ORG.signerTitle}</div>
+        </div>
+        <div style="margin-top:32px;padding-top:16px;border-top:1px solid #e7e5e4;text-align:center;">
+          <span style="font-size:13px;color:#c2410c;">${ORG.website}</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 export default function AdminEmailTemplatesPage() {
   const { token, member } = useAuth();
   const [templates, setTemplates] = useState<Record<TemplateKey, TemplateInfo> | null>(null);
@@ -115,7 +163,7 @@ export default function AdminEmailTemplatesPage() {
     setTestEmail(member.email);
   }, [member?.email]);
 
-  const previewHtml = useMemo(() => applyVariables(html || ""), [html]);
+  const previewHtml = useMemo(() => wrapLetterPreview(applyVariables(html || "")), [html]);
   const orderedKeys = useMemo(() => {
     if (!templates) return templateOrder;
     const known = templateOrder.filter((k) => templates[k]);
@@ -171,7 +219,9 @@ export default function AdminEmailTemplatesPage() {
     <div className="admin-page">
       <h2>Email Templates</h2>
       <p style={{ color: "#78716c", marginBottom: "1.5rem" }}>
-        Preview and reference for all automated email notifications sent by the system.
+        The shared letterhead and signature are added to every mailing automatically — you only
+        customize the message in the middle. No email is ever sent on its own; staff send each one
+        manually.
       </p>
 
       <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: "1.5rem" }}>
@@ -237,7 +287,7 @@ export default function AdminEmailTemplatesPage() {
                 }
                 disabled={!currentTemplate}
               />
-              Template enabled (turn off to disable automated sends for this template)
+              Template enabled (turn off to retire this template — staff can't pick it for a manual send)
             </label>
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>

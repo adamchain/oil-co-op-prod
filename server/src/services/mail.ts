@@ -1,7 +1,7 @@
 import nodemailer from "nodemailer";
 import { config } from "../config.js";
 import { CommunicationLog } from "../models/CommunicationLog.js";
-import type { MemberDoc } from "../models/Member.js";
+import { Member, type MemberDoc } from "../models/Member.js";
 import type mongoose from "mongoose";
 import {
   welcomeEmailHtml,
@@ -10,6 +10,10 @@ import {
   paymentFailedHtml,
   paymentLinkHtml,
   oilCompanyAssignedHtml,
+  wrapLetter,
+  wrapLetterText,
+  letterContextFromMember,
+  type LetterContext,
 } from "./emailTemplates.js";
 import { EmailTemplate, type EmailTemplateKey } from "../models/EmailTemplate.js";
 import { applyTemplateVariables } from "./emailTemplateStore.js";
@@ -55,16 +59,35 @@ function getTransporter() {
   return transporter;
 }
 
+/**
+ * Sends one mailing. The shared letterhead + signature/footer are applied here,
+ * so EVERY email looks the same — `text`/`html` is only the customizable middle
+ * message. `letter` supplies the recipient name/address/salutation; when omitted
+ * it is looked up from `memberId`.
+ */
 export async function sendMemberEmail(
   memberId: mongoose.Types.ObjectId,
   to: string | null | undefined,
   subject: string,
   text: string,
-  html?: string
+  html?: string,
+  letter?: LetterContext
 ): Promise<void> {
+  let ctx = letter;
+  if (!ctx) {
+    const m = (await Member.findById(memberId)
+      .select("firstName lastName addressLine1 addressLine2 city state postalCode")
+      .lean()) as Parameters<typeof letterContextFromMember>[0] | null;
+    ctx = m ? letterContextFromMember(m) : {};
+  }
+
+  const middleHtml = html || `<p>${escapeHtml(text).replace(/\n/g, "<br>")}</p>`;
+  const fullHtml = wrapLetter(middleHtml, ctx);
+  const fullText = wrapLetterText(text, ctx);
+
   const t = getTransporter();
   if (!t || !to) {
-    console.info(`[email skipped or dev] To: ${to}\nSubject: ${subject}\n${text}`);
+    console.info(`[email skipped or dev] To: ${to}\nSubject: ${subject}\n${fullText}`);
     await CommunicationLog.create({
       memberId,
       channel: "email",
@@ -80,8 +103,8 @@ export async function sendMemberEmail(
       from: config.emailFrom,
       to,
       subject,
-      text,
-      html: html || `<pre>${escapeHtml(text)}</pre>`,
+      text: fullText,
+      html: fullHtml,
     });
     await CommunicationLog.create({
       memberId,
@@ -147,7 +170,7 @@ export async function sendWelcomeEmail(member: MemberDoc) {
   );
 
   if (!resolved) return;
-  await sendMemberEmail(member._id, member.email, resolved.subject, resolved.text, resolved.html);
+  await sendMemberEmail(member._id, member.email, resolved.subject, resolved.text, resolved.html, letterContextFromMember(member));
 }
 
 export async function sendRenewalReminderEmail(
@@ -204,7 +227,7 @@ export async function sendRenewalReminderEmail(
   );
 
   if (!resolved) return;
-  await sendMemberEmail(member._id, member.email, resolved.subject, resolved.text, resolved.html);
+  await sendMemberEmail(member._id, member.email, resolved.subject, resolved.text, resolved.html, letterContextFromMember(member));
 }
 
 export async function sendPaymentSuccessEmail(
@@ -252,7 +275,7 @@ export async function sendPaymentSuccessEmail(
   );
 
   if (!resolved) return;
-  await sendMemberEmail(member._id, member.email, resolved.subject, resolved.text, resolved.html);
+  await sendMemberEmail(member._id, member.email, resolved.subject, resolved.text, resolved.html, letterContextFromMember(member));
 }
 
 export async function sendPaymentFailedEmail(
@@ -288,7 +311,7 @@ export async function sendPaymentFailedEmail(
   );
 
   if (!resolved) return;
-  await sendMemberEmail(member._id, member.email, resolved.subject, resolved.text, resolved.html);
+  await sendMemberEmail(member._id, member.email, resolved.subject, resolved.text, resolved.html, letterContextFromMember(member));
 }
 
 export async function sendPaymentLinkEmail(
@@ -330,7 +353,7 @@ export async function sendPaymentLinkEmail(
   );
 
   if (!resolved) return;
-  await sendMemberEmail(member._id, member.email, resolved.subject, resolved.text, resolved.html);
+  await sendMemberEmail(member._id, member.email, resolved.subject, resolved.text, resolved.html, letterContextFromMember(member));
 }
 
 export async function sendOilCompanyAssignedEmail(
@@ -364,5 +387,5 @@ export async function sendOilCompanyAssignedEmail(
   );
 
   if (!resolved) return;
-  await sendMemberEmail(member._id, member.email, resolved.subject, resolved.text, resolved.html);
+  await sendMemberEmail(member._id, member.email, resolved.subject, resolved.text, resolved.html, letterContextFromMember(member));
 }
