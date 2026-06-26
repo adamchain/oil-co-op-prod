@@ -98,12 +98,16 @@ const ELECTRIC_STATUS = ["ELECTRIC", "PENDING", "INTERESTED", "UNKNOWN", "DROPPE
 const PHONE_TYPE = ["HOME", "WORK", "CELL"] as const;
 const HOW_JOINED = ["WEB", "PHONE", "EVENT", "MAIL"] as const;
 const REFERRAL_SOURCE = ["CCAG", "MEMBER", "OTHER"] as const;
+// Letter bodies are MIDDLE CONTENT ONLY. The shared letterhead supplies the
+// "Dear {firstName}:" salutation and the "Sincerely, Rosemary A. Stanko,
+// President" signature/footer, so templates must not repeat a greeting or
+// sign-off — staff only customize the message in the middle.
 const MAILING_TEMPLATES = {
   newMember: {
     label: "NEW MEMBER LETTER",
     subject: "Welcome to Citizen's Oil Co-op",
     body:
-      "Dear {memberName},\n\nThank you for joining the Citizen's Oil Co-op.\n\n" +
+      "Thank you for joining the Citizen's Oil Co-op.\n\n" +
       "We have forwarded your name and address to the oil company servicing your area.\n" +
       "You will be entered in as an Oil Co-op member and receive discounted pricing.\n\n" +
       "The oil company working with Citizen's Oil Co-op in your area is:\n{companyName}\n\n" +
@@ -114,48 +118,58 @@ const MAILING_TEMPLATES = {
     label: "RENEWAL REMINDER",
     subject: "Annual Membership Renewal Reminder",
     body:
-      "Dear {memberName},\n\nThis is a reminder that your annual membership is due soon.\n\n" +
+      "This is a reminder that your annual membership is due soon.\n\n" +
       "Member ID: {memberNumber}\nAddress: {address}\nCity/State/Zip: {cityStateZip}\n\n" +
-      "Please contact the office if you have questions.\n\nSincerely,\nOil Co-op Member Services",
+      "Please contact the office if you have questions.",
   },
   prospective: {
     label: "PROSPECTIVE LETTER",
     subject: "Thank you for your interest in Citizen's Oil Co-op",
     body:
-      "Dear {memberName},\n\nThank you for your interest in the Citizen's Oil Co-op.\n\n" +
+      "Thank you for your interest in the Citizen's Oil Co-op.\n\n" +
       "We would be happy to assist you with enrollment and answer any questions.\n\n" +
-      "Address on file:\n{address}\n{cityStateZip}\n\nSincerely,\nOil Co-op Member Services",
+      "Address on file:\n{address}\n{cityStateZip}",
   },
   pastDue: {
     label: "PAST DUE REMINDER",
     subject: "Past Due Membership Reminder",
     body:
-      "Dear {memberName},\n\nOur records indicate your membership payment may be past due.\n\n" +
-      "Member ID: {memberNumber}\nPlease contact us to keep your membership active.\n\nSincerely,\nOil Co-op Member Services",
+      "Our records indicate your membership payment may be past due.\n\n" +
+      "Member ID: {memberNumber}\nPlease contact us to keep your membership active.",
   },
   startupBill: {
     label: "STARTUP BILL",
     subject: "Startup Membership Bill",
     body:
-      "Dear {memberName},\n\nThis letter confirms your startup membership billing details.\n\n" +
-      "Member ID: {memberNumber}\nAddress:\n{address}\n{cityStateZip}\n\nSincerely,\nOil Co-op Member Services",
+      "This letter confirms your startup membership billing details.\n\n" +
+      "Member ID: {memberNumber}\nAddress:\n{address}\n{cityStateZip}",
   },
   registrationReminder: {
     label: "REGISTRATION REMINDER",
     subject: "Registration Reminder",
     body:
-      "Dear {memberName},\n\nThis is a reminder to complete your registration details for Citizen's Oil Co-op.\n\n" +
-      "Please contact us if you need assistance.\n\nSincerely,\nOil Co-op Member Services",
+      "This is a reminder to complete your registration details for Citizen's Oil Co-op.\n\n" +
+      "Please contact us if you need assistance.",
   },
   custom: {
     label: "Letter Template",
     subject: "Member Notice",
-    body: "Dear {memberName},\n\n{customMessage}\n\nSincerely,\nOil Co-op Member Services",
+    body: "{customMessage}",
   },
 } as const;
 
-const DEFAULT_MAIL_HEADER = "Oil Co-op Administrative Office\nMember Services Workbench";
-const DEFAULT_MAIL_FOOTER = "Sincerely,\nOil Co-op Member Services";
+// Official letterhead, mirrored from the email design (server emailTemplates.ts)
+// so printed letters look identical to the emails. Update here only.
+const ORG = {
+  name: "Citizen's Oil Co-op, Inc",
+  tagline: "Heat for Less!",
+  addressLines: ["P.O. Box 271718", "West Hartford, CT 06127"],
+  phone: "Phone / Fax 860.561.6011",
+  email: "hutson@oilco-op.com",
+  website: "oilco-op.com",
+  signerName: "Rosemary A. Stanko",
+  signerTitle: "President",
+};
 
 function csvCell(v: unknown): string {
   const s = String(v ?? "");
@@ -457,8 +471,6 @@ export default function AdminWorkbenchPage() {
   const [mailTemplateKey, setMailTemplateKey] = useState<keyof typeof MAILING_TEMPLATES>("newMember");
   const [mailSubject, setMailSubject] = useState<string>(MAILING_TEMPLATES.newMember.subject);
   const [mailBody, setMailBody] = useState<string>(MAILING_TEMPLATES.newMember.body);
-  const [mailHeader, setMailHeader] = useState<string>(DEFAULT_MAIL_HEADER);
-  const [mailFooter, setMailFooter] = useState<string>(DEFAULT_MAIL_FOOTER);
   const [mailToEmail, setMailToEmail] = useState("");
   const [mailSending, setMailSending] = useState(false);
   const [deliveryHistoryOpen, setDeliveryHistoryOpen] = useState(false);
@@ -1023,24 +1035,51 @@ export default function AdminWorkbenchPage() {
     </div>
   `;
 
+  // Professional letter on the official Citizen's Oil Co-op letterhead — matches
+  // the email design (fixed header + signature/footer; only the body changes).
   const brandedLetterHtml = (
-    subject: string,
+    _subject: string,
     recipientName: string,
     bodyText: string,
-    options?: { brandTitle?: string; brandSubtitle?: string; footerText?: string }
-  ) =>
-    brandedShell(
-      subject,
-      `
-      <div style="font-size:13px;color:#111827">
-        <p style="margin:0 0 10px">${new Date().toLocaleDateString()}</p>
-        <p style="margin:0 0 12px">${escHtml(recipientName || "Member")}</p>
-        <p style="margin:0 0 14px;white-space:normal;line-height:1.55">${nl2br(bodyText)}</p>
-        <p style="margin:20px 0 0;white-space:normal;line-height:1.55">${nl2br(options?.footerText || DEFAULT_MAIL_FOOTER)}</p>
+    options?: { recipientAddressLines?: string[]; salutationName?: string }
+  ) => {
+    const date = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+    const salutation = (options?.salutationName || recipientName || "Member").trim().split(/\s+/)[0] || "Member";
+    const recipientBlock = [recipientName, ...(options?.recipientAddressLines || [])]
+      .map((l) => (l || "").trim())
+      .filter((l) => l && l !== "—")
+      .map((l) => escHtml(l))
+      .join("<br>");
+    return `
+    <div style="max-width:680px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;color:#1c1917;line-height:1.6">
+      <table width="100%" style="border-bottom:2px solid #1c1917;padding-bottom:8px;border-collapse:collapse">
+        <tr>
+          <td style="vertical-align:top;border:none;padding:0">
+            <div style="font-size:22px;font-weight:700">${escHtml(ORG.name)}</div>
+            ${ORG.addressLines.map((l) => `<div style="font-size:12px;color:#57534e">${escHtml(l)}</div>`).join("")}
+          </td>
+          <td style="vertical-align:top;text-align:right;border:none;padding:0">
+            <div style="font-size:20px;font-weight:700">"${escHtml(ORG.tagline)}"</div>
+            <div style="font-size:12px;color:#57534e">${escHtml(ORG.phone)}</div>
+            <div style="font-size:12px;color:#57534e">${escHtml(ORG.email)}</div>
+          </td>
+        </tr>
+      </table>
+      <div style="font-size:13px;margin:24px 0 16px">${escHtml(date)}</div>
+      ${recipientBlock ? `<div style="font-size:13px;line-height:1.5;margin-bottom:16px">${recipientBlock}</div>` : ""}
+      <div style="font-size:14px;margin-bottom:16px">Dear ${escHtml(salutation)}:</div>
+      <div style="font-size:14px;white-space:normal;line-height:1.6">${nl2br(bodyText)}</div>
+      <div style="margin-top:24px;font-size:14px">
+        <div>Sincerely,</div>
+        <div style="margin-top:28px;font-weight:600">${escHtml(ORG.signerName)}</div>
+        <div style="color:#57534e">${escHtml(ORG.signerTitle)}</div>
       </div>
-      `,
-      { brandTitle: options?.brandTitle, brandSubtitle: options?.brandSubtitle }
-    );
+      <div style="margin-top:32px;padding-top:16px;border-top:1px solid #e7e5e4;text-align:center">
+        <span style="font-size:13px;color:#c2410c">${escHtml(ORG.website)}</span>
+      </div>
+    </div>
+    `;
+  };
 
   const nav = (kind: "first" | "prev" | "next" | "last") => {
     if (!filteredMembers.length) return;
@@ -1421,18 +1460,13 @@ export default function AdminWorkbenchPage() {
       String((mailingMergeData as Record<string, string>)[key] ?? "")
     );
 
-  const mergedHeader = applyMailMerge(mailHeader);
-  const mergedHeaderLines = mergedHeader.split("\n").map((s) => s.trim()).filter(Boolean);
-  const mailingBrandTitle = mergedHeaderLines[0] || "Oil Co-op Administrative Office";
-  const mailingBrandSubtitle = mergedHeaderLines.slice(1).join(" ") || "Member Services Workbench";
   const mailingPreviewHtml = brandedLetterHtml(
     applyMailMerge(mailSubject),
     mailingMergeData.memberName,
     applyMailMerge(mailBody),
     {
-      brandTitle: mailingBrandTitle,
-      brandSubtitle: mailingBrandSubtitle,
-      footerText: applyMailMerge(mailFooter),
+      recipientAddressLines: [mailingMergeData.address, mailingMergeData.cityStateZip],
+      salutationName: current?.firstName,
     }
   );
 
@@ -2216,16 +2250,10 @@ export default function AdminWorkbenchPage() {
                   Subject
                   <input className="admin-input" value={mailSubject} onChange={(e) => setMailSubject(e.target.value)} />
                 </label>
-                <label className="admin-form-span-2">
-                  Letter Header
-                  <textarea
-                    className="admin-input admin-note-input"
-                    style={{ minHeight: "74px" }}
-                    value={mailHeader}
-                    onChange={(e) => setMailHeader(e.target.value)}
-                    placeholder={"Oil Co-op Administrative Office\nMember Services Workbench"}
-                  />
-                </label>
+                <p className="admin-readonly-hint admin-form-span-2" style={{ margin: "0.15rem 0" }}>
+                  The official letterhead and the "Sincerely, {ORG.signerName}, {ORG.signerTitle}" signature
+                  are added automatically — just edit the message body below.
+                </p>
                 <label className="admin-form-span-2">
                   Send To Email
                   <input
@@ -2239,29 +2267,8 @@ export default function AdminWorkbenchPage() {
                   Body
                   <textarea className="admin-input admin-note-input" style={{ minHeight: "180px" }} value={mailBody} onChange={(e) => setMailBody(e.target.value)} />
                 </label>
-                <label className="admin-form-span-2">
-                  Letter Footer
-                  <textarea
-                    className="admin-input admin-note-input"
-                    style={{ minHeight: "88px" }}
-                    value={mailFooter}
-                    onChange={(e) => setMailFooter(e.target.value)}
-                    placeholder={"Sincerely,\nOil Co-op Member Services"}
-                  />
-                </label>
               </div>
               <div className="admin-actions-row" style={{ gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
-                <button
-                  type="button"
-                  className="admin-btn admin-btn-ghost"
-                  style={{ minWidth: "150px" }}
-                  onClick={() => {
-                    setMailHeader(DEFAULT_MAIL_HEADER);
-                    setMailFooter(DEFAULT_MAIL_FOOTER);
-                  }}
-                >
-                  Reset Header/Footer
-                </button>
                 <button
                   type="button"
                   className="admin-btn admin-btn-primary"
