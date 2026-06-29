@@ -16,6 +16,7 @@ import { logActivity } from "../services/activity.js";
 import { registerMember, registerMemberSchema } from "../services/memberRegistration.js";
 import { sendMemberEmail, sendPaymentLinkEmail } from "../services/mail.js";
 import { applyTemplateVariables, ensureEmailTemplates } from "../services/emailTemplateStore.js";
+import { loadMemberEmailMergeData } from "../services/memberEmailMerge.js";
 import { nextJuneFirstAfterSignup } from "../utils/juneBilling.js";
 import { expandStateQuery, US_STATE_ABBR_TO_NAME } from "../utils/stateAbbreviations.js";
 import { chargeCard, addPaymentProfile, createCustomerProfile } from "../services/authorizeNet.js";
@@ -310,6 +311,19 @@ router.get("/members/:id", async (req, res) => {
     Referral.findOne({ newMemberId: member._id }).populate("referrerMemberId", "firstName lastName email").lean(),
   ]);
   res.json({ member, billing, activity, communications, referral });
+});
+
+router.get("/members/:id/email-merge-data", async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  try {
+    const merge = await loadMemberEmailMergeData(new mongoose.Types.ObjectId(req.params.id));
+    res.json({ merge });
+  } catch {
+    res.status(404).json({ error: "Not found" });
+  }
 });
 
 // Email is optional everywhere — treat a blank string as "no email" rather than
@@ -1098,6 +1112,7 @@ const sendMemberEmailSchema = z.object({
   to: z.string().email().optional(),
   subject: z.string().min(1),
   body: z.string().min(1),
+  html: z.string().optional(),
 });
 
 router.post("/members/:id/send-email", async (req: AuthedRequest, res) => {
@@ -1119,8 +1134,9 @@ router.post("/members/:id/send-email", async (req: AuthedRequest, res) => {
   const to = parsed.data.to?.trim().toLowerCase() || member.email;
   const subject = parsed.data.subject.trim();
   const body = parsed.data.body;
+  const html = parsed.data.html;
 
-  await sendMemberEmail(member._id, to, subject, body);
+  await sendMemberEmail(member._id, to, subject, body, html);
   await logActivity(
     member._id,
     "admin_member_email_sent",

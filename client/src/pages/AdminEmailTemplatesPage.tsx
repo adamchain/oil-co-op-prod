@@ -1,20 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
 import { useAuth } from "../authContext";
-
-type TemplateKey = string;
-
-interface TemplateInfo {
-  _id: string;
-  key: TemplateKey;
-  name: string;
-  description: string;
-  enabled?: boolean;
-  subject: string;
-  html: string;
-  text: string;
-  variables: string[];
-}
+import { EMAIL_ORG, wrapEmailPreview } from "../utils/emailPreview";
+import {
+  applyTemplateVariables,
+  EMAIL_TEMPLATE_ORDER,
+  orderedTemplateKeys,
+  type EmailTemplateInfo,
+} from "../utils/emailTemplateUtils";
 
 const sampleData = {
   firstName: "John",
@@ -49,75 +42,14 @@ const sampleData = {
   officePhone: "860-561-6011",
 };
 
-const templateOrder: TemplateKey[] = [
-  "welcome",
-  "renewalReminder",
-  "paymentSuccess",
-  "paymentFailed",
-  "paymentLink",
-  "oilCompanyAssigned",
-  "auditRequest",
-  "insuranceReferral",
-  "solarReferral",
-  "referralThankYou",
-  "referralMilestone",
-  "referralPromo",
-  "prospectiveInfo",
-];
-
 function applyVariables(template: string): string {
-  return template.replace(/\{([a-zA-Z0-9_]+)\}/g, (_m, variableName: string) => {
-    const value = sampleData[variableName as keyof typeof sampleData];
-    return value === undefined || value === null ? "" : String(value);
-  });
-}
-
-// Mirrors the server-side email banner/footer (services/emailTemplates.ts)
-// so the preview shows exactly how a sent email looks. Only the middle changes.
-const ORG = {
-  name: "Citizen's Oil Co-op",
-  phone: "860-561-6011",
-  brandGreen: "#14703B",
-};
-
-function wrapEmailPreview(middleHtml: string): string {
-  return `
-    <div style="background:#f5f5f4;padding:24px;">
-      <div style="max-width:640px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;line-height:1.6;color:#1c1917;">
-        <table width="100%" cellpadding="0" cellspacing="0" style="background-color:${ORG.brandGreen};">
-          <tr>
-            <td align="center" style="padding:22px 24px;">
-              <table cellpadding="0" cellspacing="0" style="margin:0 auto;">
-                <tr>
-                  <td style="vertical-align:middle;padding-right:14px;">
-                    <img src="/coop-logo.png" alt="COOP" width="52" height="52" style="display:block;border:0;" />
-                  </td>
-                  <td style="vertical-align:middle;">
-                    <div style="font-size:24px;font-weight:700;color:#ffffff;letter-spacing:-0.02em;">${ORG.name}</div>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-        </table>
-        <div style="padding:32px 40px 24px;font-size:14px;">${middleHtml}</div>
-        <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f5f4;">
-          <tr>
-            <td align="center" style="padding:20px 24px;">
-              <div style="font-size:14px;font-weight:600;">${ORG.name}</div>
-              <div style="font-size:13px;color:#78716c;margin-top:6px;">Questions? Call ${ORG.phone} or reply to this email.</div>
-            </td>
-          </tr>
-        </table>
-      </div>
-    </div>
-  `;
+  return applyTemplateVariables(template, sampleData);
 }
 
 export default function AdminEmailTemplatesPage() {
   const { token, member } = useAuth();
-  const [templates, setTemplates] = useState<Record<TemplateKey, TemplateInfo> | null>(null);
-  const [selectedTemplate, setSelectedTemplate] = useState<TemplateKey>("welcome");
+  const [templates, setTemplates] = useState<Record<string, EmailTemplateInfo> | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>("welcome");
   const [subject, setSubject] = useState("");
   const [html, setHtml] = useState("");
   const [text, setText] = useState("");
@@ -128,12 +60,12 @@ export default function AdminEmailTemplatesPage() {
 
   useEffect(() => {
     if (!token) return;
-    api<{ templates: TemplateInfo[] }>("/api/admin/email-templates", { token })
+    api<{ templates: EmailTemplateInfo[] }>("/api/admin/email-templates", { token })
       .then((res) => {
         const byKey = res.templates.reduce((acc, t) => {
           acc[t.key] = t;
           return acc;
-        }, {} as Record<TemplateKey, TemplateInfo>);
+        }, {} as Record<string, EmailTemplateInfo>);
         setTemplates(byKey);
         if (!byKey[selectedTemplate]) {
           const firstKey = res.templates[0]?.key;
@@ -159,10 +91,8 @@ export default function AdminEmailTemplatesPage() {
 
   const previewHtml = useMemo(() => wrapEmailPreview(applyVariables(html || "")), [html]);
   const orderedKeys = useMemo(() => {
-    if (!templates) return templateOrder;
-    const known = templateOrder.filter((k) => templates[k]);
-    const extras = Object.keys(templates).filter((k) => !templateOrder.includes(k));
-    return [...known, ...extras];
+    if (!templates) return [...EMAIL_TEMPLATE_ORDER];
+    return orderedTemplateKeys(templates);
   }, [templates]);
 
   async function saveTemplate() {
@@ -170,7 +100,7 @@ export default function AdminEmailTemplatesPage() {
     setSaving(true);
     setStatus("");
     try {
-      const res = await api<{ template: TemplateInfo }>(`/api/admin/email-templates/${currentTemplate.key}`, {
+      const res = await api<{ template: EmailTemplateInfo }>(`/api/admin/email-templates/${currentTemplate.key}`, {
         method: "PUT",
         token,
         body: JSON.stringify({
@@ -238,12 +168,12 @@ export default function AdminEmailTemplatesPage() {
                   border: "none",
                   borderBottom: "1px solid #e7e5e4",
                   background: selectedTemplate === key ? "#ecfdf3" : "transparent",
-                  borderLeft: selectedTemplate === key ? `3px solid ${ORG.brandGreen}` : "3px solid transparent",
+                  borderLeft: selectedTemplate === key ? `3px solid ${EMAIL_ORG.brandGreen}` : "3px solid transparent",
                   cursor: "pointer",
                   transition: "all 0.15s",
                 }}
               >
-                <div style={{ fontWeight: 500, color: selectedTemplate === key ? ORG.brandGreen : "#1c1917" }}>
+                <div style={{ fontWeight: 500, color: selectedTemplate === key ? EMAIL_ORG.brandGreen : "#1c1917" }}>
                   {templates?.[key]?.name || key}
                 </div>
                 <div style={{ fontSize: "0.75rem", color: "#78716c", marginTop: "0.25rem" }}>

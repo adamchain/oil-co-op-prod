@@ -165,6 +165,10 @@
 .admin-body:has(.admin-workbench) {
   max-width: none;
   padding: 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 100vh;
 }
 
 .admin-card {
@@ -583,7 +587,8 @@
   font-size: 13px;
   color: var(--wb-text);
   background: var(--wb-bg);
-  min-height: calc(100vh - 65px);
+  flex: 1;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -1151,6 +1156,7 @@
 
 .admin-wb-body {
   flex: 1;
+  min-height: 0;
   padding: 0.5rem;
   background: var(--wb-bg);
 }
@@ -1509,28 +1515,46 @@ button.admin-wb-panel-title.admin-wb-panel-toggle:hover {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
+  flex: 1;
+  min-height: 0;
 }
 
-/* Form panels on the left two-thirds; payment history fills the right third
-   and stretches the full height of the form column. */
 .admin-pay-layout {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-  gap: 0.4rem;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr) minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  gap: 0.35rem;
   align-items: stretch;
+  flex: 1;
+  min-height: 0;
 }
 
-.admin-pay-main {
+/* Member | Status | Payment History; bottom row under member */
+.admin-pay-bottom {
+  grid-column: 1;
+  grid-row: 2;
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
   min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  align-self: start;
 }
 
 .admin-pay-aside {
   display: flex;
   min-width: 0;
   min-height: 0;
+  grid-column: 3;
+  grid-row: 1 / span 2;
+}
+
+.admin-pay-status {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  align-self: start;
 }
 
 .admin-pay-history {
@@ -1556,17 +1580,54 @@ button.admin-wb-panel-title.admin-wb-panel-toggle:hover {
   white-space: nowrap;
 }
 
-/* Narrow the member column so the status box sits further left. */
+/* Single member panel — override the default 2-column .admin-wb-grid */
 .admin-pay-view .admin-wb-grid {
-  gap: 0.35rem;
-  grid-template-columns: minmax(0, 0.6fr) minmax(0, 1.4fr);
+  display: block;
+  width: 100%;
+  min-width: 0;
+  grid-column: 1;
+  grid-row: 1;
+  align-self: stretch;
 }
 
-/* Registration and credit card stay condensed on the left, not full width. */
-.admin-pay-view .admin-pay-compact {
-  max-width: 540px;
+.admin-pay-view .admin-wb-grid .admin-wb-panel,
+.admin-pay-view .admin-pay-member {
   width: 100%;
-  align-self: start;
+  box-sizing: border-box;
+}
+
+/* Registration + credit card align under the member column only */
+.admin-pay-view .admin-pay-bottom .admin-pay-compact {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.admin-pay-view .admin-pay-compact .admin-form-row-wrap {
+  width: 100%;
+}
+
+.admin-pay-view .admin-pay-compact .admin-field-lg,
+.admin-pay-view .admin-pay-compact .admin-field-block {
+  flex: 1 1 100%;
+  width: 100%;
+  max-width: none;
+}
+
+.admin-pay-view .admin-pay-compact .admin-field-md {
+  flex: 1 1 0;
+  width: auto;
+  min-width: 0;
+}
+
+.admin-pay-view .admin-pay-compact .admin-field-sm {
+  flex: 0 0 100px;
+  width: 100px;
+}
+
+.admin-pay-view .admin-pay-compact .admin-field-xs {
+  flex: 0 0 52px;
+  width: 52px;
 }
 
 .admin-pay-view .admin-wb-panel {
@@ -1578,15 +1639,57 @@ button.admin-wb-panel-title.admin-wb-panel-toggle:hover {
   margin-bottom: 0.3rem;
 }
 
+/* Member fields stretch to fill the panel — no empty gap on the right */
+.admin-pay-view .admin-pay-member .admin-form-row-wrap {
+  width: 100%;
+}
+
+.admin-pay-view .admin-pay-member .admin-field-lg,
+.admin-pay-view .admin-pay-member .admin-field-block {
+  flex: 1 1 100%;
+  width: 100%;
+  max-width: none;
+}
+
+.admin-pay-view .admin-pay-member .admin-field-md {
+  flex: 1 1 0;
+  width: auto;
+  min-width: 0;
+}
+
+.admin-pay-view .admin-pay-member .admin-field-sm {
+  flex: 0 0 100px;
+  width: 100px;
+}
+
+.admin-pay-view .admin-pay-member .admin-field-xs {
+  flex: 0 0 52px;
+  width: 52px;
+}
+
 .admin-pay-view .admin-pay-status-grid {
   gap: 0.3rem 0.6rem;
   margin-bottom: 0.35rem;
 }
 
-/* Drop the history beneath the form once the rail no longer fits. */
+/* Stack on narrow screens */
 @media (max-width: 950px) {
   .admin-pay-layout {
     grid-template-columns: 1fr;
+    grid-template-rows: auto;
+  }
+
+  .admin-pay-view .admin-wb-grid,
+  .admin-pay-status,
+  .admin-pay-aside,
+  .admin-pay-bottom {
+    grid-column: 1;
+    grid-row: auto;
+    width: 100%;
+  }
+
+  .admin-pay-aside {
+    grid-row: auto;
   }
 }
 

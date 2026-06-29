@@ -13,6 +13,13 @@ import {
   type MemberFilter,
 } from "../components/MemberFilterWidget";
 import { exactStateMatch, stateSynonyms } from "../utils/stateAbbreviations";
+import { plainTextToEmailMiddle, wrapEmailPreview } from "../utils/emailPreview";
+import {
+  applyTemplateVariables,
+  orderedTemplateKeys,
+  parseOilCompanyNotes,
+  type EmailTemplateInfo,
+} from "../utils/emailTemplateUtils";
 
 const tabs = [
   "Data Entry",
@@ -98,65 +105,6 @@ const ELECTRIC_STATUS = ["ELECTRIC", "PENDING", "INTERESTED", "UNKNOWN", "DROPPE
 const PHONE_TYPE = ["HOME", "WORK", "CELL"] as const;
 const HOW_JOINED = ["WEB", "PHONE", "EVENT", "MAIL"] as const;
 const REFERRAL_SOURCE = ["CCAG", "MEMBER", "OTHER"] as const;
-// Letter bodies are MIDDLE CONTENT ONLY. The shared letterhead supplies the
-// "Dear {firstName}:" salutation and the "Sincerely, Rosemary A. Stanko,
-// President" signature/footer, so templates must not repeat a greeting or
-// sign-off — staff only customize the message in the middle.
-const MAILING_TEMPLATES = {
-  newMember: {
-    label: "NEW MEMBER LETTER",
-    subject: "Welcome to Citizen's Oil Co-op",
-    body:
-      "Thank you for joining the Citizen's Oil Co-op.\n\n" +
-      "We have forwarded your name and address to the oil company servicing your area.\n" +
-      "You will be entered in as an Oil Co-op member and receive discounted pricing.\n\n" +
-      "The oil company working with Citizen's Oil Co-op in your area is:\n{companyName}\n\n" +
-      "Address on file:\n{address}\n{cityStateZip}\n\n" +
-      "Please let us know if we can be of additional assistance.",
-  },
-  renewalReminder: {
-    label: "RENEWAL REMINDER",
-    subject: "Annual Membership Renewal Reminder",
-    body:
-      "This is a reminder that your annual membership is due soon.\n\n" +
-      "Member ID: {memberNumber}\nAddress: {address}\nCity/State/Zip: {cityStateZip}\n\n" +
-      "Please contact the office if you have questions.",
-  },
-  prospective: {
-    label: "PROSPECTIVE LETTER",
-    subject: "Thank you for your interest in Citizen's Oil Co-op",
-    body:
-      "Thank you for your interest in the Citizen's Oil Co-op.\n\n" +
-      "We would be happy to assist you with enrollment and answer any questions.\n\n" +
-      "Address on file:\n{address}\n{cityStateZip}",
-  },
-  pastDue: {
-    label: "PAST DUE REMINDER",
-    subject: "Past Due Membership Reminder",
-    body:
-      "Our records indicate your membership payment may be past due.\n\n" +
-      "Member ID: {memberNumber}\nPlease contact us to keep your membership active.",
-  },
-  startupBill: {
-    label: "STARTUP BILL",
-    subject: "Startup Membership Bill",
-    body:
-      "This letter confirms your startup membership billing details.\n\n" +
-      "Member ID: {memberNumber}\nAddress:\n{address}\n{cityStateZip}",
-  },
-  registrationReminder: {
-    label: "REGISTRATION REMINDER",
-    subject: "Registration Reminder",
-    body:
-      "This is a reminder to complete your registration details for Citizen's Oil Co-op.\n\n" +
-      "Please contact us if you need assistance.",
-  },
-  custom: {
-    label: "Letter Template",
-    subject: "Member Notice",
-    body: "{customMessage}",
-  },
-} as const;
 
 // Official letterhead, mirrored from the email design (server emailTemplates.ts)
 // so printed letters look identical to the emails. Update here only.
@@ -468,9 +416,13 @@ export default function AdminWorkbenchPage() {
   const [newNote, setNewNote] = useState("");
   const [actionMessage, setActionMessage] = useState("");
   const [backupHistory, setBackupHistory] = useState<BackupHistoryEntry[]>([]);
-  const [mailTemplateKey, setMailTemplateKey] = useState<keyof typeof MAILING_TEMPLATES>("newMember");
-  const [mailSubject, setMailSubject] = useState<string>(MAILING_TEMPLATES.newMember.subject);
-  const [mailBody, setMailBody] = useState<string>(MAILING_TEMPLATES.newMember.body);
+  const [mailTemplateKey, setMailTemplateKey] = useState<string>("oilCompanyAssigned");
+  const [mailSubject, setMailSubject] = useState<string>("");
+  const [mailHtml, setMailHtml] = useState<string>("");
+  const [mailText, setMailText] = useState<string>("");
+  const [emailTemplates, setEmailTemplates] = useState<Record<string, EmailTemplateInfo> | null>(null);
+  const [mailTemplatesLoading, setMailTemplatesLoading] = useState(false);
+  const [emailMergeData, setEmailMergeData] = useState<Record<string, unknown> | null>(null);
   const [mailToEmail, setMailToEmail] = useState("");
   const [mailSending, setMailSending] = useState(false);
   const [deliveryHistoryOpen, setDeliveryHistoryOpen] = useState(false);
@@ -789,6 +741,7 @@ export default function AdminWorkbenchPage() {
       setBilling([]);
       setCommunications([]);
       setReferral(null);
+      setEmailMergeData(null);
       formAppliesToMemberIdRef.current = null;
       baselineSerializedRef.current = "";
       return;
@@ -818,7 +771,7 @@ export default function AdminWorkbenchPage() {
     formRef.current = nextForm;
     setForm(nextForm);
     setSaveTick((t) => t + 1);
-    api<{ billing: BillingEvent[]; communications: Comm[]; referral: Referral | null }>(
+    api<{ billing: BillingEvent[]; communications: Comm[]; referral: Referral | null; merge?: Record<string, unknown> }>(
       `/api/admin/members/${current._id}`,
       { token }
     ).then((r) => {
@@ -826,6 +779,9 @@ export default function AdminWorkbenchPage() {
       setCommunications(r.communications || []);
       setReferral(r.referral || null);
     });
+    api<{ merge: Record<string, unknown> }>(`/api/admin/members/${current._id}/email-merge-data`, { token })
+      .then((r) => setEmailMergeData(r.merge || null))
+      .catch(() => setEmailMergeData(null));
   }, [current?._id, token]);
 
   const stats = useMemo(() => {
@@ -835,10 +791,34 @@ export default function AdminWorkbenchPage() {
   }, [members]);
 
   useEffect(() => {
-    const tpl = MAILING_TEMPLATES[mailTemplateKey];
+    if (!token) return;
+    setMailTemplatesLoading(true);
+    api<{ templates: EmailTemplateInfo[] }>("/api/admin/email-templates", { token })
+      .then((res) => {
+        const byKey = res.templates.reduce(
+          (acc, t) => {
+            acc[t.key] = t;
+            return acc;
+          },
+          {} as Record<string, EmailTemplateInfo>
+        );
+        setEmailTemplates(byKey);
+        const keys = orderedTemplateKeys(byKey);
+        if (keys.length && !byKey[mailTemplateKey]) {
+          setMailTemplateKey(keys[0]);
+        }
+      })
+      .catch(() => setEmailTemplates(null))
+      .finally(() => setMailTemplatesLoading(false));
+  }, [token]);
+
+  useEffect(() => {
+    const tpl = emailTemplates?.[mailTemplateKey];
+    if (!tpl) return;
     setMailSubject(tpl.subject);
-    setMailBody(tpl.body);
-  }, [mailTemplateKey]);
+    setMailHtml(tpl.html);
+    setMailText(tpl.text);
+  }, [mailTemplateKey, emailTemplates]);
 
   useEffect(() => {
     setMailToEmail(current?.email || "");
@@ -1444,31 +1424,61 @@ export default function AdminWorkbenchPage() {
     .trim();
   const hasMailingAddress = Boolean(mailingAddressLine || mailingCityStateZip);
   const useMailingAddress = legacyBool("mailAddr") && hasMailingAddress;
-  const mailingMergeData = {
-    memberName: memberDisplayName || "Member",
-    memberNumber: current?.memberNumber || "—",
-    address: (useMailingAddress ? mailingAddressLine : primaryAddressLine) || "—",
-    cityStateZip: (useMailingAddress ? mailingCityStateZip : primaryCityStateZip) || "—",
-    companyName: current?.oilCompanyId?.name || "Assigned Oil Company",
-    email: current?.email || "—",
-    phone: current?.phone || "—",
-    customMessage: "Please update this message before printing.",
-  };
+  const mailingMergeData = useMemo((): Record<string, unknown> => {
+    const oilNotes = parseOilCompanyNotes(selectedOilCompanyRecord?.notes);
+    const ccDigits = String(form.legacyProfile.ccNumber ?? "").replace(/\D/g, "");
+    const legacyCardLast4 = ccDigits.length >= 4 ? ccDigits.slice(-4) : "";
+    return {
+      ...(emailMergeData || {}),
+      firstName: form.firstName || current?.firstName || emailMergeData?.firstName || "",
+      lastName: form.lastName || current?.lastName || emailMergeData?.lastName || "",
+      memberName: memberDisplayName || String(emailMergeData?.memberName ?? "Member"),
+      memberNumber: current?.memberNumber || emailMergeData?.memberNumber || "—",
+      address: (useMailingAddress ? mailingAddressLine : primaryAddressLine) || emailMergeData?.address || "—",
+      cityStateZip: (useMailingAddress ? mailingCityStateZip : primaryCityStateZip) || emailMergeData?.cityStateZip || "—",
+      email: form.email || current?.email || emailMergeData?.email || "—",
+      phone: form.phone || current?.phone || emailMergeData?.phone || "—",
+      companyName: selectedOilCompanyName || emailMergeData?.companyName || "Assigned Oil Company",
+      companyPhone: selectedOilCompanyRecord?.contactPhone || emailMergeData?.companyPhone || "",
+      contactEmail: selectedOilCompanyRecord?.contactEmail || emailMergeData?.contactEmail || "",
+      contactName: oilNotes.contactName || emailMergeData?.contactName || "",
+      companyAddress: oilNotes.companyAddress || emailMergeData?.companyAddress || "",
+      cardLast4: legacyCardLast4 || emailMergeData?.cardLast4 || "",
+    };
+  }, [
+    emailMergeData,
+    form,
+    current,
+    memberDisplayName,
+    useMailingAddress,
+    mailingAddressLine,
+    primaryAddressLine,
+    mailingCityStateZip,
+    primaryCityStateZip,
+    selectedOilCompanyName,
+    selectedOilCompanyRecord,
+  ]);
 
-  const applyMailMerge = (template: string) =>
-    template.replace(/\{([a-zA-Z0-9_]+)\}/g, (_m, key: string) =>
-      String((mailingMergeData as Record<string, string>)[key] ?? "")
-    );
+  const mergedMailSubject = applyTemplateVariables(mailSubject, mailingMergeData);
+  const mergedMailHtml = applyTemplateVariables(mailHtml, mailingMergeData);
+  const mergedMailText = applyTemplateVariables(mailText, mailingMergeData);
 
   const mailingPreviewHtml = brandedLetterHtml(
-    applyMailMerge(mailSubject),
-    mailingMergeData.memberName,
-    applyMailMerge(mailBody),
+    mergedMailSubject,
+    mailingMergeData.memberName as string,
+    mergedMailText,
     {
-      recipientAddressLines: [mailingMergeData.address, mailingMergeData.cityStateZip],
-      salutationName: current?.firstName,
+      recipientAddressLines: [mailingMergeData.address as string, mailingMergeData.cityStateZip as string],
+      salutationName: (form.firstName || current?.firstName) as string | undefined,
     }
   );
+  const mailingEmailPreviewHtml = wrapEmailPreview(mergedMailHtml);
+
+  const refundLetterBody = () =>
+    `We are issuing a refund in the amount of $${legacyValue("refundAmount") || "0.00"}.\n\nReason:\n${legacyValue("refundReason") || "No reason provided."}`;
+
+  const startDateLetterBody = () =>
+    `Welcome to Oil Co-op.\n\nYour membership start date is: ${legacyValue("startLetterStartDate") || "TBD"}.\n\nPlease keep this letter for your records.`;
 
   const sendMailingEmail = async () => {
     if (!token || !current) return;
@@ -1489,8 +1499,9 @@ export default function AdminWorkbenchPage() {
         token,
         body: JSON.stringify({
           to,
-          subject: applyMailMerge(mailSubject),
-          body: applyMailMerge(mailBody),
+          subject: mergedMailSubject,
+          body: mergedMailText,
+          html: mergedMailHtml,
         }),
       });
       setActionMessage(`Email sent to ${to}.`);
@@ -1510,14 +1521,14 @@ export default function AdminWorkbenchPage() {
     brandedLetterHtml(
       "Refund Letter",
       legacyValue("refundMemberName") || memberDisplayName,
-      `We are issuing a refund in the amount of $${legacyValue("refundAmount") || "0.00"}.\n\nReason:\n${legacyValue("refundReason") || "No reason provided."}`
+      refundLetterBody()
     );
 
   const startDateLetterHtml = () =>
     brandedLetterHtml(
       "Start Date Letter",
       legacyValue("startLetterMemberName") || memberDisplayName,
-      `Welcome to Oil Co-op.\n\nYour membership start date is: ${legacyValue("startLetterStartDate") || "TBD"}.\n\nPlease keep this letter for your records.`
+      startDateLetterBody()
     );
 
 
@@ -2217,6 +2228,14 @@ export default function AdminWorkbenchPage() {
             <div className="admin-card admin-workbench-section">
               <h2>Mail Manager</h2>
               <h3>Templates</h3>
+              <p className="admin-readonly-hint" style={{ margin: "0 0 0.5rem" }}>
+                Same templates as Admin → Email Templates. Edits here apply to this send only.
+              </p>
+              {mailTemplatesLoading ? (
+                <p className="admin-meta">Loading templates…</p>
+              ) : !emailTemplates || orderedTemplateKeys(emailTemplates).length === 0 ? (
+                <p className="admin-meta">No email templates available.</p>
+              ) : (
               <div
                 style={{
                   display: "grid",
@@ -2225,7 +2244,7 @@ export default function AdminWorkbenchPage() {
                   marginBottom: "0.55rem",
                 }}
               >
-                {(Object.keys(MAILING_TEMPLATES) as Array<keyof typeof MAILING_TEMPLATES>).map((key) => (
+                {orderedTemplateKeys(emailTemplates).map((key) => (
                   <button
                     key={key}
                     type="button"
@@ -2233,14 +2252,15 @@ export default function AdminWorkbenchPage() {
                     style={{ width: "100%", justifyContent: "center", minHeight: "1.85rem", fontSize: "0.68rem", padding: "0.22rem 0.38rem" }}
                     onClick={() => setMailTemplateKey(key)}
                   >
-                    {MAILING_TEMPLATES[key].label}
+                    {emailTemplates[key]?.name || key}
                   </button>
                 ))}
               </div>
+              )}
               <div className="admin-form-grid">
                 <label>
                   Recipient (selected member)
-                  <input className="admin-input" readOnly value={mailingMergeData.memberName} />
+                  <input className="admin-input" readOnly value={String(mailingMergeData.memberName ?? "")} />
                 </label>
                 <label className="admin-form-span-2">
                   Recipient Address
@@ -2264,8 +2284,8 @@ export default function AdminWorkbenchPage() {
                   />
                 </label>
                 <label className="admin-form-span-2 admin-note-field">
-                  Body
-                  <textarea className="admin-input admin-note-input" style={{ minHeight: "180px" }} value={mailBody} onChange={(e) => setMailBody(e.target.value)} />
+                  Email body (HTML)
+                  <textarea className="admin-input admin-note-input" style={{ minHeight: "180px", fontFamily: "monospace", fontSize: "0.75rem" }} value={mailHtml} onChange={(e) => setMailHtml(e.target.value)} />
                 </label>
               </div>
               <div className="admin-actions-row" style={{ gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
@@ -2277,6 +2297,15 @@ export default function AdminWorkbenchPage() {
                   onClick={() => void sendMailingEmail()}
                 >
                   {mailSending ? "Sending..." : "Email to Recipient"}
+                </button>
+                <button
+                  type="button"
+                  className="admin-btn"
+                  style={{ minWidth: "130px" }}
+                  disabled={!current}
+                  onClick={() => openPrintPreview("Mailing Email Preview", mailingEmailPreviewHtml)}
+                >
+                  Preview Email
                 </button>
                 <button
                   type="button"
@@ -2800,6 +2829,9 @@ export default function AdminWorkbenchPage() {
                   <textarea className="admin-input admin-note-input" value={legacyValue("refundReason")} onChange={(e) => setLegacy("refundReason", e.target.value)} disabled={!current} />
                 </label>
               </div>
+              <p className="admin-readonly-hint" style={{ margin: "0 0 0.75rem" }}>
+                Printed letters use the official letterhead. If you email this notice instead, use Preview Email to see the forest-green COOP banner format.
+              </p>
               <div className="admin-actions-row">
                 <button
                   type="button"
@@ -2820,10 +2852,21 @@ export default function AdminWorkbenchPage() {
                   disabled={!current}
                   onClick={() => {
                     if (!current) return;
+                    openPrintPreview("Refund Email Preview", wrapEmailPreview(plainTextToEmailMiddle(refundLetterBody())));
+                  }}
+                >
+                  Preview Email
+                </button>
+                <button
+                  type="button"
+                  className="admin-btn"
+                  disabled={!current}
+                  onClick={() => {
+                    if (!current) return;
                     openPrintPreview("Refund Letter Preview", refundLetterHtml());
                   }}
                 >
-                  Preview
+                  Preview Letter
                 </button>
               </div>
             </div>
@@ -2839,6 +2882,9 @@ export default function AdminWorkbenchPage() {
                 <label>Member Name<input className="admin-input" value={legacyValue("startLetterMemberName")} onChange={(e) => setLegacy("startLetterMemberName", e.target.value)} placeholder={current ? `${current.firstName} ${current.lastName}` : ""} disabled={!current} /></label>
                 <label>Start Date<input className="admin-input" value={legacyValue("startLetterStartDate")} onChange={(e) => setLegacy("startLetterStartDate", e.target.value)} disabled={!current} /></label>
               </div>
+              <p className="admin-readonly-hint" style={{ margin: "0 0 0.75rem" }}>
+                Printed letters use the official letterhead. If you email this notice instead, use Preview Email to see the forest-green COOP banner format.
+              </p>
               <div className="admin-actions-row">
                 <button
                   type="button"
@@ -2859,10 +2905,21 @@ export default function AdminWorkbenchPage() {
                   disabled={!current}
                   onClick={() => {
                     if (!current) return;
+                    openPrintPreview("Start Date Email Preview", wrapEmailPreview(plainTextToEmailMiddle(startDateLetterBody())));
+                  }}
+                >
+                  Preview Email
+                </button>
+                <button
+                  type="button"
+                  className="admin-btn"
+                  disabled={!current}
+                  onClick={() => {
+                    if (!current) return;
                     openPrintPreview("Start Date Letter Preview", startDateLetterHtml());
                   }}
                 >
-                  Preview
+                  Preview Letter
                 </button>
               </div>
             </div>

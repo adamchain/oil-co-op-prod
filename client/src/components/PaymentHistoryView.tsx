@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from "react";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import type { WorkbenchFormState } from "../pages/AdminWorkbenchPage";
 
 type BillingEvent = {
@@ -32,6 +32,14 @@ function formatExpiry(value: string): string {
   const digits = value.replace(/\D/g, "").slice(0, 4);
   if (digits.length <= 2) return digits;
   return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+}
+
+function todayISO(): string {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 type PaymentHistoryViewProps = {
@@ -72,15 +80,24 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
     [billing]
   );
 
+  // Default Dt Paid to today when opening a member with no date on file.
+  useEffect(() => {
+    if (!member?.memberNumber) return;
+    if (String(form.legacyProfile.regDtPaid ?? "").trim()) return;
+    setForm((f) => ({
+      ...f,
+      legacyProfile: { ...f.legacyProfile, regDtPaid: todayISO() },
+    }));
+  }, [member?.memberNumber, setForm]);
+
   return (
     <div className="admin-pay-view">
       {/* Left column (member/status + registration + card) with the renewal
           history table pinned to the right. */}
       <div className="admin-pay-layout">
-        <div className="admin-pay-main">
-          {/* ───────── Member (left) + Status (right) ───────── */}
-          <div className="admin-wb-grid">
-            <div className="admin-wb-panel">
+        {/* ───────── Member (left) ───────── */}
+        <div className="admin-wb-grid">
+          <div className="admin-wb-panel admin-pay-member">
               <div className="admin-wb-panel-title">Member</div>
 
               <div className="admin-form-row-wrap">
@@ -167,12 +184,14 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
               </div>
 
             </div>
+        </div>
 
-            <div className="admin-wb-panel">
-              <div className="admin-wb-panel-title">Status</div>
+        {/* ───────── Status (center) ───────── */}
+        <div className="admin-wb-panel admin-pay-status">
+          <div className="admin-wb-panel-title">Status</div>
 
-              {/* ── OIL status + company ── */}
-              <div className="admin-pay-status-label">OIL</div>
+          {/* ── OIL status + company ── */}
+          <div className="admin-pay-status-label">OIL</div>
               <div className="admin-wb-status-row">
                 {OIL_STATUS.map((s) => (
                   <label key={s} className={`on-${s === "ACTIVE" ? "active" : s === "INACTIVE" ? "inactive" : s === "PROSPECTIVE" ? "prospect" : s === "NO OIL" ? "noOil" : "unknown"}`}>
@@ -271,10 +290,53 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
                   Not Paid Current Yr
                 </label>
               </div>
+        </div>
+
+        {/* ───────── Payment history (right, full height) ───────── */}
+        <div className="admin-pay-aside">
+          <div className="admin-wb-panel admin-pay-history">
+            <div className="admin-wb-panel-title">Payment History</div>
+            <div className="admin-table-wrap">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Year</th>
+                  <th>Waived</th>
+                  <th>Date</th>
+                  <th>Amount</th>
+                  <th>Method</th>
+                  <th>Type</th>
+                  <th>Check #</th>
+                </tr>
+              </thead>
+              <tbody>
+                {annualRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="admin-modal-table-empty">
+                      No renewal payments yet.
+                    </td>
+                  </tr>
+                ) : (
+                  annualRows.map((b) => (
+                    <tr key={b._id}>
+                      <td>{b.billingYear ?? new Date(b.createdAt).getFullYear()}</td>
+                      <td>{b.status === "waived" ? "Yes" : "No"}</td>
+                      <td>{new Date(b.createdAt).toLocaleDateString()}</td>
+                      <td>{b.status === "waived" ? "—" : `$${(b.amountCents / 100).toFixed(2)}`}</td>
+                      <td>{b.status === "waived" ? "—" : b.status === "pending" ? "CHECK" : "CARD"}</td>
+                      <td>Renew</td>
+                      <td>—</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
             </div>
           </div>
+        </div>
 
-          {/* ───────── Registration (condensed left) ───────── */}
+        {/* ───────── Registration + credit card (below member) ───────── */}
+        <div className="admin-pay-bottom">
           <div className="admin-wb-panel admin-pay-compact">
             <div className="admin-wb-panel-title">Registration</div>
             <div className="admin-form-row-wrap">
@@ -320,7 +382,6 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
             </div>
           </div>
 
-          {/* ───────── Credit Card (condensed left) ───────── */}
           <div className="admin-wb-panel admin-pay-compact">
             <div className="admin-wb-panel-title">Credit Card</div>
             <div className="admin-form-row-wrap">
@@ -338,7 +399,7 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
                 <input
                   className="admin-input"
                   inputMode="numeric"
-                  autoComplete="cc-number"
+                  autoComplete="off"
                   placeholder={amex ? "•••• •••••• •••••" : "•••• •••• •••• ••••"}
                   value={legacyValue("ccNumber")}
                   onChange={(e) => setLegacy("ccNumber", formatCardNumber(e.target.value, amex))}
@@ -349,7 +410,7 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
                 <input
                   className="admin-input"
                   inputMode="numeric"
-                  autoComplete="cc-exp"
+                  autoComplete="off"
                   placeholder="MM/YY"
                   value={legacyValue("ccExp")}
                   onChange={(e) => setLegacy("ccExp", formatExpiry(e.target.value))}
@@ -360,7 +421,7 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
                 <input
                   className="admin-input"
                   inputMode="numeric"
-                  autoComplete="cc-csc"
+                  autoComplete="off"
                   maxLength={cvvLength}
                   placeholder={amex ? "••••" : "•••"}
                   value={legacyValue("ccCvv")}
@@ -371,49 +432,6 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
                 Name on Card
                 <input className="admin-input" value={legacyValue("ccName")} onChange={(e) => setLegacy("ccName", e.target.value)} />
               </label>
-            </div>
-          </div>
-        </div>
-
-        {/* ───────── Payment history rail (right third, full height) ───────── */}
-        <div className="admin-pay-aside">
-          <div className="admin-wb-panel admin-pay-history">
-            <div className="admin-wb-panel-title">Payment History</div>
-            <div className="admin-table-wrap">
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Year</th>
-                  <th>Waived</th>
-                  <th>Date</th>
-                  <th>Amount</th>
-                  <th>Method</th>
-                  <th>Type</th>
-                  <th>Check #</th>
-                </tr>
-              </thead>
-              <tbody>
-                {annualRows.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="admin-modal-table-empty">
-                      No renewal payments yet.
-                    </td>
-                  </tr>
-                ) : (
-                  annualRows.map((b) => (
-                    <tr key={b._id}>
-                      <td>{b.billingYear ?? new Date(b.createdAt).getFullYear()}</td>
-                      <td>{b.status === "waived" ? "Yes" : "No"}</td>
-                      <td>{new Date(b.createdAt).toLocaleDateString()}</td>
-                      <td>{b.status === "waived" ? "—" : `$${(b.amountCents / 100).toFixed(2)}`}</td>
-                      <td>{b.status === "waived" ? "—" : b.status === "pending" ? "CHECK" : "CARD"}</td>
-                      <td>Renew</td>
-                      <td>—</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
             </div>
           </div>
         </div>
