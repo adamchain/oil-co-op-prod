@@ -375,10 +375,11 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
           </div>
         </div>
 
-        {/* ───────── Renewal fee history (right of member/status) ───────── */}
-        <div className="admin-wb-panel admin-pay-history">
-          <div className="admin-wb-panel-title">Payment History</div>
-          <div className="admin-table-wrap">
+        {/* ───────── Payment history rail (right third, full height) ───────── */}
+        <div className="admin-pay-aside">
+          <div className="admin-wb-panel admin-pay-history">
+            <div className="admin-wb-panel-title">Payment History</div>
+            <div className="admin-table-wrap">
             <table className="admin-table">
               <thead>
                 <tr>
@@ -413,6 +414,7 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
                 )}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       </div>

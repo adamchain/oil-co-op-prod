@@ -6,9 +6,9 @@ import { EmailTemplate, EMAIL_TEMPLATE_KEYS } from "../models/EmailTemplate.js";
 
 /**
  * Rewrites every email template's name/description/subject/html/text/variables
- * to the current code defaults, which are now MIDDLE-CONTENT ONLY (the shared
- * letterhead + "Sincerely, Rosemary A. Stanko, President" signature are applied
- * automatically at send time). Existing `enabled` flags are preserved.
+ * to the current code defaults, which are MIDDLE-CONTENT ONLY (the forest-green
+ * email banner + footer are applied automatically at send time). Existing
+ * `enabled` flags are preserved.
  *
  * Run after deploying the new letterhead so old rows that still contain a
  * "Hi {firstName}," greeting / sign-off are refreshed:

@@ -9,18 +9,32 @@ type TemplateDefinition = {
   text: string;
 };
 
-// Bodies are MIDDLE CONTENT ONLY. The shared letterhead supplies the
-// "Dear {firstName}:" salutation and the "Sincerely, Rosemary A. Stanko,
-// President" signature/footer, so templates must not repeat a greeting or
-// sign-off — staff only customize the message in the middle.
+// Bodies are MIDDLE CONTENT ONLY. Outbound emails get the forest-green banner
+// with the COOP logo and a simple footer at send time. Printed letters in the
+// workbench use the separate letterhead layout — templates must not repeat a
+// greeting or sign-off; staff only customize the message in the middle.
 const TEMPLATE_DEFINITIONS: Record<EmailTemplateKey, TemplateDefinition> = {
   welcome: {
     name: "Welcome Email",
     description: "Sent when a new member signs up",
     subject: "Welcome to Citizen's Oil Co-op",
-    variables: ["memberNumber", "nextBillingDate"],
-    html: "<p>Thank you for joining Citizen's Oil Co-op. Your membership is now active.</p><p>Your member number is <strong>{memberNumber}</strong>. Your next annual billing date is {nextBillingDate}.</p><p>Our staff will assign you to a participating oil company within 1-2 business days. Your membership renews each June 1st.</p>",
-    text: "Thank you for joining Citizen's Oil Co-op. Your membership is now active.\n\nYour member number is {memberNumber}. Your next annual billing date is {nextBillingDate}.\n\nOur staff will assign you to a participating oil company within 1-2 business days. Your membership renews each June 1st.",
+    variables: ["firstName", "memberNumber", "nextBillingDate"],
+    html:
+      '<p style="font-size:22px;font-weight:700;color:#14703B;margin:0 0 16px;">Welcome to the Co-op, {firstName}!</p>' +
+      "<p>Thank you for joining Citizen's Oil Co-op. Your membership is now active.</p>" +
+      '<table style="background-color:#fafaf9;border-radius:6px;padding:16px;margin:16px 0;width:100%;">' +
+      "<tr><td style=\"padding:8px 0;\"><strong>Member Number:</strong></td><td style=\"padding:8px 0;\">{memberNumber}</td></tr>" +
+      "<tr><td style=\"padding:8px 0;\"><strong>Next Annual Bill:</strong></td><td style=\"padding:8px 0;\">{nextBillingDate}</td></tr>" +
+      "</table>" +
+      "<p><strong>What happens next?</strong></p>" +
+      "<ul><li>Our staff will assign you to a participating oil company within 1-2 business days.</li>" +
+      "<li>Your annual membership renews each June 1st.</li></ul>" +
+      "<p>If you have any questions, don't hesitate to contact our office.</p>",
+    text:
+      "Welcome to the Co-op, {firstName}!\n\n" +
+      "Thank you for joining Citizen's Oil Co-op. Your membership is now active.\n\n" +
+      "Member Number: {memberNumber}\nNext Annual Bill: {nextBillingDate}\n\n" +
+      "Our staff will assign you to a participating oil company within 1-2 business days. Your membership renews each June 1st.",
   },
   renewalReminder: {
     name: "Renewal Reminder",

@@ -72,49 +72,43 @@ function applyVariables(template: string): string {
   });
 }
 
-// Mirrors the server-side shared letterhead/footer (services/emailTemplates.ts)
-// so the preview shows exactly how a sent mailing looks. Only the middle changes.
+// Mirrors the server-side email banner/footer (services/emailTemplates.ts)
+// so the preview shows exactly how a sent email looks. Only the middle changes.
 const ORG = {
-  name: "Citizen's Oil Co-op, Inc",
-  tagline: "Heat for Less!",
-  addressLines: ["P.O. Box 271718", "West Hartford, CT 06127"],
-  phone: "Phone / Fax 860.561.6011",
-  email: "hutson@oilco-op.com",
-  website: "oilco-op.com",
-  signerName: "Rosemary A. Stanko",
-  signerTitle: "President",
+  name: "Citizen's Oil Co-op",
+  phone: "860-561-6011",
+  brandGreen: "#14703B",
 };
 
-function wrapLetterPreview(middleHtml: string): string {
-  const date = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+function wrapEmailPreview(middleHtml: string): string {
   return `
     <div style="background:#f5f5f4;padding:24px;">
-      <div style="max-width:640px;margin:0 auto;background:#fff;border-radius:8px;padding:40px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;line-height:1.6;color:#1c1917;">
-        <table width="100%" style="border-bottom:2px solid #1c1917;padding-bottom:8px;">
+      <div style="max-width:640px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;line-height:1.6;color:#1c1917;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color:${ORG.brandGreen};">
           <tr>
-            <td style="vertical-align:top;">
-              <div style="font-size:22px;font-weight:700;">${ORG.name}</div>
-              ${ORG.addressLines.map((l) => `<div style="font-size:12px;color:#57534e;">${l}</div>`).join("")}
-            </td>
-            <td style="vertical-align:top;text-align:right;">
-              <div style="font-size:20px;font-weight:700;">"${ORG.tagline}"</div>
-              <div style="font-size:12px;color:#57534e;">${ORG.phone}</div>
-              <div style="font-size:12px;color:#57534e;">${ORG.email}</div>
+            <td align="center" style="padding:22px 24px;">
+              <table cellpadding="0" cellspacing="0" style="margin:0 auto;">
+                <tr>
+                  <td style="vertical-align:middle;padding-right:14px;">
+                    <img src="/coop-logo.png" alt="COOP" width="52" height="52" style="display:block;border:0;" />
+                  </td>
+                  <td style="vertical-align:middle;">
+                    <div style="font-size:24px;font-weight:700;color:#ffffff;letter-spacing:-0.02em;">${ORG.name}</div>
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
         </table>
-        <div style="font-size:13px;margin:24px 0 16px;">${date}</div>
-        <div style="font-size:13px;line-height:1.5;margin-bottom:16px;">${sampleData.firstName} ${sampleData.lastName}<br>123 Main Street<br>Hartford, CT 06103</div>
-        <div style="font-size:14px;margin-bottom:16px;">Dear ${sampleData.firstName}:</div>
-        <div style="font-size:14px;">${middleHtml}</div>
-        <div style="margin-top:24px;font-size:14px;">
-          <div>Sincerely,</div>
-          <div style="margin-top:28px;font-weight:600;">${ORG.signerName}</div>
-          <div style="color:#57534e;">${ORG.signerTitle}</div>
-        </div>
-        <div style="margin-top:32px;padding-top:16px;border-top:1px solid #e7e5e4;text-align:center;">
-          <span style="font-size:13px;color:#c2410c;">${ORG.website}</span>
-        </div>
+        <div style="padding:32px 40px 24px;font-size:14px;">${middleHtml}</div>
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f5f4;">
+          <tr>
+            <td align="center" style="padding:20px 24px;">
+              <div style="font-size:14px;font-weight:600;">${ORG.name}</div>
+              <div style="font-size:13px;color:#78716c;margin-top:6px;">Questions? Call ${ORG.phone} or reply to this email.</div>
+            </td>
+          </tr>
+        </table>
       </div>
     </div>
   `;
@@ -163,7 +157,7 @@ export default function AdminEmailTemplatesPage() {
     setTestEmail(member.email);
   }, [member?.email]);
 
-  const previewHtml = useMemo(() => wrapLetterPreview(applyVariables(html || "")), [html]);
+  const previewHtml = useMemo(() => wrapEmailPreview(applyVariables(html || "")), [html]);
   const orderedKeys = useMemo(() => {
     if (!templates) return templateOrder;
     const known = templateOrder.filter((k) => templates[k]);
@@ -219,9 +213,9 @@ export default function AdminEmailTemplatesPage() {
     <div className="admin-page">
       <h2>Email Templates</h2>
       <p style={{ color: "#78716c", marginBottom: "1.5rem" }}>
-        The shared letterhead and signature are added to every mailing automatically — you only
-        customize the message in the middle. No email is ever sent on its own; staff send each one
-        manually.
+        Outbound emails use a forest-green banner with the COOP house logo and a simple footer —
+        you only customize the message in the middle. Printed letters in the workbench Mailings tab
+        use the separate official letterhead layout.
       </p>
 
       <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: "1.5rem" }}>
@@ -243,13 +237,13 @@ export default function AdminEmailTemplatesPage() {
                   textAlign: "left",
                   border: "none",
                   borderBottom: "1px solid #e7e5e4",
-                  background: selectedTemplate === key ? "#fff7ed" : "transparent",
-                  borderLeft: selectedTemplate === key ? "3px solid #c2410c" : "3px solid transparent",
+                  background: selectedTemplate === key ? "#ecfdf3" : "transparent",
+                  borderLeft: selectedTemplate === key ? `3px solid ${ORG.brandGreen}` : "3px solid transparent",
                   cursor: "pointer",
                   transition: "all 0.15s",
                 }}
               >
-                <div style={{ fontWeight: 500, color: selectedTemplate === key ? "#c2410c" : "#1c1917" }}>
+                <div style={{ fontWeight: 500, color: selectedTemplate === key ? ORG.brandGreen : "#1c1917" }}>
                   {templates?.[key]?.name || key}
                 </div>
                 <div style={{ fontSize: "0.75rem", color: "#78716c", marginTop: "0.25rem" }}>

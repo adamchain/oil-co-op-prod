@@ -1511,13 +1511,13 @@ button.admin-wb-panel-title.admin-wb-panel-toggle:hover {
   gap: 0.4rem;
 }
 
-/* Form panels condensed on the left two-thirds, payment history filling the
-   right third of the page. */
+/* Form panels on the left two-thirds; payment history fills the right third
+   and stretches the full height of the form column. */
 .admin-pay-layout {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
   gap: 0.4rem;
-  align-items: start;
+  align-items: stretch;
 }
 
 .admin-pay-main {
@@ -1527,11 +1527,24 @@ button.admin-wb-panel-title.admin-wb-panel-toggle:hover {
   min-width: 0;
 }
 
-.admin-pay-history {
+.admin-pay-aside {
+  display: flex;
   min-width: 0;
+  min-height: 0;
+}
+
+.admin-pay-history {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .admin-pay-history .admin-table-wrap {
+  flex: 1;
+  min-height: 10rem;
+  overflow: auto;
   border-radius: var(--wb-radius);
 }
 
@@ -1543,17 +1556,17 @@ button.admin-wb-panel-title.admin-wb-panel-toggle:hover {
   white-space: nowrap;
 }
 
-/* Compact the form panels across the board. Narrow the member column so the
-   status box sits further left. */
+/* Narrow the member column so the status box sits further left. */
 .admin-pay-view .admin-wb-grid {
-  gap: 0.4rem;
-  grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.28fr);
+  gap: 0.35rem;
+  grid-template-columns: minmax(0, 0.6fr) minmax(0, 1.4fr);
 }
 
-/* Condense the Registration and Credit Card panels to the left rather than
-   letting them stretch the full width of the form column. */
+/* Registration and credit card stay condensed on the left, not full width. */
 .admin-pay-view .admin-pay-compact {
-  max-width: 600px;
+  max-width: 540px;
+  width: 100%;
+  align-self: start;
 }
 
 .admin-pay-view .admin-wb-panel {

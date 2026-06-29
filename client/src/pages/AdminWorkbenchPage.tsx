@@ -164,7 +164,7 @@ const ORG = {
   name: "Citizen's Oil Co-op, Inc",
   tagline: "Heat for Less!",
   addressLines: ["P.O. Box 271718", "West Hartford, CT 06127"],
-  phone: "Phone / Fax 860.561.6011",
+  phone: "860-561-6011",
   email: "hutson@oilco-op.com",
   website: "oilco-op.com",
   signerName: "Rosemary A. Stanko",
@@ -2251,8 +2251,8 @@ export default function AdminWorkbenchPage() {
                   <input className="admin-input" value={mailSubject} onChange={(e) => setMailSubject(e.target.value)} />
                 </label>
                 <p className="admin-readonly-hint admin-form-span-2" style={{ margin: "0.15rem 0" }}>
-                  The official letterhead and the "Sincerely, {ORG.signerName}, {ORG.signerTitle}" signature
-                  are added automatically — just edit the message body below.
+                  <strong>Email:</strong> a forest-green banner with the COOP logo is added automatically — just edit the message body below.
+                  {" "}<strong>Print:</strong> the official letterhead and "Sincerely, {ORG.signerName}, {ORG.signerTitle}" signature are used for printed letters.
                 </p>
                 <label className="admin-form-span-2">
                   Send To Email

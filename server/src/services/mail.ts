@@ -10,8 +10,8 @@ import {
   paymentFailedHtml,
   paymentLinkHtml,
   oilCompanyAssignedHtml,
-  wrapLetter,
-  wrapLetterText,
+  wrapEmail,
+  wrapEmailText,
   letterContextFromMember,
   type LetterContext,
 } from "./emailTemplates.js";
@@ -60,10 +60,10 @@ function getTransporter() {
 }
 
 /**
- * Sends one mailing. The shared letterhead + signature/footer are applied here,
- * so EVERY email looks the same — `text`/`html` is only the customizable middle
- * message. `letter` supplies the recipient name/address/salutation; when omitted
- * it is looked up from `memberId`.
+ * Sends one email. The shared forest-green banner + footer are applied here,
+ * so every email looks the same — `text`/`html` is only the customizable middle
+ * message. `letter` is accepted for API compatibility but is not used in the
+ * email frame (printed letters use wrapLetter separately in the workbench).
  */
 export async function sendMemberEmail(
   memberId: mongoose.Types.ObjectId,
@@ -82,8 +82,8 @@ export async function sendMemberEmail(
   }
 
   const middleHtml = html || `<p>${escapeHtml(text).replace(/\n/g, "<br>")}</p>`;
-  const fullHtml = wrapLetter(middleHtml, ctx);
-  const fullText = wrapLetterText(text, ctx);
+  const fullHtml = wrapEmail(middleHtml, ctx);
+  const fullText = wrapEmailText(text);
 
   const t = getTransporter();
   if (!t || !to) {
