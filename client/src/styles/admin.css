@@ -2598,3 +2598,113 @@ button.admin-wb-panel-title.admin-wb-panel-toggle:hover {
   padding: 1rem 0;
 }
 
+/* ---------------------------------------------------------------------------
+   Friendly email composer (RichEmailEditor) — used by Email Templates + Mailings
+--------------------------------------------------------------------------- */
+.email-composer {
+  border: 1px solid #d6d3d1;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.email-composer-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid #e7e5e4;
+  background: #fafaf9;
+}
+
+.email-composer-toolbar button {
+  min-width: 2rem;
+  height: 1.9rem;
+  padding: 0 0.55rem;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: #44403c;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.email-composer-toolbar button:hover {
+  background: #fff;
+  border-color: #e7e5e4;
+}
+
+.email-composer-sep {
+  width: 1px;
+  height: 1.2rem;
+  background: #e7e5e4;
+  margin: 0 0.25rem;
+}
+
+.email-composer-menu {
+  position: absolute;
+  right: 0;
+  top: 2.2rem;
+  z-index: 30;
+  min-width: 190px;
+  max-height: 280px;
+  overflow: auto;
+  padding: 0.25rem;
+  background: #fff;
+  border: 1px solid #e7e5e4;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+}
+
+.email-composer-menu button {
+  text-align: left;
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  font-size: 0.82rem;
+  color: #1c1917;
+  cursor: pointer;
+}
+
+.email-composer-menu button:hover {
+  background: #ecfdf3;
+}
+
+.email-composer-body {
+  padding: 0.9rem 1rem;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: #1c1917;
+  outline: none;
+  overflow: auto;
+}
+
+.email-composer-body:empty::before {
+  content: attr(data-placeholder);
+  color: #a8a29e;
+}
+
+.email-composer-body p {
+  margin: 0 0 0.75rem;
+}
+
+/* Personalization tokens shown as friendly, non-editable chips. */
+.merge-chip {
+  display: inline-block;
+  padding: 0.05rem 0.45rem;
+  margin: 0 1px;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #14703b;
+  font-size: 0.82em;
+  font-weight: 600;
+  white-space: nowrap;
+  user-select: none;
+}
+

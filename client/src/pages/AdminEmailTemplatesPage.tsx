@@ -13,6 +13,7 @@ import {
   orderedTemplateKeys,
   type EmailTemplateInfo,
 } from "../utils/emailTemplateUtils";
+import RichEmailEditor, { htmlToPlainText } from "../components/RichEmailEditor";
 
 const sampleData = {
   firstName: "John",
@@ -96,7 +97,6 @@ export default function AdminEmailTemplatesPage() {
   const [selectedTemplate, setSelectedTemplate] = useState<string>("welcome");
   const [subject, setSubject] = useState("");
   const [html, setHtml] = useState("");
-  const [text, setText] = useState("");
   const [saving, setSaving] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
   const [testEmail, setTestEmail] = useState("");
@@ -137,7 +137,6 @@ export default function AdminEmailTemplatesPage() {
     if (!currentTemplate) return;
     setSubject(currentTemplate.subject || "");
     setHtml(currentTemplate.html || "");
-    setText(currentTemplate.text || "");
   }, [currentTemplate]);
 
   useEffect(() => {
@@ -165,7 +164,7 @@ export default function AdminEmailTemplatesPage() {
         body: JSON.stringify({
           subject,
           html,
-          text,
+          text: htmlToPlainText(html),
           enabled: currentTemplate.enabled !== false,
         }),
       });
@@ -212,7 +211,7 @@ export default function AdminEmailTemplatesPage() {
       await api<{ ok: boolean }>(`/api/admin/email-templates/${currentTemplate.key}/test`, {
         method: "POST",
         token,
-        body: JSON.stringify({ to: testEmail, subject, html, text }),
+        body: JSON.stringify({ to: testEmail, subject, html, text: htmlToPlainText(html) }),
       });
       setStatus(`Test email sent to ${testEmail}`);
     } catch (e) {
@@ -356,58 +355,28 @@ export default function AdminEmailTemplatesPage() {
               Template enabled (turn off to retire this template — staff can't pick it for a manual send)
             </label>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-              <div>
-                <label style={{ fontSize: "0.75rem", color: "#78716c", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                  Subject Line
-                </label>
-                <div style={{ marginTop: "0.25rem", padding: "0.5rem 0.75rem", background: "#fafaf9", borderRadius: "4px", fontFamily: "monospace", fontSize: "0.875rem" }}>
-                  {subject}
-                </div>
-              </div>
-              <div>
-                <label style={{ fontSize: "0.75rem", color: "#78716c", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                  Variables Used
-                </label>
-                <div style={{ marginTop: "0.25rem", display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
-                  {(currentTemplate?.variables || []).map((v) => (
-                    <span
-                      key={v}
-                      style={{
-                        padding: "0.125rem 0.5rem",
-                        background: "#e7e5e4",
-                        borderRadius: "999px",
-                        fontSize: "0.75rem",
-                        fontFamily: "monospace",
-                      }}
-                    >
-                      {v}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div style={{ marginTop: "1rem", display: "grid", gap: "0.75rem" }}>
-              <input
-                className="admin-input"
-                value={subject}
-                onChange={(e) => setSubject(e.target.value)}
-                placeholder="Subject template"
-              />
-              <textarea
-                className="admin-input"
-                style={{ minHeight: "180px", fontFamily: "monospace", fontSize: "0.85rem" }}
-                value={html}
-                onChange={(e) => setHtml(e.target.value)}
-                placeholder="HTML template"
-              />
-              <textarea
-                className="admin-input"
-                style={{ minHeight: "100px", fontFamily: "monospace", fontSize: "0.85rem" }}
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                placeholder="Plain text template"
-              />
+            <div style={{ marginTop: "0.5rem", display: "grid", gap: "0.85rem" }}>
+              <label style={brandLabelStyle}>
+                Subject line
+                <input
+                  className="admin-input"
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  placeholder="e.g. Welcome to Citizen's Oil Co-op!"
+                />
+              </label>
+              <label style={brandLabelStyle}>
+                Message
+                <RichEmailEditor
+                  value={html}
+                  onChange={setHtml}
+                  tokens={currentTemplate?.variables || []}
+                  placeholder="Write your email here…"
+                />
+              </label>
+              <p style={{ margin: 0, fontSize: "0.78rem", color: "#78716c" }}>
+                Tip: use <strong>+ Personalize</strong> to drop in details like the member's first name — they fill in automatically for each recipient.
+              </p>
               <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
                 <button type="button" className="admin-btn" onClick={saveTemplate} disabled={saving || !currentTemplate}>
                   {saving ? "Saving..." : "Save Template"}

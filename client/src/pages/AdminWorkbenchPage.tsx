@@ -14,6 +14,7 @@ import {
 } from "../components/MemberFilterWidget";
 import { exactStateMatch, stateSynonyms } from "../utils/stateAbbreviations";
 import { LETTER_ORG, plainTextToEmailMiddle, previewPopupDocument, wrapEmailPreview, wrapLetterPreview, letterContextFromMember } from "../utils/emailPreview";
+import RichEmailEditor, { htmlToPlainText } from "../components/RichEmailEditor";
 import {
   applyTemplateVariables,
   orderedTemplateKeys,
@@ -2161,9 +2162,10 @@ export default function AdminWorkbenchPage() {
           <div className="admin-workbench-data-entry">
             <div className="admin-card admin-workbench-section">
               <h2>Mail Manager</h2>
-              <h3>Templates</h3>
+              <h3>Start from a template</h3>
               <p className="admin-readonly-hint" style={{ margin: "0 0 0.5rem" }}>
-                Same templates as Admin → Email Templates. Edits here apply to this send only.
+                Pick a starting point, then edit the message below. Your changes go out to
+                this recipient only — the saved template in Email Templates is not changed.
               </p>
               {mailTemplatesLoading ? (
                 <p className="admin-meta">Loading templates…</p>
@@ -2204,10 +2206,6 @@ export default function AdminWorkbenchPage() {
                   Subject
                   <input className="admin-input" value={mailSubject} onChange={(e) => setMailSubject(e.target.value)} />
                 </label>
-                <p className="admin-readonly-hint admin-form-span-2" style={{ margin: "0.15rem 0" }}>
-                  <strong>Email:</strong> uses the same green COOP banner and footer as Admin → Email Templates.
-                  {" "}<strong>Print:</strong> uses the official letterhead and "Sincerely, {LETTER_ORG.signerName}, {LETTER_ORG.signerTitle}" signature.
-                </p>
                 <label className="admin-form-span-2">
                   Send To Email
                   <input
@@ -2218,9 +2216,21 @@ export default function AdminWorkbenchPage() {
                   />
                 </label>
                 <label className="admin-form-span-2 admin-note-field">
-                  Email body (HTML)
-                  <textarea className="admin-input admin-note-input" style={{ minHeight: "180px", fontFamily: "monospace", fontSize: "0.75rem" }} value={mailHtml} onChange={(e) => setMailHtml(e.target.value)} />
+                  Message
+                  <RichEmailEditor
+                    value={mailHtml}
+                    onChange={(v) => {
+                      setMailHtml(v);
+                      setMailText(htmlToPlainText(v));
+                    }}
+                    tokens={emailTemplates?.[mailTemplateKey]?.variables || []}
+                    placeholder="Write your message here…"
+                  />
                 </label>
+                <p className="admin-readonly-hint admin-form-span-2" style={{ margin: "0.15rem 0" }}>
+                  Use <strong>+ Personalize</strong> for details like the member's first name.
+                  Printed letters use the official letterhead and "Sincerely, {LETTER_ORG.signerName}, {LETTER_ORG.signerTitle}" signature.
+                </p>
               </div>
               <div className="admin-actions-row" style={{ gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
                 <button
