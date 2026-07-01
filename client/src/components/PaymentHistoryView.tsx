@@ -18,13 +18,13 @@ const CARD_TYPES = ["VISA", "MASTERCARD", "AMEX", "DISCOVER"] as const;
 
 const isAmexType = (type: string) => type.trim().toUpperCase() === "AMEX";
 
-// Format a raw card-number string into spaced groups (Amex = 4-6-5, others = 4-4-4-4).
+// Format a raw card-number string into hyphenated groups (Amex = 4-6-5, others = 4-4-4-4).
 function formatCardNumber(value: string, amex: boolean): string {
   const digits = value.replace(/\D/g, "").slice(0, amex ? 15 : 16);
   if (amex) {
-    return [digits.slice(0, 4), digits.slice(4, 10), digits.slice(10, 15)].filter(Boolean).join(" ");
+    return [digits.slice(0, 4), digits.slice(4, 10), digits.slice(10, 15)].filter(Boolean).join("-");
   }
-  return (digits.match(/.{1,4}/g) ?? []).join(" ");
+  return (digits.match(/.{1,4}/g) ?? []).join("-");
 }
 
 // Format an expiration string into MM/YY.
@@ -92,8 +92,7 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
 
   return (
     <div className="admin-pay-view">
-      {/* Left column (member/status + registration + card) with the renewal
-          history table pinned to the right. */}
+      {/* Member (left) | Payment History (center) | Status (right) */}
       <div className="admin-pay-layout">
         {/* ───────── Member (left) ───────── */}
         <div className="admin-wb-grid">
@@ -107,7 +106,7 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
                     {member?.memberNumber || legacyValue("legacyId") || "—"}
                   </span>
                 </label>
-                <label className="admin-field admin-field-md">
+                <label className="admin-field admin-field-date">
                   New Member Dt
                   <input className="admin-input" type="date" value={legacyValue("newMemberDt")} onChange={(e) => setLegacy("newMemberDt", e.target.value)} />
                 </label>
@@ -154,7 +153,7 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
               </div>
 
               <div className="admin-form-row-wrap">
-                <label className="admin-field admin-field-md">
+                <label className="admin-field admin-field-phone">
                   Phone 1
                   <input className="admin-input" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
                 </label>
@@ -169,7 +168,7 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
               </div>
 
               <div className="admin-form-row-wrap">
-                <label className="admin-field admin-field-md">
+                <label className="admin-field admin-field-phone">
                   Phone 2
                   <input className="admin-input" value={legacyValue("phone2")} onChange={(e) => setLegacy("phone2", e.target.value)} />
                 </label>
@@ -186,7 +185,50 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
             </div>
         </div>
 
-        {/* ───────── Status (center) ───────── */}
+        {/* ───────── Payment history (center, full height) ───────── */}
+        <div className="admin-pay-aside">
+          <div className="admin-wb-panel admin-pay-history">
+            <div className="admin-wb-panel-title">Payment History</div>
+            <div className="admin-table-wrap">
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Year</th>
+                  <th>Waived</th>
+                  <th>Date</th>
+                  <th>Amount</th>
+                  <th>Method</th>
+                  <th>Type</th>
+                  <th>Check #</th>
+                </tr>
+              </thead>
+              <tbody>
+                {annualRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="admin-modal-table-empty">
+                      No renewal payments yet.
+                    </td>
+                  </tr>
+                ) : (
+                  annualRows.map((b) => (
+                    <tr key={b._id}>
+                      <td>{b.billingYear ?? new Date(b.createdAt).getFullYear()}</td>
+                      <td>{b.status === "waived" ? "Yes" : "No"}</td>
+                      <td>{new Date(b.createdAt).toLocaleDateString()}</td>
+                      <td>{b.status === "waived" ? "—" : `$${(b.amountCents / 100).toFixed(2)}`}</td>
+                      <td>{b.status === "waived" ? "—" : b.status === "pending" ? "CHECK" : "CARD"}</td>
+                      <td>Renew</td>
+                      <td>—</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+            </div>
+          </div>
+        </div>
+
+        {/* ───────── Status (right) ───────── */}
         <div className="admin-wb-panel admin-pay-status">
           <div className="admin-wb-panel-title">Status</div>
 
@@ -214,7 +256,7 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
                   ID#
                   <input className="admin-input" value={legacyValue("oilId")} onChange={(e) => setLegacy("oilId", e.target.value)} />
                 </label>
-                <label className="admin-field admin-field-md">
+                <label className="admin-field admin-field-date">
                   Start Date
                   <input className="admin-input" type="date" value={legacyValue("oilStartDate")} onChange={(e) => setLegacy("oilStartDate", e.target.value)} />
                 </label>
@@ -244,7 +286,7 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
                   ID#
                   <input className="admin-input" value={legacyValue("propaneId")} onChange={(e) => setLegacy("propaneId", e.target.value)} />
                 </label>
-                <label className="admin-field admin-field-md">
+                <label className="admin-field admin-field-date">
                   Start Date
                   <input className="admin-input" type="date" value={legacyValue("propaneStartDate")} onChange={(e) => setLegacy("propaneStartDate", e.target.value)} />
                 </label>
@@ -292,49 +334,6 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
               </div>
         </div>
 
-        {/* ───────── Payment history (right, full height) ───────── */}
-        <div className="admin-pay-aside">
-          <div className="admin-wb-panel admin-pay-history">
-            <div className="admin-wb-panel-title">Payment History</div>
-            <div className="admin-table-wrap">
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Year</th>
-                  <th>Waived</th>
-                  <th>Date</th>
-                  <th>Amount</th>
-                  <th>Method</th>
-                  <th>Type</th>
-                  <th>Check #</th>
-                </tr>
-              </thead>
-              <tbody>
-                {annualRows.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="admin-modal-table-empty">
-                      No renewal payments yet.
-                    </td>
-                  </tr>
-                ) : (
-                  annualRows.map((b) => (
-                    <tr key={b._id}>
-                      <td>{b.billingYear ?? new Date(b.createdAt).getFullYear()}</td>
-                      <td>{b.status === "waived" ? "Yes" : "No"}</td>
-                      <td>{new Date(b.createdAt).toLocaleDateString()}</td>
-                      <td>{b.status === "waived" ? "—" : `$${(b.amountCents / 100).toFixed(2)}`}</td>
-                      <td>{b.status === "waived" ? "—" : b.status === "pending" ? "CHECK" : "CARD"}</td>
-                      <td>Renew</td>
-                      <td>—</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-            </div>
-          </div>
-        </div>
-
         {/* ───────── Registration + credit card (below member) ───────── */}
         <div className="admin-pay-bottom">
           <div className="admin-wb-panel admin-pay-compact">
@@ -344,7 +343,7 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
                 Registration Fee
                 <input className="admin-input" value={legacyValue("registrationFee")} onChange={(e) => setLegacy("registrationFee", e.target.value)} />
               </label>
-              <label className="admin-field admin-field-md">
+              <label className="admin-field admin-field-date">
                 Dt Paid
                 <input className="admin-input" type="date" value={legacyValue("regDtPaid")} onChange={(e) => setLegacy("regDtPaid", e.target.value)} />
               </label>
@@ -352,7 +351,9 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
                 Check / Credit
                 <input className="admin-input" value={legacyValue("regCheckCredit")} onChange={(e) => setLegacy("regCheckCredit", e.target.value)} />
               </label>
-              <div className="admin-checkbox-grid admin-pay-flags" style={{ alignSelf: "flex-end", paddingBottom: "0.14rem" }}>
+            </div>
+            <div className="admin-form-row-wrap">
+              <div className="admin-checkbox-grid admin-pay-flags" style={{ paddingBottom: "0.14rem" }}>
                 <label>
                   <input
                     type="checkbox"
@@ -370,7 +371,9 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
                   Registration Waived
                 </label>
               </div>
-              <label className="admin-field admin-field-block">
+            </div>
+            <div className="admin-form-row-wrap">
+              <label className="admin-field admin-field-lg">
                 Payment Notes
                 <textarea
                   className="admin-input"
@@ -394,18 +397,18 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
                   ))}
                 </select>
               </label>
-              <label className="admin-field admin-field-md">
+              <label className="admin-field admin-field-card">
                 Card Number
                 <input
                   className="admin-input"
                   inputMode="numeric"
                   autoComplete="off"
-                  placeholder={amex ? "•••• •••••• •••••" : "•••• •••• •••• ••••"}
+                  placeholder={amex ? "••••-••••••-•••••" : "••••-••••-••••-••••"}
                   value={legacyValue("ccNumber")}
                   onChange={(e) => setLegacy("ccNumber", formatCardNumber(e.target.value, amex))}
                 />
               </label>
-              <label className="admin-field admin-field-xs">
+              <label className="admin-field admin-field-exp">
                 Exp
                 <input
                   className="admin-input"
@@ -416,7 +419,7 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
                   onChange={(e) => setLegacy("ccExp", formatExpiry(e.target.value))}
                 />
               </label>
-              <label className="admin-field admin-field-xs">
+              <label className="admin-field admin-field-cvv">
                 {amex ? "CID" : "CVV"}
                 <input
                   className="admin-input"

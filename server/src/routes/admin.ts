@@ -12,6 +12,8 @@ import { CommunicationLog } from "../models/CommunicationLog.js";
 import { Referral } from "../models/Referral.js";
 import { PaymentToken } from "../models/PaymentToken.js";
 import { EmailTemplate, EMAIL_TEMPLATE_KEYS } from "../models/EmailTemplate.js";
+import { EmailBranding } from "../models/EmailBranding.js";
+import { getEmailBranding } from "../services/emailBranding.js";
 import { logActivity } from "../services/activity.js";
 import { registerMember, registerMemberSchema } from "../services/memberRegistration.js";
 import { sendMemberEmail, sendPaymentLinkEmail } from "../services/mail.js";
@@ -79,6 +81,52 @@ router.put("/email-templates/:key", async (req: AuthedRequest, res) => {
   );
 
   res.json({ template });
+});
+
+// --- Email header/footer branding (shared frame for every outbound email) ---
+router.get("/email-branding", async (_req, res) => {
+  const branding = await getEmailBranding();
+  res.json({ branding });
+});
+
+const hexColor = z
+  .string()
+  .trim()
+  .regex(/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, "Must be a hex color like #14703B");
+
+const updateEmailBrandingSchema = z.object({
+  headerBgColor: hexColor,
+  headerTextColor: hexColor,
+  headerTitle: z.string().trim().min(1).max(120),
+  headerShowLogo: z.boolean(),
+  footerBgColor: hexColor,
+  footerTitleColor: hexColor,
+  footerTextColor: hexColor,
+  footerTitle: z.string().trim().min(1).max(120),
+  footerText: z.string().trim().min(1).max(400),
+});
+
+router.put("/email-branding", async (req: AuthedRequest, res) => {
+  const parsed = updateEmailBrandingSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  await EmailBranding.findOneAndUpdate(
+    { singleton: "email-branding" },
+    { $set: parsed.data },
+    { new: true, upsert: true, setDefaultsOnInsert: true }
+  );
+
+  await logActivity(
+    new mongoose.Types.ObjectId(req.userId!),
+    "admin_email_branding_updated",
+    { adminId: req.userId },
+    new mongoose.Types.ObjectId(req.userId!)
+  );
+
+  const branding = await getEmailBranding();
+  res.json({ branding });
 });
 
 const sendTestTemplateSchema = z.object({

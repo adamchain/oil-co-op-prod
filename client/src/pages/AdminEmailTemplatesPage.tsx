@@ -1,7 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { api } from "../api";
 import { useAuth } from "../authContext";
-import { EMAIL_ORG, wrapEmailPreview } from "../utils/emailPreview";
+import {
+  EMAIL_ORG,
+  wrapEmailPreview,
+  DEFAULT_EMAIL_BRANDING,
+  type EmailBranding,
+} from "../utils/emailPreview";
 import {
   applyTemplateVariables,
   EMAIL_TEMPLATE_ORDER,
@@ -46,6 +51,45 @@ function applyVariables(template: string): string {
   return applyTemplateVariables(template, sampleData);
 }
 
+const brandLabelStyle: CSSProperties = {
+  display: "grid",
+  gap: "0.3rem",
+  fontSize: "0.78rem",
+  fontWeight: 600,
+  color: "#57534e",
+};
+
+/** Paired swatch + hex text input, kept in sync. */
+function ColorField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <label style={{ ...brandLabelStyle }}>
+      {label}
+      <span style={{ display: "inline-flex", alignItems: "center", gap: "0.4rem" }}>
+        <input
+          type="color"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          style={{ width: "34px", height: "30px", padding: 0, border: "1px solid #d6d3d1", borderRadius: "6px", background: "none", cursor: "pointer" }}
+        />
+        <input
+          className="admin-input"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          style={{ width: "92px", fontFamily: "monospace", fontSize: "0.8rem" }}
+        />
+      </span>
+    </label>
+  );
+}
+
 export default function AdminEmailTemplatesPage() {
   const { token, member } = useAuth();
   const [templates, setTemplates] = useState<Record<string, EmailTemplateInfo> | null>(null);
@@ -57,6 +101,9 @@ export default function AdminEmailTemplatesPage() {
   const [sendingTest, setSendingTest] = useState(false);
   const [testEmail, setTestEmail] = useState("");
   const [status, setStatus] = useState<string>("");
+  const [branding, setBranding] = useState<EmailBranding>(DEFAULT_EMAIL_BRANDING);
+  const [brandingSaving, setBrandingSaving] = useState(false);
+  const [brandingStatus, setBrandingStatus] = useState<string>("");
 
   useEffect(() => {
     if (!token) return;
@@ -75,6 +122,15 @@ export default function AdminEmailTemplatesPage() {
       .catch((e: unknown) => setStatus(e instanceof Error ? e.message : "Failed to load templates"));
   }, [token]);
 
+  useEffect(() => {
+    if (!token) return;
+    api<{ branding: EmailBranding }>("/api/admin/email-branding", { token })
+      .then((res) => setBranding({ ...DEFAULT_EMAIL_BRANDING, ...res.branding }))
+      .catch(() => {
+        /* keep defaults if branding can't load */
+      });
+  }, [token]);
+
   const currentTemplate = templates?.[selectedTemplate];
 
   useEffect(() => {
@@ -89,7 +145,10 @@ export default function AdminEmailTemplatesPage() {
     setTestEmail(member.email);
   }, [member?.email]);
 
-  const previewHtml = useMemo(() => wrapEmailPreview(applyVariables(html || "")), [html]);
+  const previewHtml = useMemo(
+    () => wrapEmailPreview(applyVariables(html || ""), branding),
+    [html, branding]
+  );
   const orderedKeys = useMemo(() => {
     if (!templates) return [...EMAIL_TEMPLATE_ORDER];
     return orderedTemplateKeys(templates);
@@ -121,6 +180,30 @@ export default function AdminEmailTemplatesPage() {
     }
   }
 
+  function setBrandingField<K extends keyof EmailBranding>(key: K, value: EmailBranding[K]) {
+    setBranding((prev) => ({ ...prev, [key]: value }));
+    setBrandingStatus("");
+  }
+
+  async function saveBranding() {
+    if (!token) return;
+    setBrandingSaving(true);
+    setBrandingStatus("");
+    try {
+      const res = await api<{ branding: EmailBranding }>("/api/admin/email-branding", {
+        method: "PUT",
+        token,
+        body: JSON.stringify(branding),
+      });
+      setBranding({ ...DEFAULT_EMAIL_BRANDING, ...res.branding });
+      setBrandingStatus("Saved — applies to every outbound email");
+    } catch (e) {
+      setBrandingStatus(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setBrandingSaving(false);
+    }
+  }
+
   async function sendTestEmail() {
     if (!token || !currentTemplate) return;
     setSendingTest(true);
@@ -147,6 +230,65 @@ export default function AdminEmailTemplatesPage() {
         you only customize the message in the middle. Printed letters in the workbench Mailings tab
         use the separate official letterhead layout.
       </p>
+
+      {/* Header & Footer Designer — shared frame for every outbound email */}
+      <div className="admin-card" style={{ marginBottom: "1.5rem" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap", marginBottom: "0.75rem" }}>
+          <div>
+            <h3 style={{ margin: "0 0 0.25rem" }}>Header &amp; Footer Designer</h3>
+            <p style={{ color: "#78716c", margin: 0, fontSize: "0.85rem" }}>
+              Design the banner and footer used by <strong>every</strong> outbound email. Changes here show in the live preview below and apply to all templates.
+            </p>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+            {brandingStatus && <span style={{ fontSize: "0.8rem", color: "#78716c" }}>{brandingStatus}</span>}
+            <button type="button" className="admin-btn admin-btn-primary" onClick={saveBranding} disabled={brandingSaving}>
+              {brandingSaving ? "Saving..." : "Save Design"}
+            </button>
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1.5rem" }}>
+          {/* Header controls */}
+          <fieldset style={{ border: "1px solid #e7e5e4", borderRadius: "8px", padding: "0.9rem 1rem" }}>
+            <legend style={{ fontSize: "0.8rem", fontWeight: 600, color: "#57534e", padding: "0 0.4rem" }}>Header banner</legend>
+            <div style={{ display: "grid", gap: "0.7rem" }}>
+              <label style={brandLabelStyle}>
+                Banner title
+                <input className="admin-input" value={branding.headerTitle} onChange={(e) => setBrandingField("headerTitle", e.target.value)} />
+              </label>
+              <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+                <ColorField label="Background" value={branding.headerBgColor} onChange={(v) => setBrandingField("headerBgColor", v)} />
+                <ColorField label="Text color" value={branding.headerTextColor} onChange={(v) => setBrandingField("headerTextColor", v)} />
+              </div>
+              <label style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem", color: "#57534e" }}>
+                <input type="checkbox" checked={branding.headerShowLogo} onChange={(e) => setBrandingField("headerShowLogo", e.target.checked)} />
+                Show COOP logo (sits on a white chip so it stays visible on any color)
+              </label>
+            </div>
+          </fieldset>
+
+          {/* Footer controls */}
+          <fieldset style={{ border: "1px solid #e7e5e4", borderRadius: "8px", padding: "0.9rem 1rem" }}>
+            <legend style={{ fontSize: "0.8rem", fontWeight: 600, color: "#57534e", padding: "0 0.4rem" }}>Footer</legend>
+            <div style={{ display: "grid", gap: "0.7rem" }}>
+              <label style={brandLabelStyle}>
+                Footer title
+                <input className="admin-input" value={branding.footerTitle} onChange={(e) => setBrandingField("footerTitle", e.target.value)} />
+              </label>
+              <label style={brandLabelStyle}>
+                Footer message
+                <input className="admin-input" value={branding.footerText} onChange={(e) => setBrandingField("footerText", e.target.value)} />
+              </label>
+              <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+                <ColorField label="Background" value={branding.footerBgColor} onChange={(v) => setBrandingField("footerBgColor", v)} />
+                <ColorField label="Title color" value={branding.footerTitleColor} onChange={(v) => setBrandingField("footerTitleColor", v)} />
+                <ColorField label="Text color" value={branding.footerTextColor} onChange={(v) => setBrandingField("footerTextColor", v)} />
+              </div>
+            </div>
+          </fieldset>
+        </div>
+      </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: "1.5rem" }}>
         {/* Template List */}

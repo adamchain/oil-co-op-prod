@@ -17,6 +17,7 @@ import {
 } from "./emailTemplates.js";
 import { EmailTemplate, type EmailTemplateKey } from "../models/EmailTemplate.js";
 import { applyTemplateVariables } from "./emailTemplateStore.js";
+import { getEmailBranding } from "./emailBranding.js";
 
 let transporter: nodemailer.Transporter | null = null;
 
@@ -82,7 +83,8 @@ export async function sendMemberEmail(
   }
 
   const middleHtml = html || `<p>${escapeHtml(text).replace(/\n/g, "<br>")}</p>`;
-  const fullHtml = wrapEmail(middleHtml, ctx);
+  const branding = await getEmailBranding();
+  const fullHtml = wrapEmail(middleHtml, ctx, branding);
   const fullText = wrapEmailText(text);
 
   const t = getTransporter();

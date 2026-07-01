@@ -13,7 +13,7 @@ import {
   type MemberFilter,
 } from "../components/MemberFilterWidget";
 import { exactStateMatch, stateSynonyms } from "../utils/stateAbbreviations";
-import { plainTextToEmailMiddle, wrapEmailPreview } from "../utils/emailPreview";
+import { LETTER_ORG, plainTextToEmailMiddle, previewPopupDocument, wrapEmailPreview, wrapLetterPreview, letterContextFromMember } from "../utils/emailPreview";
 import {
   applyTemplateVariables,
   orderedTemplateKeys,
@@ -106,19 +106,6 @@ const PHONE_TYPE = ["HOME", "WORK", "CELL"] as const;
 const HOW_JOINED = ["WEB", "PHONE", "EVENT", "MAIL"] as const;
 const REFERRAL_SOURCE = ["CCAG", "MEMBER", "OTHER"] as const;
 
-// Official letterhead, mirrored from the email design (server emailTemplates.ts)
-// so printed letters look identical to the emails. Update here only.
-const ORG = {
-  name: "Citizen's Oil Co-op, Inc",
-  tagline: "Heat for Less!",
-  addressLines: ["P.O. Box 271718", "West Hartford, CT 06127"],
-  phone: "860-561-6011",
-  email: "hutson@oilco-op.com",
-  website: "oilco-op.com",
-  signerName: "Rosemary A. Stanko",
-  signerTitle: "President",
-};
-
 function csvCell(v: unknown): string {
   const s = String(v ?? "");
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, "\"\"")}"` : s;
@@ -135,10 +122,6 @@ function escHtml(v: unknown): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
-}
-
-function nl2br(v: string): string {
-  return escHtml(v).replace(/\n/g, "<br>");
 }
 
 function formatPhoneValue(raw: string): string {
@@ -975,24 +958,24 @@ export default function AdminWorkbenchPage() {
     downloadText(filename, body, "text/csv;charset=utf-8");
   };
 
-  const openPrintPreview = (title: string, body: string, triggerPrint = false, blackAndWhite = false) => {
+  const openPrintPreview = (
+    title: string,
+    body: string,
+    triggerPrint = false,
+    blackAndWhite = false,
+    kind: "email" | "letter" | "document" = "document"
+  ) => {
     const w = window.open("", "_blank", "width=960,height=720");
     if (!w) {
       setActionMessage("Popup blocked. Please allow popups for print preview.");
       return;
     }
-    // Force everything to black & white (overrides the inline colors used in the
-    // branded letter) so the printout has no color by default.
-    const bwStyles = blackAndWhite
-      ? `*{color:#000 !important;border-color:#000 !important;background-color:#fff !important;box-shadow:none !important}img,svg{filter:grayscale(100%) !important}html{-webkit-print-color-adjust:exact;print-color-adjust:exact}`
-      : "";
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escHtml(title)}</title><style>body{font-family:Arial,sans-serif;padding:24px;line-height:1.4}h1{margin-top:0;font-size:20px}table{border-collapse:collapse;width:100%;margin-top:12px}th,td{border:1px solid #ddd;padding:6px;font-size:12px;text-align:left}th{background:#f6f6f6}pre{white-space:pre-wrap;font-family:inherit}${bwStyles}</style></head><body>${body}</body></html>`;
+    const html = previewPopupDocument(title, body, kind, blackAndWhite);
     try {
       w.document.open();
       w.document.write(html);
       w.document.close();
     } catch {
-      // Fallback for browsers that restrict direct document writes on new tabs/windows.
       w.location.href = `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
     }
     if (triggerPrint) {
@@ -1015,51 +998,14 @@ export default function AdminWorkbenchPage() {
     </div>
   `;
 
-  // Professional letter on the official Citizen's Oil Co-op letterhead — matches
-  // the email design (fixed header + signature/footer; only the body changes).
-  const brandedLetterHtml = (
-    _subject: string,
-    recipientName: string,
+  const previewLetterHtml = (
     bodyText: string,
-    options?: { recipientAddressLines?: string[]; salutationName?: string }
-  ) => {
-    const date = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-    const salutation = (options?.salutationName || recipientName || "Member").trim().split(/\s+/)[0] || "Member";
-    const recipientBlock = [recipientName, ...(options?.recipientAddressLines || [])]
-      .map((l) => (l || "").trim())
-      .filter((l) => l && l !== "—")
-      .map((l) => escHtml(l))
-      .join("<br>");
-    return `
-    <div style="max-width:680px;margin:0 auto;font-family:Arial,Helvetica,sans-serif;color:#1c1917;line-height:1.6">
-      <table width="100%" style="border-bottom:2px solid #1c1917;padding-bottom:8px;border-collapse:collapse">
-        <tr>
-          <td style="vertical-align:top;border:none;padding:0">
-            <div style="font-size:22px;font-weight:700">${escHtml(ORG.name)}</div>
-            ${ORG.addressLines.map((l) => `<div style="font-size:12px;color:#57534e">${escHtml(l)}</div>`).join("")}
-          </td>
-          <td style="vertical-align:top;text-align:right;border:none;padding:0">
-            <div style="font-size:20px;font-weight:700">"${escHtml(ORG.tagline)}"</div>
-            <div style="font-size:12px;color:#57534e">${escHtml(ORG.phone)}</div>
-            <div style="font-size:12px;color:#57534e">${escHtml(ORG.email)}</div>
-          </td>
-        </tr>
-      </table>
-      <div style="font-size:13px;margin:24px 0 16px">${escHtml(date)}</div>
-      ${recipientBlock ? `<div style="font-size:13px;line-height:1.5;margin-bottom:16px">${recipientBlock}</div>` : ""}
-      <div style="font-size:14px;margin-bottom:16px">Dear ${escHtml(salutation)}:</div>
-      <div style="font-size:14px;white-space:normal;line-height:1.6">${nl2br(bodyText)}</div>
-      <div style="margin-top:24px;font-size:14px">
-        <div>Sincerely,</div>
-        <div style="margin-top:28px;font-weight:600">${escHtml(ORG.signerName)}</div>
-        <div style="color:#57534e">${escHtml(ORG.signerTitle)}</div>
-      </div>
-      <div style="margin-top:32px;padding-top:16px;border-top:1px solid #e7e5e4;text-align:center">
-        <span style="font-size:13px;color:#c2410c">${escHtml(ORG.website)}</span>
-      </div>
-    </div>
-    `;
-  };
+    recipient: { firstName?: string; lastName?: string; address?: string; cityStateZip?: string }
+  ) =>
+    wrapLetterPreview(
+      plainTextToEmailMiddle(bodyText),
+      letterContextFromMember(recipient)
+    );
 
   const nav = (kind: "first" | "prev" | "next" | "last") => {
     if (!filteredMembers.length) return;
@@ -1463,15 +1409,13 @@ export default function AdminWorkbenchPage() {
   const mergedMailHtml = applyTemplateVariables(mailHtml, mailingMergeData);
   const mergedMailText = applyTemplateVariables(mailText, mailingMergeData);
 
-  const mailingPreviewHtml = brandedLetterHtml(
-    mergedMailSubject,
-    mailingMergeData.memberName as string,
-    mergedMailText,
-    {
-      recipientAddressLines: [mailingMergeData.address as string, mailingMergeData.cityStateZip as string],
-      salutationName: (form.firstName || current?.firstName) as string | undefined,
-    }
-  );
+  const mailingLetterCtx = letterContextFromMember({
+    firstName: (form.firstName || current?.firstName) as string | undefined,
+    lastName: (form.lastName || current?.lastName) as string | undefined,
+    address: mailingMergeData.address as string,
+    cityStateZip: mailingMergeData.cityStateZip as string,
+  });
+  const mailingPreviewHtml = wrapLetterPreview(plainTextToEmailMiddle(mergedMailText), mailingLetterCtx);
   const mailingEmailPreviewHtml = wrapEmailPreview(mergedMailHtml);
 
   const refundLetterBody = () =>
@@ -1518,18 +1462,20 @@ export default function AdminWorkbenchPage() {
   };
 
   const refundLetterHtml = () =>
-    brandedLetterHtml(
-      "Refund Letter",
-      legacyValue("refundMemberName") || memberDisplayName,
-      refundLetterBody()
-    );
+    previewLetterHtml(refundLetterBody(), {
+      firstName: current?.firstName || form.firstName,
+      lastName: current?.lastName || form.lastName,
+      address: primaryAddressLine,
+      cityStateZip: primaryCityStateZip,
+    });
 
   const startDateLetterHtml = () =>
-    brandedLetterHtml(
-      "Start Date Letter",
-      legacyValue("startLetterMemberName") || memberDisplayName,
-      startDateLetterBody()
-    );
+    previewLetterHtml(startDateLetterBody(), {
+      firstName: current?.firstName || form.firstName,
+      lastName: current?.lastName || form.lastName,
+      address: primaryAddressLine,
+      cityStateZip: primaryCityStateZip,
+    });
 
 
   return (
@@ -1973,21 +1919,9 @@ export default function AdminWorkbenchPage() {
                       )}
                     </label>
                   </div>
-                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "end", gap: "0.35rem 0.7rem", justifyContent: "space-between", width: "100%" }}>
-                    <button
-                      type="button"
-                      className="admin-wb-btn admin-wb-btn-primary"
-                      style={{ width: "130px", minHeight: "32px", fontSize: "0.7rem", fontWeight: 700 }}
-                      onClick={() => setActiveTab("MAILINGS")}
-                      disabled={!legacyBool("mailAddr")}
-                      title={legacyBool("mailAddr") ? "Open Mail Manager" : "Check Mail Addr first to enable"}
-                    >
-                      Mail Manager
-                    </button>
-                    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "end", gap: "0.35rem 0.7rem", justifyContent: "flex-end" }}>
-                      <label style={{ flex: "0 0 auto", width: "130px" }}>Referred By ID<input className="admin-input" value={legacyValue("referredById")} onChange={(e) => setLegacy("referredById", e.target.value)} /></label>
-                      <label style={{ flex: "0 0 auto", width: "140px" }}>Date Referred<input className="admin-input" type="date" value={legacyValue("dateReferred")} onChange={(e) => setLegacy("dateReferred", e.target.value)} /></label>
-                    </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "end", gap: "0.35rem 0.7rem", justifyContent: "flex-start", width: "100%" }}>
+                    <label style={{ flex: "0 0 auto", width: "130px" }}>Referred By ID<input className="admin-input" value={legacyValue("referredById")} onChange={(e) => setLegacy("referredById", e.target.value)} /></label>
+                    <label style={{ flex: "0 0 auto", width: "140px" }}>Date Referred<input className="admin-input" type="date" value={legacyValue("dateReferred")} onChange={(e) => setLegacy("dateReferred", e.target.value)} /></label>
                   </div>
                 </div>
               </div>
@@ -2271,8 +2205,8 @@ export default function AdminWorkbenchPage() {
                   <input className="admin-input" value={mailSubject} onChange={(e) => setMailSubject(e.target.value)} />
                 </label>
                 <p className="admin-readonly-hint admin-form-span-2" style={{ margin: "0.15rem 0" }}>
-                  <strong>Email:</strong> a forest-green banner with the COOP logo is added automatically — just edit the message body below.
-                  {" "}<strong>Print:</strong> the official letterhead and "Sincerely, {ORG.signerName}, {ORG.signerTitle}" signature are used for printed letters.
+                  <strong>Email:</strong> uses the same green COOP banner and footer as Admin → Email Templates.
+                  {" "}<strong>Print:</strong> uses the official letterhead and "Sincerely, {LETTER_ORG.signerName}, {LETTER_ORG.signerTitle}" signature.
                 </p>
                 <label className="admin-form-span-2">
                   Send To Email
@@ -2303,7 +2237,7 @@ export default function AdminWorkbenchPage() {
                   className="admin-btn"
                   style={{ minWidth: "130px" }}
                   disabled={!current}
-                  onClick={() => openPrintPreview("Mailing Email Preview", mailingEmailPreviewHtml)}
+                  onClick={() => openPrintPreview("Mailing Email Preview", mailingEmailPreviewHtml, false, false, "email")}
                 >
                   Preview Email
                 </button>
@@ -2311,7 +2245,7 @@ export default function AdminWorkbenchPage() {
                   type="button"
                   className="admin-btn"
                   style={{ minWidth: "130px" }}
-                  onClick={() => openPrintPreview("Mailing Letter Preview", mailingPreviewHtml)}
+                  onClick={() => openPrintPreview("Mailing Letter Preview", mailingPreviewHtml, false, false, "letter")}
                 >
                   Preview Letter
                 </button>
@@ -2319,7 +2253,7 @@ export default function AdminWorkbenchPage() {
                   type="button"
                   className="admin-btn"
                   style={{ minWidth: "130px" }}
-                  onClick={() => openPrintPreview("Mailing Letter", mailingPreviewHtml, true, true)}
+                  onClick={() => openPrintPreview("Mailing Letter", mailingPreviewHtml, true, true, "letter")}
                 >
                   Print Letter
                 </button>
@@ -2331,6 +2265,16 @@ export default function AdminWorkbenchPage() {
                 >
                   Export Audience CSV
                 </button>
+              </div>
+              <div className="admin-card admin-workbench-section" style={{ padding: 0, overflow: "hidden", marginTop: "0.75rem" }}>
+                <div style={{ padding: "0.75rem 1rem", borderBottom: "1px solid #e7e5e4", background: "#fafaf9", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem", flexWrap: "wrap" }}>
+                  <strong>Email preview</strong>
+                  <span className="admin-meta" style={{ margin: 0 }}>Same layout as Admin → Email Templates</span>
+                </div>
+                <div
+                  style={{ maxHeight: "520px", overflow: "auto" }}
+                  dangerouslySetInnerHTML={{ __html: mailingEmailPreviewHtml }}
+                />
               </div>
             </div>
             <div className="admin-card admin-workbench-section">
@@ -2852,7 +2796,7 @@ export default function AdminWorkbenchPage() {
                   disabled={!current}
                   onClick={() => {
                     if (!current) return;
-                    openPrintPreview("Refund Email Preview", wrapEmailPreview(plainTextToEmailMiddle(refundLetterBody())));
+                    openPrintPreview("Refund Email Preview", wrapEmailPreview(plainTextToEmailMiddle(refundLetterBody())), false, false, "email");
                   }}
                 >
                   Preview Email
@@ -2863,7 +2807,7 @@ export default function AdminWorkbenchPage() {
                   disabled={!current}
                   onClick={() => {
                     if (!current) return;
-                    openPrintPreview("Refund Letter Preview", refundLetterHtml());
+                    openPrintPreview("Refund Letter Preview", refundLetterHtml(), false, false, "letter");
                   }}
                 >
                   Preview Letter
@@ -2905,7 +2849,7 @@ export default function AdminWorkbenchPage() {
                   disabled={!current}
                   onClick={() => {
                     if (!current) return;
-                    openPrintPreview("Start Date Email Preview", wrapEmailPreview(plainTextToEmailMiddle(startDateLetterBody())));
+                    openPrintPreview("Start Date Email Preview", wrapEmailPreview(plainTextToEmailMiddle(startDateLetterBody())), false, false, "email");
                   }}
                 >
                   Preview Email
@@ -2916,7 +2860,7 @@ export default function AdminWorkbenchPage() {
                   disabled={!current}
                   onClick={() => {
                     if (!current) return;
-                    openPrintPreview("Start Date Letter Preview", startDateLetterHtml());
+                    openPrintPreview("Start Date Letter Preview", startDateLetterHtml(), false, false, "letter");
                   }}
                 >
                   Preview Letter
@@ -2943,13 +2887,16 @@ export default function AdminWorkbenchPage() {
                   onClick={() => {
                     const rows = filteredMembers.slice(0, 50);
                     const letters = rows
-                      .map(
-                        (m) =>
-                          brandedLetterHtml(
-                            "Referral Thank-You Letter",
-                            `${m.firstName} ${m.lastName}`,
-                            `Thank you for your referrals to Oil Co-op.\n\nMember #: ${m.memberNumber || "—"}`
-                          )
+                      .map((m) =>
+                        previewLetterHtml(
+                          `Thank you for your referrals to Oil Co-op.\n\nMember #: ${m.memberNumber || "—"}`,
+                          {
+                            firstName: m.firstName,
+                            lastName: m.lastName,
+                            address: m.addressLine1,
+                            cityStateZip: [m.city, m.state, m.postalCode].filter(Boolean).join(" "),
+                          }
+                        )
                       )
                       .join("<div style='page-break-after:always'></div>");
                     downloadText(`multiple-referral-letters-${fileNameStamp()}.html`, letters || brandedShell("Referral Letters", "<p>No members selected.</p>"), "text/html;charset=utf-8");

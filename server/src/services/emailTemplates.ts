@@ -27,6 +27,36 @@ export const ORG = {
   brandGreenLight: "#ecfdf3",
 };
 
+// ---------------------------------------------------------------------------
+// Email header/footer branding. Staff can customize these in
+// Admin → Email Templates ("Header & Footer Designer"). Persisted in the
+// EmailBranding collection; defaults below are used when nothing is saved yet,
+// so output is identical to the original hardcoded frame.
+// ---------------------------------------------------------------------------
+export type EmailBranding = {
+  headerBgColor: string;
+  headerTextColor: string;
+  headerTitle: string;
+  headerShowLogo: boolean;
+  footerBgColor: string;
+  footerTitleColor: string;
+  footerTextColor: string;
+  footerTitle: string;
+  footerText: string;
+};
+
+export const DEFAULT_EMAIL_BRANDING: EmailBranding = {
+  headerBgColor: ORG.brandGreen,
+  headerTextColor: "#ffffff",
+  headerTitle: ORG.name,
+  headerShowLogo: true,
+  footerBgColor: "#f5f5f4",
+  footerTitleColor: "#1c1917",
+  footerTextColor: "#78716c",
+  footerTitle: ORG.name,
+  footerText: `Questions? Call ${ORG.phone} or reply to this email.`,
+};
+
 const baseFont =
   "font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;";
 
@@ -141,20 +171,30 @@ function letterFooterHtml(): string {
 }
 
 /** Forest-green banner with COOP house logo for outbound emails. */
-function emailBannerHtml(): string {
+function emailBannerHtml(branding: EmailBranding = DEFAULT_EMAIL_BRANDING): string {
   const logo = coopLogoUrl();
+  // The COOP house logo is forest green, so it must sit on a white chip —
+  // otherwise it blends into a green header and only its white strokes show
+  // (the "white lines" artifact).
+  const logoCell = branding.headerShowLogo
+    ? `<td style="vertical-align: middle; padding-right: 14px;">
+                <table cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px;">
+                  <tr><td style="padding: 8px; line-height: 0;">
+                    <img src="${logo}" alt="COOP" width="44" height="44" style="display: block; border: 0; outline: none;" />
+                  </td></tr>
+                </table>
+              </td>`
+    : "";
   return `
-    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: ${ORG.brandGreen};">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: ${branding.headerBgColor};">
       <tr>
         <td align="center" style="padding: 22px 24px;">
           <table cellpadding="0" cellspacing="0" style="margin: 0 auto;">
             <tr>
-              <td style="vertical-align: middle; padding-right: 14px;">
-                <img src="${logo}" alt="COOP" width="52" height="52" style="display: block; border: 0; outline: none;" />
-              </td>
+              ${logoCell}
               <td style="vertical-align: middle;">
-                <div style="font-size: 24px; font-weight: 700; color: #ffffff; letter-spacing: -0.02em; line-height: 1.2;">
-                  ${escapeHtml(ORG.name)}
+                <div style="font-size: 24px; font-weight: 700; color: ${branding.headerTextColor}; letter-spacing: -0.02em; line-height: 1.2;">
+                  ${escapeHtml(branding.headerTitle)}
                 </div>
               </td>
             </tr>
@@ -166,14 +206,14 @@ function emailBannerHtml(): string {
 }
 
 /** Simple footer for outbound emails. */
-function emailFooterHtml(): string {
+function emailFooterHtml(branding: EmailBranding = DEFAULT_EMAIL_BRANDING): string {
   return `
-    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f5f5f4;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: ${branding.footerBgColor};">
       <tr>
         <td align="center" style="padding: 20px 24px;">
-          <div style="font-size: 14px; font-weight: 600; color: #1c1917;">${escapeHtml(ORG.name)}</div>
-          <div style="font-size: 13px; color: #78716c; margin-top: 6px; line-height: 1.5;">
-            Questions? Call ${escapeHtml(ORG.phone)} or reply to this email.
+          <div style="font-size: 14px; font-weight: 600; color: ${branding.footerTitleColor};">${escapeHtml(branding.footerTitle)}</div>
+          <div style="font-size: 13px; color: ${branding.footerTextColor}; margin-top: 6px; line-height: 1.5;">
+            ${escapeHtml(branding.footerText)}
           </div>
         </td>
       </tr>
@@ -251,7 +291,11 @@ export function wrapLetterText(middleText: string, ctx: LetterContext = {}): str
  * Wraps middle content in the email banner + footer and returns a complete
  * HTML email document. Used for all outbound email sends.
  */
-export function wrapEmail(middleHtml: string, _ctx: LetterContext = {}): string {
+export function wrapEmail(
+  middleHtml: string,
+  _ctx: LetterContext = {},
+  branding: EmailBranding = DEFAULT_EMAIL_BRANDING
+): string {
   return `
 <!DOCTYPE html>
 <html lang="en">
@@ -267,7 +311,7 @@ export function wrapEmail(middleHtml: string, _ctx: LetterContext = {}): string 
         <table width="640" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
           <tr>
             <td style="padding: 0;">
-              ${emailBannerHtml()}
+              ${emailBannerHtml(branding)}
             </td>
           </tr>
           <tr>
@@ -277,7 +321,7 @@ export function wrapEmail(middleHtml: string, _ctx: LetterContext = {}): string 
           </tr>
           <tr>
             <td style="padding: 0;">
-              ${emailFooterHtml()}
+              ${emailFooterHtml(branding)}
             </td>
           </tr>
         </table>
