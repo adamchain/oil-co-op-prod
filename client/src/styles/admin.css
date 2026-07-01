@@ -119,6 +119,7 @@
 
 .admin-main {
   flex: 1;
+  min-width: 0;
   margin-left: var(--admin-sidebar-w);
   min-height: 100vh;
   display: flex;
@@ -588,6 +589,7 @@
   color: var(--wb-text);
   background: var(--wb-bg);
   flex: 1;
+  min-width: 0;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
@@ -1536,16 +1538,19 @@ button.admin-wb-panel-title.admin-wb-panel-toggle:hover {
   flex-direction: column;
   gap: 0.4rem;
   flex: 1;
+  min-width: 0;
   min-height: 0;
 }
 
 .admin-pay-layout {
   display: grid;
-  grid-template-columns: max-content minmax(0, 1.3fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, max-content) minmax(0, 1.3fr) minmax(0, 1fr);
   grid-template-rows: auto auto;
   gap: 0.35rem;
   align-items: stretch;
   flex: 1;
+  min-width: 0;
+  max-width: 100%;
   min-height: 0;
 }
 
