@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../authContext";
+import { formatPhoneValue } from "../utils/phone";
 
 type OilCo = { _id: string; name: string };
 
@@ -261,6 +262,7 @@ export default function AdminAddCustomerPage() {
                         type="tel"
                         value={form.phone}
                         onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                        onBlur={(e) => setForm({ ...form, phone: formatPhoneValue(e.target.value) })}
                       />
                     </Field>
                   </div>

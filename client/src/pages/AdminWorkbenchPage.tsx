@@ -13,6 +13,7 @@ import {
   type MemberFilter,
 } from "../components/MemberFilterWidget";
 import { exactStateMatch, stateSynonyms } from "../utils/stateAbbreviations";
+import { formatPhoneValue } from "../utils/phone";
 import { LETTER_ORG, plainTextToEmailMiddle, previewPopupDocument, wrapEmailPreview, wrapLetterPreview, letterContextFromMember } from "../utils/emailPreview";
 import RichEmailEditor, { htmlToPlainText } from "../components/RichEmailEditor";
 import {
@@ -63,7 +64,19 @@ type Member = {
 
 type OilCompany = { _id: string; name: string; contactEmail?: string; contactPhone?: string; notes?: string; active?: boolean };
 type PropaneCompany = { name: string; count?: number };
-type BillingEvent = { _id: string; kind: string; status: string; amountCents: number; billingYear?: number; createdAt: string };
+type BillingEvent = {
+  _id: string;
+  kind: string;
+  status: string;
+  amountCents: number;
+  billingYear?: number;
+  createdAt: string;
+  manualEntry?: boolean;
+  paymentMethod?: string;
+  checkNumber?: string;
+  entryType?: string;
+  paidDate?: string | null;
+};
 type Comm = { _id: string; channel: string; subject?: string; status: string; createdAt: string };
 type Referral = { referrerMemberId?: { firstName?: string; lastName?: string; email?: string } };
 type NoteEntry = { _id?: string; text: string; createdAt: string; createdBy: string };
@@ -123,13 +136,6 @@ function escHtml(v: unknown): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
-}
-
-function formatPhoneValue(raw: string): string {
-  const digits = raw.replace(/\D/g, "");
-  if (digits.length === 10) return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
-  if (digits.length === 11 && digits.startsWith("1")) return `+1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
-  return raw.trim();
 }
 
 function parseDeliveryRows(raw: unknown): DeliveryHistoryRow[] {
@@ -2151,6 +2157,28 @@ export default function AdminWorkbenchPage() {
             billing={billing}
             member={current}
             oilCompanyName={selectedOilCompanyName}
+            onAddPayment={
+              token
+                ? async (line) => {
+                    const r = await api<{ billing: BillingEvent[] }>(
+                      `/api/admin/members/${current._id}/billing`,
+                      { method: "POST", token, body: JSON.stringify(line) }
+                    );
+                    setBilling(r.billing || []);
+                  }
+                : undefined
+            }
+            onDeletePayment={
+              token
+                ? async (billingId) => {
+                    const r = await api<{ billing: BillingEvent[] }>(
+                      `/api/admin/members/${current._id}/billing/${billingId}`,
+                      { method: "DELETE", token }
+                    );
+                    setBilling(r.billing || []);
+                  }
+                : undefined
+            }
           />
         )}
 

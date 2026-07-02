@@ -1,6 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { WorkbenchFormState } from "../pages/AdminWorkbenchPage";
+import { formatPhoneValue } from "../utils/phone";
 
 type BillingEvent = {
   _id: string;
@@ -9,7 +10,76 @@ type BillingEvent = {
   amountCents: number;
   billingYear?: number;
   createdAt: string;
+  manualEntry?: boolean;
+  paymentMethod?: string;
+  checkNumber?: string;
+  entryType?: string;
+  paidDate?: string | null;
 };
+
+export type NewPaymentLine = {
+  billingYear: number;
+  waived: "yes" | "no" | "refund";
+  paidDate?: string;
+  amountCents: number;
+  method: "authorize.net" | "check" | "money_order";
+  type: "new" | "renew";
+  checkNumber?: string;
+};
+
+const WAIVED_OPTIONS = [
+  { value: "no", label: "No" },
+  { value: "yes", label: "Yes" },
+  { value: "refund", label: "Refund" },
+] as const;
+
+const METHOD_OPTIONS = [
+  { value: "authorize.net", label: "Authorize.Net" },
+  { value: "check", label: "Check" },
+  { value: "money_order", label: "Money Order" },
+] as const;
+
+const TYPE_OPTIONS = [
+  { value: "renew", label: "Renew" },
+  { value: "new", label: "New" },
+] as const;
+
+const methodLabel = (v: string) => METHOD_OPTIONS.find((o) => o.value === v)?.label ?? "";
+
+// Format a typed date string into MM/DD/YYYY as the user types.
+function formatDateInput(value: string): string {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  const mm = digits.slice(0, 2);
+  const dd = digits.slice(2, 4);
+  const yyyy = digits.slice(4, 8);
+  return [mm, dd, yyyy].filter(Boolean).join("/");
+}
+
+// Parse MM/DD/YYYY into an ISO date string; returns "" if incomplete/invalid.
+function mmddyyyyToISO(value: string): string {
+  const m = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return "";
+  const [, mm, dd, yyyy] = m;
+  const d = new Date(Number(yyyy), Number(mm) - 1, Number(dd));
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toISOString();
+}
+
+// Format a typed amount into "$X.XX".
+function formatAmountInput(value: string): string {
+  const cents = amountToCents(value);
+  if (cents === null) return "";
+  return `$${(cents / 100).toFixed(2)}`;
+}
+
+// Parse an amount string ("$25.00", "25", "25.5") into integer cents; null if empty/invalid.
+function amountToCents(value: string): number | null {
+  const cleaned = value.replace(/[^0-9.]/g, "");
+  if (!cleaned) return null;
+  const num = Number(cleaned);
+  if (!Number.isFinite(num)) return null;
+  return Math.round(num * 100);
+}
 
 const OIL_STATUS = ["ACTIVE", "INACTIVE", "PROSPECTIVE", "RESIDENT", "NO OIL", "UNKNOWN"] as const;
 const PROPANE_STATUS = ["ACTIVE", "INACTIVE", "PROSPECTIVE", "RESIDENT", "NO PROPANE", "UNKNOWN"] as const;
@@ -48,9 +118,21 @@ type PaymentHistoryViewProps = {
   billing: BillingEvent[];
   member?: { memberNumber?: string; createdAt?: string } | null;
   oilCompanyName?: string;
+  onAddPayment?: (line: NewPaymentLine) => Promise<void>;
+  onDeletePayment?: (billingId: string) => Promise<void>;
 };
 
-export default function PaymentHistoryView({ form, setForm, billing, member, oilCompanyName }: PaymentHistoryViewProps) {
+const emptyDraft = {
+  billingYear: String(new Date().getFullYear()),
+  waived: "no" as "yes" | "no" | "refund",
+  paidDate: "",
+  amount: "",
+  method: "check" as "authorize.net" | "check" | "money_order",
+  type: "renew" as "new" | "renew",
+  checkNumber: "",
+};
+
+export default function PaymentHistoryView({ form, setForm, billing, member, oilCompanyName, onAddPayment, onDeletePayment }: PaymentHistoryViewProps) {
   const legacyValue = (key: string) => String(form.legacyProfile[key] ?? "");
   const legacyBool = (key: string) => Boolean(form.legacyProfile[key]);
   const setLegacy = (key: string, value: string | boolean) =>
@@ -72,22 +154,85 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
       return { ...f, legacyProfile: lp };
     });
 
-  const annualRows = useMemo(
+  const [draft, setDraft] = useState(emptyDraft);
+  const [savingLine, setSavingLine] = useState(false);
+  const [lineError, setLineError] = useState("");
+
+  // Every renewal / registration / manual payment line, newest first.
+  const paymentRows = useMemo(
     () =>
       billing
-        .filter((b) => b.kind === "annual")
-        .sort((a, b) => (b.billingYear ?? 0) - (a.billingYear ?? 0)),
+        .filter((b) => b.kind === "annual" || b.kind === "registration" || b.manualEntry)
+        .sort((a, b) => {
+          const ya = a.billingYear ?? 0;
+          const yb = b.billingYear ?? 0;
+          if (yb !== ya) return yb - ya;
+          const da = new Date(a.paidDate || a.createdAt).getTime();
+          const db = new Date(b.paidDate || b.createdAt).getTime();
+          return db - da;
+        }),
     [billing]
   );
 
-  // Default Dt Paid to today when opening a member with no date on file.
+  async function addLine() {
+    if (!onAddPayment) return;
+    const year = Number(draft.billingYear.replace(/\D/g, ""));
+    const cents = amountToCents(draft.amount);
+    if (!Number.isFinite(year) || year < 1900) {
+      setLineError("Enter a valid year.");
+      return;
+    }
+    if (cents === null && draft.waived === "no") {
+      setLineError("Enter an amount.");
+      return;
+    }
+    setSavingLine(true);
+    setLineError("");
+    try {
+      await onAddPayment({
+        billingYear: year,
+        waived: draft.waived,
+        paidDate: mmddyyyyToISO(draft.paidDate) || undefined,
+        amountCents: cents ?? 0,
+        method: draft.method,
+        type: draft.type,
+        checkNumber: draft.checkNumber.trim() || undefined,
+      });
+      setDraft(emptyDraft);
+    } catch (e) {
+      setLineError(e instanceof Error ? e.message : "Could not add payment.");
+    } finally {
+      setSavingLine(false);
+    }
+  }
+
+  async function deleteLine(row: BillingEvent) {
+    if (!onDeletePayment) return;
+    const label = `${row.billingYear ?? ""} · $${(row.amountCents / 100).toFixed(2)}`.trim();
+    if (!window.confirm(`Delete this payment line (${label})? This cannot be undone.`)) return;
+    try {
+      await onDeletePayment(row._id);
+    } catch (e) {
+      setLineError(e instanceof Error ? e.message : "Could not delete payment.");
+    }
+  }
+
+  // Default Dt Paid to today, and Registration Fee to $10, when opening a member with none on file.
   useEffect(() => {
     if (!member?.memberNumber) return;
-    if (String(form.legacyProfile.regDtPaid ?? "").trim()) return;
-    setForm((f) => ({
-      ...f,
-      legacyProfile: { ...f.legacyProfile, regDtPaid: todayISO() },
-    }));
+    setForm((f) => {
+      const lp = { ...f.legacyProfile };
+      let changed = false;
+      if (!String(lp.regDtPaid ?? "").trim()) {
+        lp.regDtPaid = todayISO();
+        changed = true;
+      }
+      if (!String(lp.registrationFee ?? "").trim()) {
+        lp.registrationFee = "$10.00";
+        changed = true;
+      }
+      return changed ? { ...f, legacyProfile: lp } : f;
+    });
   }, [member?.memberNumber, setForm]);
 
   return (
@@ -155,7 +300,12 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
               <div className="admin-form-row-wrap">
                 <label className="admin-field admin-field-phone">
                   Phone 1
-                  <input className="admin-input" value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} />
+                  <input
+                    className="admin-input"
+                    value={form.phone}
+                    onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                    onBlur={(e) => setForm((f) => ({ ...f, phone: formatPhoneValue(e.target.value) }))}
+                  />
                 </label>
                 <label className="admin-field admin-field-sm">
                   Type
@@ -170,7 +320,12 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
               <div className="admin-form-row-wrap">
                 <label className="admin-field admin-field-phone">
                   Phone 2
-                  <input className="admin-input" value={legacyValue("phone2")} onChange={(e) => setLegacy("phone2", e.target.value)} />
+                  <input
+                    className="admin-input"
+                    value={legacyValue("phone2")}
+                    onChange={(e) => setLegacy("phone2", e.target.value)}
+                    onBlur={(e) => setLegacy("phone2", formatPhoneValue(e.target.value))}
+                  />
                 </label>
                 <label className="admin-field admin-field-sm">
                   Type
@@ -190,7 +345,7 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
           <div className="admin-wb-panel admin-pay-history">
             <div className="admin-wb-panel-title">Payment History</div>
             <div className="admin-table-wrap">
-            <table className="admin-table">
+            <table className="admin-table admin-pay-history-table">
               <thead>
                 <tr>
                   <th>Year</th>
@@ -200,29 +355,147 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
                   <th>Method</th>
                   <th>Type</th>
                   <th>Check #</th>
+                  {onDeletePayment && <th aria-label="Delete" />}
                 </tr>
               </thead>
               <tbody>
-                {annualRows.length === 0 ? (
+                {paymentRows.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="admin-modal-table-empty">
-                      No renewal payments yet.
+                    <td colSpan={onDeletePayment ? 8 : 7} className="admin-modal-table-empty">
+                      No payments yet.
                     </td>
                   </tr>
                 ) : (
-                  annualRows.map((b) => (
-                    <tr key={b._id}>
-                      <td>{b.billingYear ?? new Date(b.createdAt).getFullYear()}</td>
-                      <td>{b.status === "waived" ? "Yes" : "No"}</td>
-                      <td>{new Date(b.createdAt).toLocaleDateString()}</td>
-                      <td>{b.status === "waived" ? "—" : `$${(b.amountCents / 100).toFixed(2)}`}</td>
-                      <td>{b.status === "waived" ? "—" : b.status === "pending" ? "CHECK" : "CARD"}</td>
-                      <td>Renew</td>
-                      <td>—</td>
-                    </tr>
-                  ))
+                  paymentRows.map((b) => {
+                    const waivedLabel = b.status === "waived" ? "Yes" : b.status === "refund" ? "Refund" : "No";
+                    const method = b.paymentMethod
+                      ? methodLabel(b.paymentMethod)
+                      : b.status === "waived"
+                        ? "—"
+                        : b.status === "pending"
+                          ? "Check"
+                          : "Authorize.Net";
+                    const typeLabel = b.entryType === "new"
+                      ? "New"
+                      : b.entryType === "renew"
+                        ? "Renew"
+                        : b.kind === "registration"
+                          ? "New"
+                          : "Renew";
+                    return (
+                      <tr key={b._id}>
+                        <td>{b.billingYear ?? new Date(b.paidDate || b.createdAt).getFullYear()}</td>
+                        <td>{waivedLabel}</td>
+                        <td>{new Date(b.paidDate || b.createdAt).toLocaleDateString()}</td>
+                        <td>{b.status === "waived" ? "—" : `$${(b.amountCents / 100).toFixed(2)}`}</td>
+                        <td>{method}</td>
+                        <td>{typeLabel}</td>
+                        <td>{b.checkNumber || "—"}</td>
+                        {onDeletePayment && (
+                          <td>
+                            <button
+                              type="button"
+                              className="admin-btn admin-btn-danger admin-btn-xs"
+                              onClick={() => void deleteLine(b)}
+                            >
+                              Del
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
+              {onAddPayment && (
+                <tfoot>
+                  <tr className="admin-pay-add-row">
+                    <td>
+                      <input
+                        className="admin-input"
+                        inputMode="numeric"
+                        placeholder="Year"
+                        value={draft.billingYear}
+                        onChange={(e) => setDraft((d) => ({ ...d, billingYear: e.target.value.replace(/\D/g, "").slice(0, 4) }))}
+                      />
+                    </td>
+                    <td>
+                      <select
+                        className="admin-input"
+                        value={draft.waived}
+                        onChange={(e) => setDraft((d) => ({ ...d, waived: e.target.value as typeof d.waived }))}
+                      >
+                        {WAIVED_OPTIONS.map((o) => (
+                          <option key={o.value} value={o.value}>{o.label}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
+                      <input
+                        className="admin-input"
+                        inputMode="numeric"
+                        placeholder="MM/DD/YYYY"
+                        value={draft.paidDate}
+                        onChange={(e) => setDraft((d) => ({ ...d, paidDate: formatDateInput(e.target.value) }))}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        className="admin-input"
+                        inputMode="decimal"
+                        placeholder="$0.00"
+                        value={draft.amount}
+                        onChange={(e) => setDraft((d) => ({ ...d, amount: e.target.value }))}
+                        onBlur={(e) => setDraft((d) => ({ ...d, amount: formatAmountInput(e.target.value) }))}
+                      />
+                    </td>
+                    <td>
+                      <select
+                        className="admin-input"
+                        value={draft.method}
+                        onChange={(e) => setDraft((d) => ({ ...d, method: e.target.value as typeof d.method }))}
+                      >
+                        {METHOD_OPTIONS.map((o) => (
+                          <option key={o.value} value={o.value}>{o.label}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
+                      <select
+                        className="admin-input"
+                        value={draft.type}
+                        onChange={(e) => setDraft((d) => ({ ...d, type: e.target.value as typeof d.type }))}
+                      >
+                        {TYPE_OPTIONS.map((o) => (
+                          <option key={o.value} value={o.value}>{o.label}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
+                      <input
+                        className="admin-input"
+                        placeholder="Check #"
+                        value={draft.checkNumber}
+                        onChange={(e) => setDraft((d) => ({ ...d, checkNumber: e.target.value }))}
+                      />
+                    </td>
+                    {onDeletePayment && <td />}
+                  </tr>
+                  <tr>
+                    <td colSpan={onDeletePayment ? 8 : 7} className="admin-pay-add-actions">
+                      {lineError && <span className="admin-pay-add-error">{lineError}</span>}
+                      <button
+                        type="button"
+                        className="admin-btn admin-btn-primary admin-btn-xs"
+                        onClick={() => void addLine()}
+                        disabled={savingLine}
+                      >
+                        {savingLine ? "Adding…" : "Add payment"}
+                      </button>
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
             </div>
           </div>
@@ -349,7 +622,11 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
               </label>
               <label className="admin-field admin-field-sm">
                 Check / Credit
-                <input className="admin-input" value={legacyValue("regCheckCredit")} onChange={(e) => setLegacy("regCheckCredit", e.target.value)} />
+                <select className="admin-input" value={legacyValue("regCheckCredit")} onChange={(e) => setLegacy("regCheckCredit", e.target.value)}>
+                  <option value="">—</option>
+                  <option value="Check">Check</option>
+                  <option value="Credit Card">Credit Card</option>
+                </select>
               </label>
             </div>
             <div className="admin-form-row-wrap">

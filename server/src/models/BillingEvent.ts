@@ -17,12 +17,22 @@ const billingEventSchema = new Schema(
     cardType: { type: String, default: "" },
     status: {
       type: String,
-      enum: ["pending", "succeeded", "failed", "waived", "mock"],
+      enum: ["pending", "succeeded", "failed", "waived", "mock", "refund"],
       required: true,
     },
     description: { type: String, default: "" },
     billingYear: { type: Number, default: null },
     processedByAdminId: { type: Schema.Types.ObjectId, ref: "Member", default: null },
+    /** Manually entered payment lines (checks, money orders, refunds, waivers). */
+    manualEntry: { type: Boolean, default: false },
+    /** "authorize.net" | "check" | "money_order" — payment method for manual/legacy lines. */
+    paymentMethod: { type: String, default: "" },
+    /** Check or money-order number for manual lines. */
+    checkNumber: { type: String, default: "" },
+    /** "new" | "renew" — the Type column in the payment history. */
+    entryType: { type: String, default: "" },
+    /** Date the payment was actually made (falls back to createdAt for display). */
+    paidDate: { type: Date, default: null },
   },
   { timestamps: true }
 );

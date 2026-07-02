@@ -221,6 +221,22 @@
   background: #262626;
 }
 
+.admin-btn-danger {
+  background: #fff;
+  color: #b91c1c;
+  border-color: rgba(185, 28, 28, 0.4);
+}
+
+.admin-btn-danger:hover:not(:disabled) {
+  background: #fef2f2;
+}
+
+.admin-btn-xs {
+  padding: 0.2rem 0.5rem;
+  border-radius: 7px;
+  font-size: 0.72rem;
+}
+
 .admin-btn-ghost {
   background: transparent;
 }
@@ -1564,7 +1580,7 @@ button.admin-wb-panel-title.admin-wb-panel-toggle:hover {
   min-width: 0;
   width: max-content;
   max-width: 100%;
-  align-self: start;
+  align-self: stretch;
 }
 
 .admin-pay-aside {
@@ -1607,15 +1623,40 @@ button.admin-wb-panel-title.admin-wb-panel-toggle:hover {
   white-space: nowrap;
 }
 
-/* Single member panel — content width, not stretched */
+/* Inline "add payment" row — compact inputs sized to their column. */
+.admin-pay-add-row td {
+  padding: 0.3rem 0.4rem;
+  vertical-align: middle;
+}
+
+.admin-pay-add-row .admin-input {
+  width: 100%;
+  min-width: 3.5rem;
+  padding: 0.28rem 0.4rem;
+  font-size: 0.74rem;
+}
+
+.admin-pay-add-actions {
+  text-align: right;
+  padding: 0.35rem 0.5rem 0.5rem;
+}
+
+.admin-pay-add-error {
+  color: #b91c1c;
+  font-size: 0.72rem;
+  margin-right: 0.6rem;
+}
+
+/* Member panel — content width, stretched to fill the column height */
 .admin-pay-view .admin-wb-grid {
-  display: block;
+  display: flex;
+  flex-direction: column;
   width: max-content;
   max-width: 100%;
   min-width: 0;
   grid-column: 1;
   grid-row: 1;
-  align-self: start;
+  align-self: stretch;
 }
 
 .admin-pay-view .admin-wb-grid .admin-wb-panel,
@@ -1623,6 +1664,7 @@ button.admin-wb-panel-title.admin-wb-panel-toggle:hover {
   width: max-content;
   max-width: 100%;
   box-sizing: border-box;
+  flex: 1;
 }
 
 /* Registration + credit card — match member column width */
@@ -1630,6 +1672,11 @@ button.admin-wb-panel-title.admin-wb-panel-toggle:hover {
   width: max-content;
   max-width: 100%;
   box-sizing: border-box;
+}
+
+/* Registration card absorbs the leftover height so the left column fills down */
+.admin-pay-view .admin-pay-bottom .admin-pay-compact:first-child {
+  flex: 1;
 }
 
 .admin-pay-view .admin-pay-compact .admin-form-row-wrap {

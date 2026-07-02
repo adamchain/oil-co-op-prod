@@ -618,6 +618,95 @@ router.post("/members/:id/notes", async (req: AuthedRequest, res) => {
   res.json({ ok: true, note: newNote, notesHistory: member.notesHistory });
 });
 
+/**
+ * Manually add a payment-history line (checks, money orders, refunds, waivers).
+ * These are staff-entered records — no card is charged.
+ */
+const manualBillingSchema = z.object({
+  billingYear: z.number().int().min(1900).max(3000),
+  waived: z.enum(["yes", "no", "refund"]).default("no"),
+  paidDate: z.string().optional(),
+  amountCents: z.number().int().min(0),
+  method: z.enum(["authorize.net", "check", "money_order"]).default("check"),
+  type: z.enum(["new", "renew"]).default("renew"),
+  checkNumber: z.string().max(60).optional(),
+});
+
+function refreshedBilling(memberId: mongoose.Types.ObjectId) {
+  return BillingEvent.find({ memberId }).sort({ createdAt: -1 }).limit(50).lean();
+}
+
+router.post("/members/:id/billing", async (req: AuthedRequest, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const parsed = manualBillingSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const member = await Member.findById(req.params.id);
+  if (!member || member.role !== "member") {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const body = parsed.data;
+  const status = body.waived === "yes" ? "waived" : body.waived === "refund" ? "refund" : "succeeded";
+  const paidDate = body.paidDate ? new Date(body.paidDate) : new Date();
+
+  await BillingEvent.create({
+    memberId: member._id,
+    kind: body.type === "new" ? "registration" : "annual",
+    amountCents: body.amountCents,
+    status,
+    billingYear: body.billingYear,
+    manualEntry: true,
+    paymentMethod: body.method,
+    checkNumber: body.checkNumber || "",
+    entryType: body.type,
+    paidDate: Number.isNaN(paidDate.getTime()) ? new Date() : paidDate,
+    description: "Manual payment entry",
+    processedByAdminId: req.userId,
+  });
+
+  await logActivity(
+    member._id,
+    "admin_billing_manual_added",
+    { amountCents: body.amountCents, billingYear: body.billingYear, method: body.method, adminId: req.userId },
+    new mongoose.Types.ObjectId(req.userId!)
+  );
+
+  res.json({ ok: true, billing: await refreshedBilling(member._id) });
+});
+
+router.delete("/members/:id/billing/:billingId", async (req: AuthedRequest, res) => {
+  if (!mongoose.isValidObjectId(req.params.id) || !mongoose.isValidObjectId(req.params.billingId)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const member = await Member.findById(req.params.id);
+  if (!member || member.role !== "member") {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const event = await BillingEvent.findOne({ _id: req.params.billingId, memberId: member._id });
+  if (!event) {
+    res.status(404).json({ error: "Payment line not found" });
+    return;
+  }
+  await event.deleteOne();
+
+  await logActivity(
+    member._id,
+    "admin_billing_line_deleted",
+    { billingId: req.params.billingId, amountCents: event.amountCents, adminId: req.userId },
+    new mongoose.Types.ObjectId(req.userId!)
+  );
+
+  res.json({ ok: true, billing: await refreshedBilling(member._id) });
+});
+
 router.delete("/members/:id", async (req: AuthedRequest, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) {
     res.status(400).json({ error: "Invalid id" });
