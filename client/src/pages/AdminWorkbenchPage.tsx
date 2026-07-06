@@ -1516,7 +1516,7 @@ export default function AdminWorkbenchPage() {
       };
     });
 
-  const generateInvoicesFor = (list: Member[]) => {
+  const generateInvoicesFor = (list: Member[], pastDue = false) => {
     const withAddress = list.filter((m) => String(m.addressLine1 || "").trim());
     if (withAddress.length === 0) {
       setActionMessage("No members with a mailing address to invoice.");
@@ -1527,12 +1527,15 @@ export default function AdminWorkbenchPage() {
       setActionMessage("Popup blocked. Please allow popups to print invoices.");
       return;
     }
-    const html = buildMembershipInvoiceDocument(toInvoiceMembers(withAddress));
+    const html = buildMembershipInvoiceDocument(toInvoiceMembers(withAddress), { pastDue });
     w.document.open();
     w.document.write(html);
     w.document.close();
     w.focus();
-    setActionMessage(`Generated ${withAddress.length} invoice sheet${withAddress.length === 1 ? "" : "s"} — use the print dialog in the new tab.`);
+    const label = pastDue ? "past-due invoice" : "invoice";
+    setActionMessage(
+      `Generated ${withAddress.length} ${label} sheet${withAddress.length === 1 ? "" : "s"} (3 per page) — use the print dialog in the new tab.`
+    );
   };
 
   // Send the same (generic) email to every recipient in the active audience.
@@ -2272,6 +2275,14 @@ export default function AdminWorkbenchPage() {
                 onClick={() => current && generateInvoicesFor([current])}
               >
                 Generate invoice (this member)
+              </button>
+              <button
+                type="button"
+                className="admin-btn"
+                disabled={!current}
+                onClick={() => current && generateInvoicesFor([current], true)}
+              >
+                Generate PAST DUE invoice (this member)
               </button>
               <span className="admin-meta">
                 Find a group to email or print invoices, or generate one invoice for the open member.
@@ -3310,9 +3321,9 @@ export default function AdminWorkbenchPage() {
           setPaymentFindOpen(false);
           setActionMessage(`Loaded ${ids.length} found members as the mailing audience — compose your message and send.`);
         }}
-        onGenerateInvoices={(ids) => {
+        onGenerateInvoices={(ids, pastDue) => {
           const set = new Set(ids);
-          generateInvoicesFor(members.filter((m) => set.has(m._id)));
+          generateInvoicesFor(members.filter((m) => set.has(m._id)), pastDue);
           setPaymentFindOpen(false);
         }}
       />

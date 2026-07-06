@@ -61,7 +61,7 @@ export type PaymentFindModalProps = {
   selectedMemberId?: string | null;
   onSelectMember: (memberId: string) => void;
   onEmailResults: (memberIds: string[]) => void;
-  onGenerateInvoices: (memberIds: string[]) => void;
+  onGenerateInvoices: (memberIds: string[], pastDue?: boolean) => void;
 };
 
 const defaultFilters = () => ({
@@ -361,6 +361,9 @@ export default function PaymentFindModal({
                 </button>
                 <button type="button" className="admin-btn" onClick={() => onGenerateInvoices(resultIds)}>
                   Generate {results.length} invoice{results.length === 1 ? "" : "s"}
+                </button>
+                <button type="button" className="admin-btn" onClick={() => onGenerateInvoices(resultIds, true)}>
+                  Generate {results.length} PAST DUE
                 </button>
                 <span className="admin-delivery-find-meta">Click a row to open that member</span>
               </div>
