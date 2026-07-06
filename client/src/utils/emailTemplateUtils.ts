@@ -6,6 +6,7 @@ export type EmailTemplateInfo = {
   name: string;
   description: string;
   enabled?: boolean;
+  custom?: boolean;
   subject: string;
   html: string;
   text: string;

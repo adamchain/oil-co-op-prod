@@ -179,6 +179,54 @@ export default function AdminEmailTemplatesPage() {
     }
   }
 
+  async function createTemplate() {
+    if (!token) return;
+    const name = window.prompt("Name for the new template (e.g. \"Spring Newsletter\"):")?.trim();
+    if (!name) return;
+    setStatus("");
+    try {
+      const res = await api<{ template: EmailTemplateInfo }>("/api/admin/email-templates", {
+        method: "POST",
+        token,
+        body: JSON.stringify({
+          name,
+          description: "Custom template",
+          subject: name,
+          html: "<p>Write your message here…</p>",
+          text: "Write your message here…",
+        }),
+      });
+      setTemplates((prev) => ({ ...(prev || {}), [res.template.key]: res.template }));
+      setSelectedTemplate(res.template.key);
+      setStatus("Template created");
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : "Could not create template");
+    }
+  }
+
+  async function deleteTemplate() {
+    if (!token || !currentTemplate || !currentTemplate.custom) return;
+    if (!window.confirm(`Delete the "${currentTemplate.name}" template? This cannot be undone.`)) return;
+    setStatus("");
+    try {
+      await api<{ ok: boolean }>(`/api/admin/email-templates/${currentTemplate.key}`, {
+        method: "DELETE",
+        token,
+      });
+      setTemplates((prev) => {
+        if (!prev) return prev;
+        const next = { ...prev };
+        delete next[currentTemplate.key];
+        const remaining = orderedTemplateKeys(next);
+        setSelectedTemplate(remaining[0] || "welcome");
+        return next;
+      });
+      setStatus("Template deleted");
+    } catch (e) {
+      setStatus(e instanceof Error ? e.message : "Could not delete template");
+    }
+  }
+
   function setBrandingField<K extends keyof EmailBranding>(key: K, value: EmailBranding[K]) {
     setBranding((prev) => ({ ...prev, [key]: value }));
     setBrandingStatus("");
@@ -292,8 +340,11 @@ export default function AdminEmailTemplatesPage() {
       <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: "1.5rem" }}>
         {/* Template List */}
         <div className="admin-card" style={{ padding: 0, overflow: "hidden" }}>
-          <div style={{ padding: "1rem", borderBottom: "1px solid #e7e5e4", background: "#fafaf9" }}>
+          <div style={{ padding: "1rem", borderBottom: "1px solid #e7e5e4", background: "#fafaf9", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem" }}>
             <strong>Templates</strong>
+            <button type="button" className="admin-btn admin-btn-xs admin-btn-primary" onClick={createTemplate}>
+              + New
+            </button>
           </div>
           <div style={{ display: "flex", flexDirection: "column" }}>
             {orderedKeys.map((key) => (
@@ -397,6 +448,11 @@ export default function AdminEmailTemplatesPage() {
                 >
                   {sendingTest ? "Sending..." : "Send Test Email"}
                 </button>
+                {currentTemplate?.custom && (
+                  <button type="button" className="admin-btn admin-btn-danger" onClick={deleteTemplate}>
+                    Delete Template
+                  </button>
+                )}
                 {status && <span style={{ fontSize: "0.875rem", color: "#78716c" }}>{status}</span>}
               </div>
             </div>

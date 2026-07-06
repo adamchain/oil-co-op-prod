@@ -31,13 +31,13 @@ router.use(requireAuth, requireAdmin);
 
 router.get("/email-templates", async (_req, res) => {
   await ensureEmailTemplates();
-  const templates = await EmailTemplate.find({ key: { $in: EMAIL_TEMPLATE_KEYS } })
-    .sort({ key: 1 })
-    .lean();
+  const templates = await EmailTemplate.find({}).sort({ key: 1 }).lean();
   res.json({ templates });
 });
 
 const updateEmailTemplateSchema = z.object({
+  name: z.string().min(1).max(120).optional(),
+  description: z.string().max(400).optional(),
   subject: z.string().min(1),
   html: z.string().min(1),
   text: z.string().optional().default(""),
@@ -46,10 +46,6 @@ const updateEmailTemplateSchema = z.object({
 
 router.put("/email-templates/:key", async (req: AuthedRequest, res) => {
   const key = req.params.key;
-  if (!EMAIL_TEMPLATE_KEYS.includes(key as (typeof EMAIL_TEMPLATE_KEYS)[number])) {
-    res.status(400).json({ error: "Invalid template key" });
-    return;
-  }
   const parsed = updateEmailTemplateSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.flatten() });
@@ -63,6 +59,8 @@ router.put("/email-templates/:key", async (req: AuthedRequest, res) => {
         subject: parsed.data.subject,
         html: parsed.data.html,
         text: parsed.data.text,
+        ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
+        ...(parsed.data.description !== undefined ? { description: parsed.data.description } : {}),
         ...(parsed.data.enabled !== undefined ? { enabled: parsed.data.enabled } : {}),
       },
     },
@@ -81,6 +79,74 @@ router.put("/email-templates/:key", async (req: AuthedRequest, res) => {
   );
 
   res.json({ template });
+});
+
+// Create a new custom template. Built-in templates are seeded separately and
+// cannot be created here; custom ones get a generated key and custom: true.
+const createEmailTemplateSchema = z.object({
+  name: z.string().min(1).max(120),
+  description: z.string().max(400).optional().default(""),
+  subject: z.string().min(1),
+  html: z.string().min(1),
+  text: z.string().optional().default(""),
+});
+
+router.post("/email-templates", async (req: AuthedRequest, res) => {
+  const parsed = createEmailTemplateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const slug = parsed.data.name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40) || "template";
+  const key = `custom_${slug}_${crypto.randomBytes(3).toString("hex")}`;
+
+  const template = await EmailTemplate.create({
+    key,
+    name: parsed.data.name,
+    description: parsed.data.description,
+    subject: parsed.data.subject,
+    html: parsed.data.html,
+    text: parsed.data.text,
+    enabled: true,
+    custom: true,
+    variables: [],
+  });
+
+  await logActivity(
+    new mongoose.Types.ObjectId(req.userId!),
+    "admin_email_template_created",
+    { key, name: parsed.data.name, adminId: req.userId },
+    new mongoose.Types.ObjectId(req.userId!)
+  );
+
+  res.json({ template });
+});
+
+router.delete("/email-templates/:key", async (req: AuthedRequest, res) => {
+  const key = req.params.key;
+  const template = await EmailTemplate.findOne({ key });
+  if (!template) {
+    res.status(404).json({ error: "Template not found" });
+    return;
+  }
+  if (!template.custom) {
+    res.status(403).json({ error: "Built-in templates cannot be deleted (disable it instead)." });
+    return;
+  }
+  await template.deleteOne();
+
+  await logActivity(
+    new mongoose.Types.ObjectId(req.userId!),
+    "admin_email_template_deleted",
+    { key, adminId: req.userId },
+    new mongoose.Types.ObjectId(req.userId!)
+  );
+
+  res.json({ ok: true });
 });
 
 // --- Email header/footer branding (shared frame for every outbound email) ---
@@ -627,7 +693,7 @@ const manualBillingSchema = z.object({
   waived: z.enum(["yes", "no", "refund"]).default("no"),
   paidDate: z.string().optional(),
   amountCents: z.number().int().min(0),
-  method: z.enum(["authorize.net", "check", "money_order"]).default("check"),
+  method: z.enum(["", "authorize.net", "check", "money_order"]).default(""),
   type: z.enum(["new", "renew"]).default("renew"),
   checkNumber: z.string().max(60).optional(),
 });
@@ -1282,6 +1348,56 @@ router.post("/members/:id/send-email", async (req: AuthedRequest, res) => {
   );
 
   res.json({ ok: true, to });
+});
+
+/**
+ * Bulk email — send the same message to many members at once (e.g. a renewal
+ * blast to everyone who hasn't paid). Generic content only; no per-member merge.
+ * Members with no email or who have opted out are skipped and reported back.
+ */
+const bulkEmailSchema = z.object({
+  memberIds: z.array(z.string()).min(1).max(5000),
+  subject: z.string().min(1),
+  body: z.string().min(1),
+  html: z.string().optional(),
+});
+
+router.post("/members/bulk-email", async (req: AuthedRequest, res) => {
+  const parsed = bulkEmailSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const ids = parsed.data.memberIds.filter((id) => mongoose.isValidObjectId(id));
+  const subject = parsed.data.subject.trim();
+  const body = parsed.data.body;
+  const html = parsed.data.html;
+
+  const members = await Member.find({ _id: { $in: ids }, role: "member" })
+    .select("email legacyProfile firstName lastName")
+    .lean();
+
+  let sent = 0;
+  let skipped = 0;
+  for (const m of members) {
+    const optedOut = Boolean((m.legacyProfile as Record<string, unknown> | undefined)?.emailOptOut);
+    const to = String(m.email || "").trim();
+    if (!to || optedOut) {
+      skipped++;
+      continue;
+    }
+    await sendMemberEmail(m._id as mongoose.Types.ObjectId, to, subject, body, html);
+    sent++;
+  }
+
+  await logActivity(
+    new mongoose.Types.ObjectId(req.userId!),
+    "admin_bulk_email_sent",
+    { requested: ids.length, sent, skipped, subject, adminId: req.userId },
+    new mongoose.Types.ObjectId(req.userId!)
+  );
+
+  res.json({ ok: true, requested: ids.length, sent, skipped });
 });
 
 router.post("/members/:id/payment-link", async (req: AuthedRequest, res) => {

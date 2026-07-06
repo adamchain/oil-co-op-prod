@@ -14,6 +14,8 @@ import {
 } from "../components/MemberFilterWidget";
 import { exactStateMatch, stateSynonyms } from "../utils/stateAbbreviations";
 import { formatPhoneValue } from "../utils/phone";
+import PaymentFindModal from "../components/PaymentFindModal";
+import { buildMembershipInvoiceDocument, type InvoiceMember } from "../utils/invoice";
 import { LETTER_ORG, plainTextToEmailMiddle, previewPopupDocument, wrapEmailPreview, wrapLetterPreview, letterContextFromMember } from "../utils/emailPreview";
 import RichEmailEditor, { htmlToPlainText } from "../components/RichEmailEditor";
 import {
@@ -412,9 +414,18 @@ export default function AdminWorkbenchPage() {
   const [mailText, setMailText] = useState<string>("");
   const [emailTemplates, setEmailTemplates] = useState<Record<string, EmailTemplateInfo> | null>(null);
   const [mailTemplatesLoading, setMailTemplatesLoading] = useState(false);
+  // Only enabled templates are offered for a manual send (disabled = retired).
+  const enabledMailTemplateKeys = useMemo(
+    () => (emailTemplates ? orderedTemplateKeys(emailTemplates).filter((k) => emailTemplates[k]?.enabled !== false) : []),
+    [emailTemplates]
+  );
   const [emailMergeData, setEmailMergeData] = useState<Record<string, unknown> | null>(null);
   const [mailToEmail, setMailToEmail] = useState("");
   const [mailSending, setMailSending] = useState(false);
+  const [bulkSending, setBulkSending] = useState(false);
+  const [paymentFindOpen, setPaymentFindOpen] = useState(false);
+  // When set (from a Payment Find), bulk email targets these members instead of the current filter.
+  const [bulkAudienceIds, setBulkAudienceIds] = useState<string[] | null>(null);
   const [deliveryHistoryOpen, setDeliveryHistoryOpen] = useState(false);
 
   const [collapsedPanels, setCollapsedPanels] = useState<Set<string>>(loadCollapsedPanels);
@@ -564,6 +575,14 @@ export default function AdminWorkbenchPage() {
       const trimmed = value.trim();
       if (trimmed) np.set("q", trimmed);
       else np.delete("q");
+      return np;
+    });
+  }
+
+  function selectMemberById(id: string) {
+    setSearchParams((prev) => {
+      const np = new URLSearchParams(prev);
+      np.set("member", id);
       return np;
     });
   }
@@ -1468,6 +1487,96 @@ export default function AdminWorkbenchPage() {
     }
   };
 
+  // Bulk email targets the Find results when one is loaded, otherwise the current filter.
+  const bulkRecipients = bulkAudienceIds
+    ? members.filter((m) => bulkAudienceIds.includes(m._id))
+    : filteredMembers;
+
+  // Map member records to the fields a printed membership invoice needs.
+  const toInvoiceMembers = (list: Member[]): InvoiceMember[] =>
+    list.map((m) => {
+      const lp = (m.legacyProfile || {}) as Record<string, unknown>;
+      const name2 = `${String(lp.firstName2 || "").trim()} ${String(lp.lastName2 || "").trim()}`.trim();
+      const cityStateZip = [m.city, [m.state, m.postalCode].filter(Boolean).join(" ")]
+        .map((s) => String(s || "").trim())
+        .filter(Boolean)
+        .join(", ");
+      const since =
+        String(lp.newMemberDt || lp.dateAdd || "").trim() ||
+        (m.createdAt ? new Date(m.createdAt).toLocaleDateString() : "");
+      return {
+        memberNumber: m.memberNumber || String(lp.legacyId || ""),
+        name1: `${m.firstName || ""} ${m.lastName || ""}`.trim(),
+        name2: name2 || undefined,
+        addressLine1: String(m.addressLine1 || "").trim(),
+        addressLine2: String(m.addressLine2 || "").trim() || undefined,
+        cityStateZip,
+        oilCompany: (m.oilCompanyId?.name || String(lp.oilCompanyName || "")).trim(),
+        memberSince: since,
+      };
+    });
+
+  const generateInvoicesFor = (list: Member[]) => {
+    const withAddress = list.filter((m) => String(m.addressLine1 || "").trim());
+    if (withAddress.length === 0) {
+      setActionMessage("No members with a mailing address to invoice.");
+      return;
+    }
+    const w = window.open("", "_blank", "width=900,height=760");
+    if (!w) {
+      setActionMessage("Popup blocked. Please allow popups to print invoices.");
+      return;
+    }
+    const html = buildMembershipInvoiceDocument(toInvoiceMembers(withAddress));
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setActionMessage(`Generated ${withAddress.length} invoice sheet${withAddress.length === 1 ? "" : "s"} — use the print dialog in the new tab.`);
+  };
+
+  // Send the same (generic) email to every recipient in the active audience.
+  const sendBulkEmail = async () => {
+    if (!token) return;
+    const recipients = bulkRecipients;
+    const withEmail = recipients.filter((m) => String(m.email || "").trim());
+    if (recipients.length === 0) {
+      setActionMessage("No members in the current filter to email.");
+      return;
+    }
+    if (!mailSubject.trim() || !mailText.trim()) {
+      setActionMessage("Add a subject and a message before sending a bulk email.");
+      return;
+    }
+    if (withEmail.length === 0) {
+      setActionMessage("None of the filtered members have an email address on file.");
+      return;
+    }
+    const confirmed = window.confirm(
+      `Send this email to ${withEmail.length} member${withEmail.length === 1 ? "" : "s"} in the current filter?\n\n` +
+        `This is a generic blast — no per-member details are merged. This cannot be undone.`
+    );
+    if (!confirmed) return;
+    try {
+      setBulkSending(true);
+      const r = await api<{ sent: number; skipped: number; requested: number }>(`/api/admin/members/bulk-email`, {
+        method: "POST",
+        token,
+        body: JSON.stringify({
+          memberIds: recipients.map((m) => m._id),
+          subject: mailSubject.trim(),
+          body: mailText,
+          html: mailHtml || undefined,
+        }),
+      });
+      setActionMessage(`Bulk email complete: ${r.sent} sent, ${r.skipped} skipped (no email or opted out).`);
+    } catch (e) {
+      setActionMessage(e instanceof Error ? e.message : "Bulk send failed.");
+    } finally {
+      setBulkSending(false);
+    }
+  };
+
   const refundLetterHtml = () =>
     previewLetterHtml(refundLetterBody(), {
       firstName: current?.firstName || form.firstName,
@@ -2150,40 +2259,58 @@ export default function AdminWorkbenchPage() {
           </div>
         )}
 
-        {activeTab === "PAYMENT HISTORY" && current && (
-          <PaymentHistoryView
-            form={form}
-            setForm={setForm}
-            billing={billing}
-            member={current}
-            oilCompanyName={selectedOilCompanyName}
-            onAddPayment={
-              token
-                ? async (line) => {
-                    const r = await api<{ billing: BillingEvent[] }>(
-                      `/api/admin/members/${current._id}/billing`,
-                      { method: "POST", token, body: JSON.stringify(line) }
-                    );
-                    setBilling(r.billing || []);
-                  }
-                : undefined
-            }
-            onDeletePayment={
-              token
-                ? async (billingId) => {
-                    const r = await api<{ billing: BillingEvent[] }>(
-                      `/api/admin/members/${current._id}/billing/${billingId}`,
-                      { method: "DELETE", token }
-                    );
-                    setBilling(r.billing || []);
-                  }
-                : undefined
-            }
-          />
-        )}
-
-        {activeTab === "PAYMENT HISTORY" && !current && (
-          <p className="admin-meta">Select a member with Search, or add a new record.</p>
+        {activeTab === "PAYMENT HISTORY" && (
+          <>
+            <div className="admin-actions-row" style={{ gap: "0.5rem", alignItems: "center", flexWrap: "wrap", marginBottom: "0.6rem" }}>
+              <button type="button" className="admin-btn admin-btn-primary" onClick={() => setPaymentFindOpen(true)}>
+                Find members…
+              </button>
+              <button
+                type="button"
+                className="admin-btn"
+                disabled={!current}
+                onClick={() => current && generateInvoicesFor([current])}
+              >
+                Generate invoice (this member)
+              </button>
+              <span className="admin-meta">
+                Find a group to email or print invoices, or generate one invoice for the open member.
+              </span>
+            </div>
+            {current ? (
+              <PaymentHistoryView
+                form={form}
+                setForm={setForm}
+                billing={billing}
+                member={current}
+                oilCompanyName={selectedOilCompanyName}
+                onAddPayment={
+                  token
+                    ? async (line) => {
+                        const r = await api<{ billing: BillingEvent[] }>(
+                          `/api/admin/members/${current._id}/billing`,
+                          { method: "POST", token, body: JSON.stringify(line) }
+                        );
+                        setBilling(r.billing || []);
+                      }
+                    : undefined
+                }
+                onDeletePayment={
+                  token
+                    ? async (billingId) => {
+                        const r = await api<{ billing: BillingEvent[] }>(
+                          `/api/admin/members/${current._id}/billing/${billingId}`,
+                          { method: "DELETE", token }
+                        );
+                        setBilling(r.billing || []);
+                      }
+                    : undefined
+                }
+              />
+            ) : (
+              <p className="admin-meta">Select a member with Search, or use Find members to search the whole list.</p>
+            )}
+          </>
         )}
 
         {activeTab === "MAILINGS" && (
@@ -2197,7 +2324,7 @@ export default function AdminWorkbenchPage() {
               </p>
               {mailTemplatesLoading ? (
                 <p className="admin-meta">Loading templates…</p>
-              ) : !emailTemplates || orderedTemplateKeys(emailTemplates).length === 0 ? (
+              ) : enabledMailTemplateKeys.length === 0 ? (
                 <p className="admin-meta">No email templates available.</p>
               ) : (
               <div
@@ -2208,7 +2335,7 @@ export default function AdminWorkbenchPage() {
                   marginBottom: "0.55rem",
                 }}
               >
-                {orderedTemplateKeys(emailTemplates).map((key) => (
+                {enabledMailTemplateKeys.map((key) => (
                   <button
                     key={key}
                     type="button"
@@ -2216,7 +2343,7 @@ export default function AdminWorkbenchPage() {
                     style={{ width: "100%", justifyContent: "center", minHeight: "1.85rem", fontSize: "0.68rem", padding: "0.22rem 0.38rem" }}
                     onClick={() => setMailTemplateKey(key)}
                   >
-                    {emailTemplates[key]?.name || key}
+                    {emailTemplates?.[key]?.name || key}
                   </button>
                 ))}
               </div>
@@ -2303,6 +2430,50 @@ export default function AdminWorkbenchPage() {
                 >
                   Export Audience CSV
                 </button>
+              </div>
+
+              {/* Bulk send — same generic email to every filtered member */}
+              <div
+                className="admin-card admin-workbench-section"
+                style={{ marginTop: "0.75rem", background: "#fffbeb", borderColor: "#fcd34d" }}
+              >
+                <h3 style={{ margin: "0 0 0.35rem" }}>Send to a whole list</h3>
+                <p className="admin-readonly-hint" style={{ margin: "0 0 0.6rem" }}>
+                  Sends the <strong>subject and message above</strong> to{" "}
+                  {bulkAudienceIds ? (
+                    <strong>the {bulkRecipients.length} members from your Payment Find</strong>
+                  ) : (
+                    <strong>every member currently in your filter/search</strong>
+                  )}{" "}
+                  — use this for a renewal blast to everyone who hasn't paid. Write it generically (e.g. start with
+                  &quot;Dear Member&quot;); no per-member details are merged. Members with no email or who opted out are
+                  skipped automatically.
+                </p>
+                {bulkAudienceIds && (
+                  <p className="admin-meta" style={{ margin: "0 0 0.5rem" }}>
+                    Audience: <strong>Payment Find results</strong> ·{" "}
+                    <button type="button" className="admin-link-btn" onClick={() => setBulkAudienceIds(null)}>
+                      use current filter instead
+                    </button>
+                  </p>
+                )}
+                <div className="admin-actions-row" style={{ gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
+                  <button
+                    type="button"
+                    className="admin-btn admin-btn-primary"
+                    style={{ minWidth: "220px" }}
+                    disabled={bulkSending || bulkRecipients.length === 0 || !mailSubject.trim() || !mailText.trim()}
+                    onClick={() => void sendBulkEmail()}
+                  >
+                    {bulkSending
+                      ? "Sending…"
+                      : `Email all ${bulkRecipients.filter((m) => String(m.email || "").trim()).length} members`}
+                  </button>
+                  <span className="admin-meta">
+                    {bulkRecipients.length} in {bulkAudienceIds ? "find results" : "filter"} ·{" "}
+                    {bulkRecipients.filter((m) => String(m.email || "").trim()).length} with email
+                  </span>
+                </div>
               </div>
               <div className="admin-card admin-workbench-section" style={{ padding: 0, overflow: "hidden", marginTop: "0.75rem" }}>
                 <div style={{ padding: "0.75rem 1rem", borderBottom: "1px solid #e7e5e4", background: "#fafaf9", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.75rem", flexWrap: "wrap" }}>
@@ -3121,6 +3292,29 @@ export default function AdminWorkbenchPage() {
               }
             : undefined
         }
+      />
+
+      <PaymentFindModal
+        open={paymentFindOpen}
+        onClose={() => setPaymentFindOpen(false)}
+        members={members}
+        oilCompanyOptions={oilCompanies}
+        selectedMemberId={current?._id ?? null}
+        onSelectMember={(id) => {
+          selectMemberById(id);
+          setPaymentFindOpen(false);
+        }}
+        onEmailResults={(ids) => {
+          setBulkAudienceIds(ids);
+          setActiveTab("MAILINGS");
+          setPaymentFindOpen(false);
+          setActionMessage(`Loaded ${ids.length} found members as the mailing audience — compose your message and send.`);
+        }}
+        onGenerateInvoices={(ids) => {
+          const set = new Set(ids);
+          generateInvoicesFor(members.filter((m) => set.has(m._id)));
+          setPaymentFindOpen(false);
+        }}
       />
     </div>
   );

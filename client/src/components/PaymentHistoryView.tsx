@@ -22,7 +22,7 @@ export type NewPaymentLine = {
   waived: "yes" | "no" | "refund";
   paidDate?: string;
   amountCents: number;
-  method: "authorize.net" | "check" | "money_order";
+  method: "" | "authorize.net" | "check" | "money_order";
   type: "new" | "renew";
   checkNumber?: string;
 };
@@ -34,6 +34,7 @@ const WAIVED_OPTIONS = [
 ] as const;
 
 const METHOD_OPTIONS = [
+  { value: "", label: "—" },
   { value: "authorize.net", label: "Authorize.Net" },
   { value: "check", label: "Check" },
   { value: "money_order", label: "Money Order" },
@@ -44,7 +45,7 @@ const TYPE_OPTIONS = [
   { value: "new", label: "New" },
 ] as const;
 
-const methodLabel = (v: string) => METHOD_OPTIONS.find((o) => o.value === v)?.label ?? "";
+const methodLabel = (v: string) => METHOD_OPTIONS.find((o) => o.value === v)?.label ?? (v ? v : "—");
 
 // Format a typed date string into MM/DD/YYYY as the user types.
 function formatDateInput(value: string): string {
@@ -127,7 +128,7 @@ const emptyDraft = {
   waived: "no" as "yes" | "no" | "refund",
   paidDate: "",
   amount: "",
-  method: "check" as "authorize.net" | "check" | "money_order",
+  method: "" as "" | "authorize.net" | "check" | "money_order",
   type: "renew" as "new" | "renew",
   checkNumber: "",
 };
@@ -370,7 +371,7 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
                     const waivedLabel = b.status === "waived" ? "Yes" : b.status === "refund" ? "Refund" : "No";
                     const method = b.paymentMethod
                       ? methodLabel(b.paymentMethod)
-                      : b.status === "waived"
+                      : b.manualEntry || b.status === "waived"
                         ? "—"
                         : b.status === "pending"
                           ? "Check"
@@ -456,7 +457,7 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
                         onChange={(e) => setDraft((d) => ({ ...d, method: e.target.value as typeof d.method }))}
                       >
                         {METHOD_OPTIONS.map((o) => (
-                          <option key={o.value} value={o.value}>{o.label}</option>
+                          <option key={o.value || "blank"} value={o.value}>{o.label}</option>
                         ))}
                       </select>
                     </td>
@@ -708,7 +709,9 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
                   onChange={(e) => setLegacy("ccCvv", e.target.value.replace(/\D/g, "").slice(0, cvvLength))}
                 />
               </label>
-              <label className="admin-field admin-field-md">
+            </div>
+            <div className="admin-form-row-wrap">
+              <label className="admin-field admin-field-lg">
                 Name on Card
                 <input className="admin-input" value={legacyValue("ccName")} onChange={(e) => setLegacy("ccName", e.target.value)} />
               </label>
