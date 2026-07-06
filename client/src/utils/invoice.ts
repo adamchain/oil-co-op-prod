@@ -69,7 +69,7 @@ export function todayShort(now = new Date()): string {
   return `${now.getMonth() + 1}/${now.getDate()}/${now.getFullYear()}`;
 }
 
-type ResolvedOptions = Required<InvoiceOptions> & { memberPrice: number; seniorPrice: number };
+type ResolvedOptions = Required<Omit<InvoiceOptions, "winLeftIn" | "winTopIn">>;
 
 function invoiceSheetHtml(m: InvoiceMember, o: ResolvedOptions): string {
   const recipientLines = [m.name1, m.name2, m.addressLine1, m.addressLine2, m.cityStateZip]
