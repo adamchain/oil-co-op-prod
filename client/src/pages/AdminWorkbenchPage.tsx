@@ -15,7 +15,8 @@ import {
 import { exactStateMatch, stateSynonyms } from "../utils/stateAbbreviations";
 import { formatPhoneValue } from "../utils/phone";
 import PaymentFindModal from "../components/PaymentFindModal";
-import { buildMembershipInvoiceDocument, type InvoiceMember } from "../utils/invoice";
+import { type InvoiceMember } from "../utils/invoice";
+import { downloadMembershipInvoicePdf } from "../utils/invoicePdf";
 import { LETTER_ORG, plainTextToEmailMiddle, previewPopupDocument, wrapEmailPreview, wrapLetterPreview, letterContextFromMember } from "../utils/emailPreview";
 import RichEmailEditor, { htmlToPlainText } from "../components/RichEmailEditor";
 import {
@@ -1522,19 +1523,10 @@ export default function AdminWorkbenchPage() {
       setActionMessage("No members with a mailing address to invoice.");
       return;
     }
-    const w = window.open("", "_blank", "width=900,height=760");
-    if (!w) {
-      setActionMessage("Popup blocked. Please allow popups to print invoices.");
-      return;
-    }
-    const html = buildMembershipInvoiceDocument(toInvoiceMembers(withAddress), { pastDue });
-    w.document.open();
-    w.document.write(html);
-    w.document.close();
-    w.focus();
+    downloadMembershipInvoicePdf(toInvoiceMembers(withAddress), { pastDue });
     const label = pastDue ? "past-due invoice" : "invoice";
     setActionMessage(
-      `Generated ${withAddress.length} ${label} sheet${withAddress.length === 1 ? "" : "s"} (3 per page) — use the print dialog in the new tab.`
+      `Downloaded a PDF with ${withAddress.length} ${label} sheet${withAddress.length === 1 ? "" : "s"} (3 per page). Open it and print at 100% / Actual Size.`
     );
   };
 
@@ -2274,7 +2266,7 @@ export default function AdminWorkbenchPage() {
                 disabled={!current}
                 onClick={() => current && generateInvoicesFor([current])}
               >
-                Generate invoice (this member)
+                Download invoice PDF (this member)
               </button>
               <button
                 type="button"
@@ -2282,7 +2274,7 @@ export default function AdminWorkbenchPage() {
                 disabled={!current}
                 onClick={() => current && generateInvoicesFor([current], true)}
               >
-                Generate PAST DUE invoice (this member)
+                Download PAST DUE PDF (this member)
               </button>
               <span className="admin-meta">
                 Find a group to email or print invoices, or generate one invoice for the open member.

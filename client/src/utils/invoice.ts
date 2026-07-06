@@ -34,6 +34,9 @@ export type InvoiceOptions = {
   lateFee?: number;
   /** Printed date (defaults to today, M/D/YYYY). */
   dateStr?: string;
+  /** PDF only: nudge the recipient block right/down (inches) to align with the #10 window. */
+  winLeftIn?: number;
+  winTopIn?: number;
 };
 
 const RETURN_ADDRESS = [

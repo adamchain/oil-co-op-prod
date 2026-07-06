@@ -360,10 +360,10 @@ export default function PaymentFindModal({
                   Email all {emailCount} with email →
                 </button>
                 <button type="button" className="admin-btn" onClick={() => onGenerateInvoices(resultIds)}>
-                  Generate {results.length} invoice{results.length === 1 ? "" : "s"}
+                  Download {results.length} invoice PDF{results.length === 1 ? "" : "s"}
                 </button>
                 <button type="button" className="admin-btn" onClick={() => onGenerateInvoices(resultIds, true)}>
-                  Generate {results.length} PAST DUE
+                  Download {results.length} PAST DUE PDF
                 </button>
                 <span className="admin-delivery-find-meta">Click a row to open that member</span>
               </div>
