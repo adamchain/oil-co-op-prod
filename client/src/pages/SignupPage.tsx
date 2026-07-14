@@ -108,7 +108,7 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="mkt-panel">
+    <div className="mkt-panel" style={{ maxWidth: "760px" }}>
       <h1 className="mkt-page-title">Join Citizen&apos;s Oil Co-op</h1>
       <p className="mkt-lead">
         You&apos;ll be charged the registration fee right away. Annual membership is billed each June 1.
