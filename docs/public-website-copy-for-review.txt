@@ -1,0 +1,652 @@
+================================================================================
+CITIZEN'S OIL CO-OP — PUBLIC WEBSITE COPY (FOR CLIENT REVIEW)
+================================================================================
+
+Generated from the member-facing website (homepage, signup, login, account,
+navigation, and footer). Edit this document and return it when ready.
+
+Notes for reviewer:
+- Text in [brackets] is dynamic or placeholder — leave as-is or note changes.
+- Carousel slides rotate on the homepage; all six are listed below.
+- Confirm fees, prices, phone numbers, and offers with staff before publishing.
+
+
+================================================================================
+SITE METADATA
+================================================================================
+
+Page title (browser tab):
+  Oil Co-op | Saving more. Together.
+
+
+================================================================================
+GLOBAL — HEADER NAVIGATION
+================================================================================
+
+Logo alt text:
+  Oil Co-op logo
+
+Navigation links:
+  About
+  Our story
+  How it works
+  Membership
+  Services
+  Going green
+  Community
+  Contact
+
+Logged-out actions:
+  Join the Co-op
+  Member sign in
+
+Logged-in actions:
+  My account
+  Sign out
+
+Mobile menu button:
+  Open menu
+
+
+================================================================================
+GLOBAL — FOOTER
+================================================================================
+
+Contact links:
+  hutson@oilco-op.com
+  860-561-6011
+  Fax 860-561-9588
+
+Footer links:
+  Admin
+  Join
+  Sign in
+  My account (when logged in)
+  oilco-op.com
+
+Refer a member section:
+  Heading: Refer a member
+  Body: Send us a referral and we will follow up directly.
+
+Referral form field placeholders:
+  Your name
+  Your email
+  Friend's name
+  Friend's email
+
+Referral form button:
+  Send referral
+
+Copyright / disclaimer:
+  © [current year] Citizen's Oil Co-op Inc. · West Hartford, CT · Public content
+  reflects themes from oilco-op.com; confirm fees and offers with the office.
+  Member tools sync with the internal admin system.
+
+
+================================================================================
+HOMEPAGE — HERO CAROUSEL (6 SLIDES)
+================================================================================
+
+Slide 1 — Heating oil
+  Tag: Heating oil
+  Headline: Start saving on heating oil
+  Body: Full-service heating oil at negotiated rates — we match you with a
+        participating company in your area.
+  Button: Join the Co-op
+
+Slide 2 — Electric
+  Tag: Electric
+  Headline: A great electric choice at competitive pricing
+  Body: We're working to bring members a new electricity offer. See the services
+        section for the latest status.
+  Button: Read about electricity
+
+Slide 3 — Refer a friend
+  Tag: Refer a friend
+  Headline: Refer a friend and save even more
+  Body: Refer five active members for lifetime membership with no annual dues.
+        Individual referrals can earn seasonal rewards.
+  Button: Referral program
+
+Slide 4 — Propane
+  Tag: Propane
+  Headline: Reliable propane for less
+  Body: Discounted propane pricing — often with perks like free tank rental. We
+        connect you with a local participating supplier.
+  Button: Explore propane
+
+Slide 5 — Solar
+  Tag: Solar
+  Headline: Join the solar revolution
+  Body: Lock in savings on electricity with solar. Members who sign through the
+        Co-op may qualify for a completion incentive.
+  Button: Learn about solar
+
+Slide 6 — Community
+  Tag: Community
+  Headline: Power in numbers
+  Body: Our membership helps negotiate lower prices and gives us a voice when
+        you need an advocate with your energy company.
+  Button: Community & Next Step
+
+Hero phone button:
+  860-561-6011
+
+On-this-page anchor links:
+  About | Membership | Services | Going green | Community | Contact
+
+
+================================================================================
+HOMEPAGE — AVERAGE HEATING OIL PRICE CARD
+================================================================================
+
+Label: Average heating oil price
+Price: $ 4.899
+Note: week of 03/30/26 · see oilco-op.com for current posted price
+Button: Price comparison on oilco-op.com
+
+
+================================================================================
+HOMEPAGE — ABOUT (#about)
+================================================================================
+
+Section heading: Oil Co-op members pay less
+
+Section intro:
+  Citizen's Oil Co-op is a buyers' club: strength in numbers for lower prices
+  and someone in your corner if something goes wrong.
+
+Body paragraph 1:
+  Through group purchasing, many members save on the order of $250–$300 per
+  heating season. The Co-op has published examples of roughly $500 per heating
+  season vs. Connecticut state averages for full-service oil at ~900 gallons.
+  Pricing is often roughly 40–60¢ per gallon below average posted prices, with
+  total annual savings depending on usage and market conditions.
+
+Body paragraph 2:
+  You join the Co-op, we identify a participating full-service company that
+  fits your town and needs, and that company contacts you to set up service at
+  the Co-op's negotiated rate. It's that easy.
+
+Body paragraph 3:
+  Membership is not a lock-in contract for a fixed price — you keep control of
+  your service once you're set up with a supplier. Variable pricing has helped
+  many families save in recent markets.
+
+Button: Join Citizen's Oil Co-op
+
+Stats:
+  3,000+ — Members (approx.)
+  30+ — Years negotiating for households
+  900 — Example gallons / season for savings math
+
+
+================================================================================
+HOMEPAGE — OUR STORY (#story)
+================================================================================
+
+Section heading: Our story
+
+Paragraph 1:
+  The Co-op began in 1981 in connection with a non-profit; when that
+  organization wound down, the founders continued the mission of fair pricing
+  for Connecticut residents. Citizen's Oil Co-op was incorporated in June 1992
+  to unite heating oil consumers and leverage purchasing power.
+
+Paragraph 2:
+  Family-owned and operated, the Co-op has grown to over 3,000 members across
+  every town in Connecticut and Rhode Island, with expansion into parts of New
+  York and Massachusetts (including much of Worcester, Norfolk, and Bristol
+  counties in MA and Westchester County, NY).
+
+Paragraph 3:
+  Today the Co-op also negotiates programs beyond oil — propane, bioheat, solar,
+  audits, insurance, and more — with the same focus: affordable, quality
+  full-service energy and advocacy for members.
+
+
+================================================================================
+HOMEPAGE — HOW IT WORKS (#how)
+================================================================================
+
+Section heading: How does this work?
+Section intro: Three steps — same model featured on oilco-op.com.
+
+Step 1:
+  Title: Join Citizen's Oil Co-op
+  Body: Apply online or call the office. Pay the application fee and annual
+        membership (see fees below).
+
+Step 2:
+  Title: We connect you with a participating company
+  Body: We match you with a full-service supplier that serves your town under
+        Co-op pricing.
+
+Step 3:
+  Title: They call you to set up service
+  Body: Your supplier sets up the account, delivery, and billing — at the
+        discounted Co-op rate.
+
+
+================================================================================
+HOMEPAGE — MEMBERSHIP (#membership)
+================================================================================
+
+Section heading: Membership
+Section intro: Fees, delivery, referrals, and what membership does not mean.
+
+--- Costs & fees ---
+
+  • $10 non-refundable application fee.
+  • $35 annual membership dues, renewing each year.
+  • $25 annual rate for seniors 55+ (also applies to some low-volume propane
+    accounts per Co-op policy).
+
+Online signup note:
+  If you join through this app, charged amounts may follow your configured
+  payment system — confirm current published fees with the office.
+
+--- Delivery ---
+
+  Most participating companies use automatic delivery. Some areas may allow
+  will-call (you schedule with a few days' notice) — ask the Co-op what's
+  available where you live.
+
+  If you leave the Co-op, you must end delivery arrangements with your oil or
+  propane company directly; the Co-op cannot cancel for you. You must also
+  cancel membership with the Co-op to stop renewals.
+
+--- Referral program ---
+
+  Refer five new active members and become a lifetime member with no annual
+  dues. Individual referrals may qualify for waived dues in an upcoming season
+  or promotional raffles (e.g. gift cards) when announced.
+
+--- The Next Step program ---
+
+  Nonprofits and community groups can introduce the Co-op to their members. For
+  each person who joins, the Co-op donates $10 back to that organization (paid
+  bi-annually when totals exceed $50 per period, otherwise carried forward).
+  Next Step and the member referral program cannot be combined on the same
+  signup.
+
+Sidebar callout — We're on your side:
+  Large membership means better contracts — and a voice when you need help with
+  pricing, service contracts, or supplier issues.
+
+Pills/tags:
+  Not a fixed-price lock-in
+  Full-service suppliers
+  Advocacy
+
+
+================================================================================
+HOMEPAGE — SERVICES (#services)
+================================================================================
+
+Section heading: Services
+Section intro: Heat to insurance — details condensed from the Co-op's public
+              materials.
+
+Service quick links:
+  Heating oil
+  Heating oil prices
+  Bioheat
+  Propane
+  Electricity
+  Blue Earth Compost
+  Energy audits
+  Insurance
+  Solar energy
+  Join / renewal
+
+--- Heating oil (accordion) ---
+
+  All Co-op heating oil suppliers are full-service. Members typically see
+  pricing roughly 40–50¢ below average state posted prices, with competitive
+  service contracts and access to budget billing programs (often arranged
+  before September 1).
+
+  You're billed by your company with time to pay — and the Co-op can help
+  advocate if you have service or pricing questions.
+
+--- Propane (accordion) ---
+
+  Discounted propane pricing; many members receive added benefits such as free
+  tank rental. The Co-op forwards your information to a participating supplier,
+  who contacts you, performs a safety check, switches equipment as needed, and
+  coordinates removal of the old tank.
+
+  Existing Co-op members can often add propane without a second membership fee.
+  Many oil suppliers also deliver propane for stacked savings.
+
+--- Bioheat (B20) (accordion) ---
+
+  B20 is 80% low-sulfur No. 2 oil and 20% biodiesel — usable in existing oil
+  equipment. Biodiesel in the blend is sourced to meet ASTM standards (e.g.
+  Greenleaf Biofuels).
+
+  Environmental highlights often cited for B20 include:
+  • Meaningful reductions in CO₂, particulates, and other emissions vs.
+    conventional oil.
+  • Supports domestic fuel production and reduced reliance on imported oil.
+
+  Bioheat is available in many Connecticut towns; where it isn't, rallying
+  interest (e.g. ~10 neighbors) can help the Co-op open a route.
+
+--- Solar energy (accordion) ---
+
+  Solar can reduce purchased electricity with a fixed energy rate. Many
+  households save a significant share vs. utility supply costs; federal (and
+  sometimes state) incentives apply — ask for current programs.
+
+  A Co-op representative can review your home and usage. Members who enroll
+  through the Co-op have at times qualified for a $500 incentive upon project
+  completion and activation (verify current offer).
+
+--- Home energy audits (NESE) (accordion) ---
+
+  Partner New England Smart Energy (NESE) offers audits across Connecticut with
+  a modest copay (often around $50), including substantial in-home measures
+  (historically up to ~$600 of work) and access to rebates on follow-up
+  improvements.
+
+  Pairing audits with cleaner fuels like bioheat can cut both bills and carbon
+  footprint.
+
+--- Insurance (Bearingstar) (accordion) ---
+
+  Partner Bearingstar Insurance offers member pricing on auto and homeowners
+  coverage. Testimonials cite hundreds of dollars in annual savings vs. prior
+  carriers.
+
+--- Electricity (accordion) ---
+
+  Status: The Co-op has previously offered electricity programs; as of recent
+  updates, there may not be a live electric supply offer while a new supplier
+  relationship is pursued. Call or email for the latest.
+
+--- Blue Earth Compost & more (accordion) ---
+
+  The Co-op highlights additional member programs on oilco-op.com — including
+  organics/compost and other seasonal offers. This site focuses on core energy
+  programs; visit the main site for the full menu.
+
+
+================================================================================
+HOMEPAGE — GOING GREEN (#green)
+================================================================================
+
+Section heading: Going green
+
+Body paragraph 1:
+  Bioheat lowers emissions from oil heat. Home energy audits pinpoint
+  insulation and equipment upgrades that pay back over time. Together they
+  reduce your carbon footprint while keeping costs in check.
+
+Body paragraph 2:
+  Solar adds on-site clean generation. Ask the Co-op how current incentives
+  align with your roof and usage.
+
+Callout:
+  Heading: Simple. Affordable. Efficient.
+  Body: That's how the Co-op describes its mission: low prices for quality
+        full-service energy, with a path toward cleaner options.
+
+
+================================================================================
+HOMEPAGE — MEMBER VIDEO / QUOTE SECTION
+================================================================================
+
+Quote:
+  What do members think? Watch stories and updates on the Co-op's site.
+
+Link text:
+  ▶ Member video & news on oilco-op.com
+
+
+================================================================================
+HOMEPAGE — COMMUNITY & PARTNERSHIPS (#community)
+================================================================================
+
+Section heading: Community & partnerships
+Section intro: The Co-op donates and sponsors local organizations — examples
+              from public materials include:
+
+Partnerships:
+  • Roxbury Fuel Bank — Give-back per new member to support neighbors in need.
+  • West Hartford Youth Basketball League (WHYBL) — Long-running team sponsorship
+    and Next Step participation.
+  • Buena Vista Property Owners Association — Neighborhood partnership for
+    savings and fundraising.
+  • Connecticut Citizen Action Group (CCAG) — Historic ties — CCAG helped launch
+    the Co-op; ongoing consumer-rights work.
+  • Friends of Fernridge Park — Events and preservation in West Hartford.
+  • Our Lady of Calvary Retreat Center — Golf fundraiser support and donations
+    over multiple years.
+
+--- Member voices ---
+
+Testimonial 1:
+  "The reduced per-gallon cost helps our household budget — we keep telling
+  friends about the program."
+  — Mark & Alison Laucella, Middletown · members since 2007
+
+Testimonial 2:
+  "A longtime member and advocate — the Co-op celebrated her 100th birthday with
+  lifetime membership and a dues refund as a thank-you."
+  — Clara K., Rocky Hill · member since 2006
+
+Testimonial 3:
+  "Switching home and auto insurance through the Co-op Bearingstar program saved
+  hundreds compared to our old carrier."
+  — Member testimonial (insurance)
+
+
+================================================================================
+HOMEPAGE — WHAT'S NEW (#news)
+================================================================================
+
+Section heading: What's new
+
+Body:
+  Expansion updates, seasonal referral promotions, lifetime-member campaigns, and
+  event sponsorships are posted on the Co-op's blog and news pages.
+
+Button: Read news on oilco-op.com
+
+
+================================================================================
+HOMEPAGE — CONTACT (#contact)
+================================================================================
+
+Section heading: Contact us
+Section intro: West Hartford, CT — we're here to help.
+
+Phone: 860-561-6011
+Email: hutson@oilco-op.com
+Fax: 860-561-9588
+Office: West Hartford, Connecticut
+
+
+================================================================================
+HOMEPAGE — GET STARTED (BOTTOM CTA)
+================================================================================
+
+Section heading: Get started
+
+Body line 1:
+  CALL TODAY 860-561-6011
+
+Body line 2:
+  Heating oil · Bioheat · Propane · Electric programs · Insurance · Audits ·
+  Solar
+
+Button: Join Citizen's Oil Co-op online
+
+Disclaimer note:
+  This modern member portal connects to your organization's admin system
+  (members, oil company assignment, June billing, referrals, and reports).
+  Public copy mirrors themes from oilco-op.com; always confirm rates, fees, and
+  offers with staff.
+
+
+================================================================================
+SIGNUP PAGE (/signup)
+================================================================================
+
+Page heading: Join Citizen's Oil Co-op
+
+Intro:
+  You'll be charged the registration fee right away. Annual membership is
+  billed each June 1. Staff assigns your oil company after signup.
+
+Form field labels:
+  First name
+  Last name
+  Email
+  Password (min 8 characters)
+  Phone
+  Street address
+  City
+  State
+  ZIP
+  Referrer — name, email, or member # (optional)
+  Payment method
+
+Referrer placeholder:
+  e.g. friend@email.com or OC-2026-0001
+
+Payment method options:
+  Credit/Debit Card (auto-renew enabled)
+  Check (manual renewal each year)
+
+--- Card payment section ---
+
+Section heading: Payment Information
+Body: Your card will be charged the registration fee now and stored securely
+      for annual renewals.
+
+Field labels:
+  Card number
+  Expiration (MM/YY)
+  CVV
+
+Placeholders:
+  1234 5678 9012 3456
+  MM/YY
+  123
+
+--- Check payment notice ---
+
+  Check payment: Your account will be created but marked as pending. Mail your
+  registration fee check to the office address. Annual renewals will also require
+  mailing a check each year.
+
+Submit buttons:
+  Processing… (loading)
+  Pay & Create Account (card)
+  Create Account (check)
+
+Error messages (system-generated):
+  Please enter a valid card number
+  Please enter a valid expiration date (MM/YY)
+  Please enter a valid CVV
+  Signup failed
+
+Footer link:
+  Already a member? Sign in
+
+
+================================================================================
+LOGIN PAGE (/login)
+================================================================================
+
+Page heading: Member sign in
+
+Intro:
+  Access your account, notification preferences, and renewal details.
+
+Form field labels:
+  Email
+  Password
+
+Submit button:
+  Sign in
+  … (loading)
+
+Error message:
+  Login failed
+
+Footer link:
+  Create an account
+
+
+================================================================================
+MEMBER ACCOUNT PAGE (/account) — logged-in members
+================================================================================
+
+Loading state: Loading…
+
+Page heading: Hello, [first name]
+
+Member summary line:
+  Member #[member number] · Next June billing: [date]
+
+Admin link (admins only):
+  Open admin console
+
+Oil company not assigned notice:
+  Your oil company isn't assigned yet. Staff will select it in the admin system
+  and you'll get an email when it's set.
+
+Referral summary:
+  Referrals: [count] · Waive credits: [count] · Lifetime annual waiver: Yes/No
+
+--- My Profile ---
+
+Section: Personal Information
+  First name
+  Last name
+  Employer
+
+Section: Contact Information
+  Phone (primary)
+  Phone (secondary) — placeholder: Optional
+  Phone (other) — placeholder: Optional
+  Email (secondary) — placeholder: Optional
+
+Section: Address
+  Street address
+  Apt, suite, unit (optional) — placeholder: Optional
+  City
+  State
+  ZIP
+
+Save button:
+  Save profile
+  Saving...
+
+--- Notification settings ---
+
+Section heading: Notification settings
+
+Intro:
+  Email and SMS preferences sync with the same fields staff see in reporting.
+  June 1 reminders: 30, 7, and 1 day before your billing date when renewal
+  reminders are on.
+
+Toggle labels:
+  Email — master switch
+  Renewal reminders (30 / 7 / 1 days)
+  Billing notices
+  Oil company updates
+  Marketing / newsletter
+  SMS (when available)
+
+Error messages:
+  Save failed
+
+================================================================================
+END OF DOCUMENT
+================================================================================

@@ -16,6 +16,7 @@ import { EmailBranding } from "../models/EmailBranding.js";
 import { getEmailBranding } from "../services/emailBranding.js";
 import { logActivity } from "../services/activity.js";
 import { registerMember, registerMemberSchema } from "../services/memberRegistration.js";
+import { setMemberReferrer } from "../services/referrals.js";
 import { sendMemberEmail, sendPaymentLinkEmail } from "../services/mail.js";
 import { applyTemplateVariables, ensureEmailTemplates } from "../services/emailTemplateStore.js";
 import { loadMemberEmailMergeData } from "../services/memberEmailMerge.js";
@@ -418,13 +419,66 @@ router.get("/members/:id", async (req, res) => {
     res.status(404).json({ error: "Not found" });
     return;
   }
-  const [billing, activity, communications, referral] = await Promise.all([
+  const [billing, activity, communications, referral, referralsMade] = await Promise.all([
     BillingEvent.find({ memberId: member._id }).sort({ createdAt: -1 }).limit(50).lean(),
     ActivityLog.find({ memberId: member._id }).sort({ createdAt: -1 }).limit(100).lean(),
     CommunicationLog.find({ memberId: member._id }).sort({ createdAt: -1 }).limit(50).lean(),
-    Referral.findOne({ newMemberId: member._id }).populate("referrerMemberId", "firstName lastName email").lean(),
+    Referral.findOne({ newMemberId: member._id }).populate("referrerMemberId", "firstName lastName email memberNumber").lean(),
+    Referral.find({ referrerMemberId: member._id })
+      .sort({ creditedAt: -1 })
+      .populate("newMemberId", "firstName lastName email memberNumber")
+      .lean(),
   ]);
-  res.json({ member, billing, activity, communications, referral });
+  res.json({ member, billing, activity, communications, referral, referralsMade });
+});
+
+// Admin correction: set / change / clear who referred this member.
+router.put("/members/:id/referrer", async (req: AuthedRequest, res) => {
+  const memberId = String(req.params.id);
+  if (!mongoose.isValidObjectId(memberId)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const parsed = z
+    .object({ referrerMemberId: z.string().nullable() })
+    .safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const { referrerMemberId } = parsed.data;
+  if (referrerMemberId && !mongoose.isValidObjectId(referrerMemberId)) {
+    res.status(400).json({ error: "Invalid referrerMemberId" });
+    return;
+  }
+
+  try {
+    await setMemberReferrer(
+      new mongoose.Types.ObjectId(memberId),
+      referrerMemberId ? new mongoose.Types.ObjectId(referrerMemberId) : null
+    );
+  } catch (e) {
+    res.status(400).json({ error: e instanceof Error ? e.message : "Update failed" });
+    return;
+  }
+
+  await logActivity(
+    new mongoose.Types.ObjectId(memberId),
+    "referrer_updated",
+    { referrerMemberId: referrerMemberId || null, adminId: req.userId },
+    new mongoose.Types.ObjectId(req.userId!)
+  );
+
+  const [referral, referralsMade] = await Promise.all([
+    Referral.findOne({ newMemberId: memberId })
+      .populate("referrerMemberId", "firstName lastName email memberNumber")
+      .lean(),
+    Referral.find({ referrerMemberId: memberId })
+      .sort({ creditedAt: -1 })
+      .populate("newMemberId", "firstName lastName email memberNumber")
+      .lean(),
+  ]);
+  res.json({ referral, referralsMade });
 });
 
 router.get("/members/:id/email-merge-data", async (req, res) => {
