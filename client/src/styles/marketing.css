@@ -1,7 +1,7 @@
 /* Citizen's Oil Co-op–style marketing (aligned with oil-co-op reference + oilco-op.com content) */
 .marketing-site {
-  --color-bg: #f6f8f5;
-  --color-bg-alt: #e9f1ea;
+  --color-bg: #ffffff;
+  --color-bg-alt: #eef4ee;
   --color-surface: #ffffff;
   --color-text: #14211a;
   --color-text-muted: #4b5850;
@@ -672,7 +672,7 @@
 }
 
 .mkt-steps {
-  background: var(--color-bg-alt);
+  background: var(--color-surface);
 }
 
 .mkt-steps-list {
