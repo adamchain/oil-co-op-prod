@@ -114,6 +114,15 @@ export default function MarketingLayout() {
               <img src={logoSrc} alt="Oil Co-op logo" className="mkt-logo-image mkt-logo-image-footer" />
             </Link>
             <div className="mkt-footer-nav">
+              <Link to="/our-story" onClick={close}>
+                Our story
+              </Link>
+              <Link to="/team" onClick={close}>
+                Meet our team
+              </Link>
+              <Link to="/testimonials" onClick={close}>
+                Testimonials
+              </Link>
               <a href="mailto:hutson@oilco-op.com">hutson@oilco-op.com</a>
               <a href="tel:8605616011">860-561-6011</a>
               <span style={{ color: "rgba(255,255,255,0.55)", fontSize: "0.9rem" }}>Fax 860-561-9588</span>

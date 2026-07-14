@@ -3,6 +3,9 @@ import { AuthProvider, useAuth } from "./authContext";
 import MarketingLayout from "./layouts/MarketingLayout";
 import AdminLayout from "./layouts/AdminLayout";
 import PublicHomePage from "./public-site/PublicHomePage";
+import OurStoryPage from "./public-site/OurStoryPage";
+import MeetTeamPage from "./public-site/MeetTeamPage";
+import TestimonialsPage from "./public-site/TestimonialsPage";
 import SignupPage from "./pages/SignupPage";
 import LoginPage from "./pages/LoginPage";
 import AccountPage from "./pages/AccountPage";
@@ -35,6 +38,9 @@ export default function App() {
       <Routes>
         <Route element={<MarketingLayout />}>
           <Route path="/" element={<PublicHomePage />} />
+          <Route path="/our-story" element={<OurStoryPage />} />
+          <Route path="/team" element={<MeetTeamPage />} />
+          <Route path="/testimonials" element={<TestimonialsPage />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/login" element={<LoginPage />} />
         </Route>

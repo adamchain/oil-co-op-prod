@@ -21,7 +21,7 @@ export default function PublicHomePage() {
         <div className="mkt-hero-bg" aria-hidden />
         <div className="mkt-hero-inner">
           <p className="mkt-hero-tag">Heating oil · Propane · and more</p>
-          <h1>Stop Overpaying for Heating Fuel.</h1>
+          <h1>Stop Over Paying for your Heating Fuel.</h1>
           <p>
             Citizen&apos;s Oil Co-op negotiates group pricing so members pay less for full-service heating oil and
             propane — with someone in your corner if something goes wrong.
@@ -62,14 +62,29 @@ export default function PublicHomePage() {
         </aside>
       </section>
 
-      <section className="mkt-towns" aria-label="Towns we serve">
-        <div className="mkt-towns-inner">
-          <span className="mkt-towns-label">Serving members across</span>
-          <div className="mkt-towns-list">
-            <span>Connecticut</span>
-            <span>Rhode Island</span>
-            <span>New York</span>
-            <span>Massachusetts</span>
+      <section className="mkt-section mkt-steps" id="how">
+        <div className="mkt-container">
+          <ul className="mkt-steps-list">
+            <li className="mkt-step">
+              <span className="mkt-step-num">1</span>
+              <h3>Join Citizen&apos;s Oil Co-op</h3>
+              <p>Apply online or call the office. Pay the application fee and annual membership.</p>
+            </li>
+            <li className="mkt-step">
+              <span className="mkt-step-num">2</span>
+              <h3>We connect you with a participating company</h3>
+              <p>We match you with a full-service supplier that serves your town under Co-op pricing.</p>
+            </li>
+            <li className="mkt-step">
+              <span className="mkt-step-num">3</span>
+              <h3>They call you to set up service</h3>
+              <p>Your supplier sets up the account, delivery, and billing — at the discounted Co-op rate.</p>
+            </li>
+          </ul>
+          <div className="mkt-hero-actions" style={{ justifyContent: "center", marginTop: "2rem" }}>
+            <Link to="/signup" className="mkt-btn mkt-btn-primary mkt-btn-lg">
+              Call today and join!
+            </Link>
           </div>
         </div>
       </section>
@@ -126,32 +141,33 @@ export default function PublicHomePage() {
         </div>
       </section>
 
-      <section className="mkt-section mkt-steps" id="how">
+      <section className="mkt-section" id="towns" style={{ background: "var(--color-bg-alt)" }}>
         <div className="mkt-container">
-          <h2 className="mkt-section-title">How does this work?</h2>
-          <p className="mkt-section-sub">Three simple steps.</p>
-          <ul className="mkt-steps-list">
-            <li className="mkt-step">
-              <span className="mkt-step-num">1</span>
-              <h3>Join Citizen&apos;s Oil Co-op</h3>
-              <p>Apply online or call the office. Pay the application fee and annual membership (see fees below).</p>
-            </li>
-            <li className="mkt-step">
-              <span className="mkt-step-num">2</span>
-              <h3>We connect you with a participating company</h3>
-              <p>We match you with a full-service supplier that serves your town under Co-op pricing.</p>
-            </li>
-            <li className="mkt-step">
-              <span className="mkt-step-num">3</span>
-              <h3>They call you to set up service</h3>
-              <p>Your supplier sets up the account, delivery, and billing — at the discounted Co-op rate.</p>
-            </li>
-          </ul>
-          <div className="mkt-hero-actions" style={{ justifyContent: "center", marginTop: "2rem" }}>
-            <Link to="/signup" className="mkt-btn mkt-btn-primary mkt-btn-lg">
-              Call today and join!
-            </Link>
+          <h2 className="mkt-section-title">Towns we serve</h2>
+          <p className="mkt-section-sub">
+            Members across four states. Not sure if we cover your town? Call and we&apos;ll confirm.
+          </p>
+          <div className="mkt-coverage">
+            <div className="mkt-coverage-card">
+              <h3>Connecticut</h3>
+              <p>Every town, statewide</p>
+            </div>
+            <div className="mkt-coverage-card">
+              <h3>Rhode Island</h3>
+              <p>Every town, statewide</p>
+            </div>
+            <div className="mkt-coverage-card">
+              <h3>Massachusetts</h3>
+              <p>Worcester, Norfolk &amp; Bristol counties</p>
+            </div>
+            <div className="mkt-coverage-card">
+              <h3>New York</h3>
+              <p>Westchester County</p>
+            </div>
           </div>
+          <p className="mkt-sync-note" style={{ textAlign: "center", marginTop: "1.5rem" }}>
+            Coverage shown is approximate — final town/region list to be confirmed by the office.
+          </p>
         </div>
       </section>
 
