@@ -1,55 +1,9 @@
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 /**
  * Citizen's Oil Co-op public marketing homepage.
  * Content aligned with oilco-op.com and org materials; fees/partners may change — verify with staff.
  */
-
-const slides = [
-  {
-    tag: "Heating oil",
-    title: "Start saving on heating oil",
-    desc: "Full-service heating oil at negotiated rates — we match you with a participating company in your area.",
-    cta: "Join the Co-op",
-    href: "/signup",
-  },
-  {
-    tag: "Electric",
-    title: "A great electric choice at competitive pricing",
-    desc: "We're working to bring members a new electricity offer. See the services section for the latest status.",
-    cta: "Read about electricity",
-    href: "#services",
-  },
-  {
-    tag: "Refer a friend",
-    title: "Refer a friend and save even more",
-    desc: "Refer five active members for lifetime membership with no annual dues. Individual referrals can earn seasonal rewards.",
-    cta: "Referral program",
-    href: "#membership",
-  },
-  {
-    tag: "Propane",
-    title: "Reliable propane for less",
-    desc: "Discounted propane pricing — often with perks like free tank rental. We connect you with a local participating supplier.",
-    cta: "Explore propane",
-    href: "#services",
-  },
-  {
-    tag: "Solar",
-    title: "Join the solar revolution",
-    desc: "Lock in savings on electricity with solar. Members who sign through the Co-op may qualify for a completion incentive.",
-    cta: "Learn about solar",
-    href: "#services",
-  },
-  {
-    tag: "Community",
-    title: "Power in numbers",
-    desc: "Our membership helps negotiate lower prices and gives us a voice when you need an advocate with your energy company.",
-    cta: "Community & Next Step",
-    href: "#community",
-  },
-];
 
 function ServiceDetails({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -61,54 +15,35 @@ function ServiceDetails({ title, children }: { title: string; children: React.Re
 }
 
 export default function PublicHomePage() {
-  const [i, setI] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => setI((n) => (n + 1) % slides.length), 6500);
-    return () => clearInterval(t);
-  }, []);
-
-  const s = slides[i];
-
   return (
     <>
       <section className="mkt-hero">
         <div className="mkt-hero-bg" aria-hidden />
         <div className="mkt-hero-inner">
-          <p className="mkt-hero-tag">{s.tag}</p>
-          <h1>{s.title}</h1>
-          <p>{s.desc}</p>
+          <p className="mkt-hero-tag">Heating oil · Propane · and more</p>
+          <h1>Stop Overpaying for Heating Fuel.</h1>
+          <p>
+            Citizen&apos;s Oil Co-op negotiates group pricing so members pay less for full-service heating oil and
+            propane — with someone in your corner if something goes wrong.
+          </p>
           <div className="mkt-hero-actions">
-            {s.href.startsWith("#") ? (
-              <a href={s.href} className="mkt-btn mkt-btn-primary">
-                {s.cta}
-              </a>
-            ) : (
-              <Link to={s.href} className="mkt-btn mkt-btn-primary">
-                {s.cta}
-              </Link>
-            )}
-            <a href="tel:8605616011" className="mkt-btn mkt-btn-ghost">
-              860-561-6011
+            <Link to="/signup" className="mkt-btn mkt-btn-primary mkt-btn-lg">
+              Join the Co-op
+            </Link>
+            <a href="tel:8605616011" className="mkt-btn mkt-btn-ghost mkt-btn-lg">
+              Call 860-561-6011
             </a>
           </div>
-          <div className="mkt-slide-dots">
-            {slides.map((_, idx) => (
-              <button
-                key={idx}
-                type="button"
-                className={idx === i ? "active" : ""}
-                aria-label={`Slide ${idx + 1}`}
-                onClick={() => setI(idx)}
-              />
-            ))}
-          </div>
-          <div className="mkt-anchor-list" aria-label="On this page">
-            <a href="/#about">About</a>
-            <a href="/#membership">Membership</a>
-            <a href="/#services">Services</a>
-            <a href="/#green">Going green</a>
-            <a href="/#community">Community</a>
-            <a href="/#contact">Contact</a>
+          <div className="mkt-hero-trust">
+            <span>
+              <strong>3,000+</strong> members
+            </span>
+            <span>
+              <strong>30+</strong> years negotiating
+            </span>
+            <span>
+              <strong>$250–$300</strong> typical seasonal savings
+            </span>
           </div>
         </div>
         <aside className="mkt-price-card" aria-live="polite">
@@ -127,6 +62,18 @@ export default function PublicHomePage() {
         </aside>
       </section>
 
+      <section className="mkt-towns" aria-label="Towns we serve">
+        <div className="mkt-towns-inner">
+          <span className="mkt-towns-label">Serving members across</span>
+          <div className="mkt-towns-list">
+            <span>Connecticut</span>
+            <span>Rhode Island</span>
+            <span>New York</span>
+            <span>Massachusetts</span>
+          </div>
+        </div>
+      </section>
+
       <section className="mkt-section mkt-about" id="about">
         <div className="mkt-container">
           <h2 className="mkt-section-title">Oil Co-op members pay less</h2>
@@ -137,21 +84,13 @@ export default function PublicHomePage() {
           <div className="mkt-split">
             <div className="mkt-prose">
               <p>
-                Through group purchasing, many members save on the order of <strong>$250–$300 per heating season</strong>
-                . The Co-op has published examples of roughly <strong>$500 per heating season</strong> vs. Connecticut
-                state averages for full-service oil at <strong>~900 gallons</strong>. Pricing is often roughly{" "}
-                <strong>40–60¢ per gallon</strong> below average posted prices, with total annual savings depending on
-                usage and market conditions.
+                Through group purchasing, members typically save <strong>$250–$300 a heating season</strong> — often{" "}
+                <strong>40–60¢ per gallon</strong> below average posted prices. And membership is{" "}
+                <strong>not a fixed-price lock-in</strong>: you keep full control of your service.
               </p>
               <p>
-                You join the Co-op, we identify a participating full-service company that fits your town and needs, and
-                that company contacts you to set up service at the Co-op&apos;s negotiated rate.{" "}
-                <strong>It&apos;s that easy.</strong>
-              </p>
-              <p>
-                Membership is <strong>not a lock-in contract</strong> for a fixed price — you keep control of your
-                service once you&apos;re set up with a supplier. Variable pricing has helped many families save in recent
-                markets.
+                Join the Co-op, we match you with a participating full-service company in your town, and they set you up
+                at the negotiated rate. <strong>It&apos;s that easy.</strong>
               </p>
               <Link to="/signup" className="mkt-btn mkt-btn-primary">
                 Join Citizen&apos;s Oil Co-op
@@ -176,23 +115,13 @@ export default function PublicHomePage() {
       </section>
 
       <section className="mkt-section" style={{ background: "var(--color-bg-alt)" }} id="story">
-        <div className="mkt-container mkt-prose" style={{ maxWidth: "720px", margin: "0 auto" }}>
+        <div className="mkt-container mkt-prose" style={{ maxWidth: "720px", margin: "0 auto", textAlign: "center" }}>
           <h2 className="mkt-section-title">Our story</h2>
           <p>
-            The Co-op began in <strong>1981</strong> in connection with a non-profit; when that organization wound down,
-            the founders continued the mission of fair pricing for Connecticut residents.{" "}
-            <strong>Citizen&apos;s Oil Co-op was incorporated in June 1992</strong> to unite heating oil consumers and
-            leverage purchasing power.
-          </p>
-          <p>
-            Family-owned and operated, the Co-op has grown to <strong>over 3,000 members</strong> across{" "}
-            <strong>every town in Connecticut and Rhode Island</strong>, with expansion into parts of{" "}
-            <strong>New York and Massachusetts</strong> (including much of Worcester, Norfolk, and Bristol counties in
-            MA and <strong>Westchester County, NY</strong>).
-          </p>
-          <p>
-            Today the Co-op also negotiates programs beyond oil — propane, bioheat, solar, audits, insurance, and more —
-            with the same focus: <strong>affordable, quality full-service energy</strong> and advocacy for members.
+            Founded in <strong>1981</strong> and incorporated in <strong>1992</strong>, Citizen&apos;s Oil Co-op is
+            family-owned and has grown to <strong>over 3,000 members</strong> across every town in Connecticut and Rhode
+            Island, plus parts of New York and Massachusetts. Same mission throughout:{" "}
+            <strong>affordable, quality full-service energy</strong> and a real advocate for members.
           </p>
         </div>
       </section>
@@ -200,7 +129,7 @@ export default function PublicHomePage() {
       <section className="mkt-section mkt-steps" id="how">
         <div className="mkt-container">
           <h2 className="mkt-section-title">How does this work?</h2>
-          <p className="mkt-section-sub">Three steps — same model featured on oilco-op.com.</p>
+          <p className="mkt-section-sub">Three simple steps.</p>
           <ul className="mkt-steps-list">
             <li className="mkt-step">
               <span className="mkt-step-num">1</span>
@@ -218,13 +147,18 @@ export default function PublicHomePage() {
               <p>Your supplier sets up the account, delivery, and billing — at the discounted Co-op rate.</p>
             </li>
           </ul>
+          <div className="mkt-hero-actions" style={{ justifyContent: "center", marginTop: "2rem" }}>
+            <Link to="/signup" className="mkt-btn mkt-btn-primary mkt-btn-lg">
+              Call today and join!
+            </Link>
+          </div>
         </div>
       </section>
 
       <section className="mkt-section mkt-about" id="membership">
         <div className="mkt-container">
           <h2 className="mkt-section-title">Membership</h2>
-          <p className="mkt-section-sub">Fees, delivery, referrals, and what membership does not mean.</p>
+          <p className="mkt-section-sub">Fees, delivery, and referrals.</p>
           <div className="mkt-split">
             <div className="mkt-prose">
               <h3 className="mkt-subhead">Costs &amp; fees</h3>
@@ -241,33 +175,24 @@ export default function PublicHomePage() {
                 </li>
               </ul>
               <p className="mkt-callout mkt-callout--muted" style={{ marginTop: "1rem" }}>
-                <strong>Online signup note:</strong> If you join through this app, charged amounts may follow your
-                configured payment system — confirm current published fees with the office.
+                <strong>Online signup note:</strong> confirm current published fees with the office.
               </p>
               <h3 className="mkt-subhead">Delivery</h3>
               <p>
-                Most participating companies use <strong>automatic delivery</strong>. Some areas may allow{" "}
-                <strong>will-call</strong> (you schedule with a few days&apos; notice) — ask the Co-op what&apos;s
-                available where you live.
-              </p>
-              <p>
-                If you leave the Co-op, you must <strong>end delivery arrangements with your oil or propane company</strong>{" "}
-                directly; the Co-op cannot cancel for you. You must also <strong>cancel membership</strong> with the Co-op
-                to stop renewals.
+                Most suppliers use <strong>automatic delivery</strong>; some areas offer <strong>will-call</strong>. If
+                you leave the Co-op, cancel delivery with your supplier and membership with the Co-op directly — we
+                can&apos;t cancel for you.
               </p>
               <h3 className="mkt-subhead">Referral program</h3>
               <p>
-                Refer <strong>five new active members</strong> and become a <strong>lifetime member</strong> with{" "}
-                <strong>no annual dues</strong>. Individual referrals may qualify for waived dues in an upcoming season
-                or promotional raffles (e.g. gift cards) when announced.
+                Refer <strong>five new active members</strong> and become a <strong>lifetime member</strong> with no
+                annual dues.
               </p>
               <div className="mkt-callout" style={{ marginTop: "1rem" }}>
                 <h3>The Next Step program</h3>
                 <p>
-                  Nonprofits and community groups can introduce the Co-op to their members. For each person who joins,
-                  the Co-op donates <strong>$10</strong> back to that organization (paid bi-annually when totals exceed
-                  $50 per period, otherwise carried forward).{" "}
-                  <strong>Next Step and the member referral program cannot be combined</strong> on the same signup.
+                  Community groups can introduce the Co-op to their members — the Co-op donates <strong>$10</strong> per
+                  new member back to the organization. (Can&apos;t be combined with the member referral program.)
                 </p>
               </div>
             </div>
@@ -275,8 +200,7 @@ export default function PublicHomePage() {
               <div className="mkt-callout">
                 <h3>We&apos;re on your side</h3>
                 <p className="mkt-prose" style={{ margin: 0 }}>
-                  Large membership means better contracts — and a voice when you need help with pricing, service
-                  contracts, or supplier issues.
+                  Large membership means better contracts — and a voice when you need help with pricing or your supplier.
                 </p>
               </div>
               <div className="mkt-pill-row">
@@ -292,7 +216,7 @@ export default function PublicHomePage() {
       <section className="mkt-section" id="services">
         <div className="mkt-container">
           <h2 className="mkt-section-title">Services</h2>
-          <p className="mkt-section-sub">Heat to insurance — details condensed from the Co-op&apos;s public materials.</p>
+          <p className="mkt-section-sub">From heat to insurance — tap any program for details.</p>
           <ul className="mkt-services-grid" style={{ marginBottom: "2rem" }}>
             <a href="#services">Heating oil</a>
             <a href="#services">Heating oil prices</a>
@@ -397,13 +321,9 @@ export default function PublicHomePage() {
               Going green
             </h2>
             <p className="mkt-prose">
-              <strong>Bioheat</strong> lowers emissions from oil heat. <strong>Home energy audits</strong> pinpoint
-              insulation and equipment upgrades that pay back over time. Together they reduce your carbon footprint
-              while keeping costs in check.
-            </p>
-            <p className="mkt-prose">
-              <strong>Solar</strong> adds on-site clean generation. Ask the Co-op how current incentives align with your
-              roof and usage.
+              <strong>Bioheat</strong> lowers emissions from oil heat, <strong>energy audits</strong> pinpoint upgrades
+              that pay back over time, and <strong>solar</strong> adds clean on-site generation. Ask the Co-op how
+              current incentives fit your home.
             </p>
           </div>
           <div className="mkt-callout mkt-callout--muted">
@@ -435,25 +355,23 @@ export default function PublicHomePage() {
       <section className="mkt-section" id="community">
         <div className="mkt-container">
           <h2 className="mkt-section-title">Community &amp; partnerships</h2>
-          <p className="mkt-section-sub">
-            The Co-op donates and sponsors local organizations — examples from public materials include:
-          </p>
+          <p className="mkt-section-sub">The Co-op gives back to local organizations, including:</p>
           <ul className="mkt-partners">
             <li>
               <strong>Roxbury Fuel Bank</strong>
-              Give-back per new member to support neighbors in need.
+              Give-back per new member for neighbors in need.
             </li>
             <li>
-              <strong>West Hartford Youth Basketball League (WHYBL)</strong>
-              Long-running team sponsorship and Next Step participation.
+              <strong>West Hartford Youth Basketball (WHYBL)</strong>
+              Team sponsorship and Next Step partner.
             </li>
             <li>
-              <strong>Buena Vista Property Owners Association</strong>
-              Neighborhood partnership for savings and fundraising.
+              <strong>Buena Vista Property Owners Assn.</strong>
+              Neighborhood savings and fundraising.
             </li>
             <li>
-              <strong>Connecticut Citizen Action Group (CCAG)</strong>
-              Historic ties — CCAG helped launch the Co-op; ongoing consumer-rights work.
+              <strong>Connecticut Citizen Action Group</strong>
+              Helped launch the Co-op; consumer-rights work.
             </li>
             <li>
               <strong>Friends of Fernridge Park</strong>
@@ -461,7 +379,7 @@ export default function PublicHomePage() {
             </li>
             <li>
               <strong>Our Lady of Calvary Retreat Center</strong>
-              Golf fundraiser support and donations over multiple years.
+              Multi-year golf fundraiser support.
             </li>
           </ul>
 
@@ -559,9 +477,7 @@ export default function PublicHomePage() {
             </Link>
           </div>
           <p className="mkt-sync-note">
-            This modern member portal connects to your organization&apos;s admin system (members, oil company assignment,
-            June billing, referrals, and reports). Public copy mirrors themes from{" "}
-            <a href="https://oilco-op.com/">oilco-op.com</a>; always confirm rates, fees, and offers with staff.
+            Confirm current rates, fees, and offers with the office.
           </p>
         </div>
       </section>

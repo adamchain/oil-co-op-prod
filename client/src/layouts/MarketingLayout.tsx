@@ -10,7 +10,7 @@ export default function MarketingLayout() {
   const [referrerEmail, setReferrerEmail] = useState("");
   const [friendName, setFriendName] = useState("");
   const [friendEmail, setFriendEmail] = useState("");
-  const logoSrc = "/logo.png";
+  const logoSrc = "/coop-logo.png";
 
   const close = () => setNavOpen(false);
   useEffect(() => {
@@ -43,21 +43,8 @@ export default function MarketingLayout() {
             <span />
           </button>
           <nav className={`mkt-nav ${navOpen ? "is-open" : ""}`}>
-            <a href="/#about" className={activeHash === "#about" ? "active" : ""} onClick={() => setHash("#about")}>
-              About
-            </a>
-            <a href="/#story" className={activeHash === "#story" ? "active" : ""} onClick={() => setHash("#story")}>
-              Our story
-            </a>
             <a href="/#how" className={activeHash === "#how" ? "active" : ""} onClick={() => setHash("#how")}>
               How it works
-            </a>
-            <a
-              href="/#membership"
-              className={activeHash === "#membership" ? "active" : ""}
-              onClick={() => setHash("#membership")}
-            >
-              Membership
             </a>
             <a
               href="/#services"
@@ -66,8 +53,12 @@ export default function MarketingLayout() {
             >
               Services
             </a>
-            <a href="/#green" className={activeHash === "#green" ? "active" : ""} onClick={() => setHash("#green")}>
-              Going green
+            <a
+              href="/#membership"
+              className={activeHash === "#membership" ? "active" : ""}
+              onClick={() => setHash("#membership")}
+            >
+              Membership
             </a>
             <a
               href="/#community"
