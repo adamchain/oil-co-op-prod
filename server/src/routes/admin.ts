@@ -481,6 +481,50 @@ router.put("/members/:id/referrer", async (req: AuthedRequest, res) => {
   res.json({ referral, referralsMade });
 });
 
+// Admin correction: edit an existing referral's credited date.
+router.patch("/referrals/:referralId", async (req: AuthedRequest, res) => {
+  const referralId = String(req.params.referralId);
+  if (!mongoose.isValidObjectId(referralId)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const parsed = z
+    .object({ creditedAt: z.string().min(1) })
+    .safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const creditedAt = new Date(parsed.data.creditedAt);
+  if (Number.isNaN(creditedAt.getTime())) {
+    res.status(400).json({ error: "Invalid creditedAt" });
+    return;
+  }
+  const referral = await Referral.findByIdAndUpdate(
+    referralId,
+    { creditedAt },
+    { new: true }
+  ).lean();
+  if (!referral || Array.isArray(referral)) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const referrerMemberId = (referral as unknown as { referrerMemberId: mongoose.Types.ObjectId }).referrerMemberId;
+  await logActivity(
+    referrerMemberId,
+    "referral_date_updated",
+    { referralId, creditedAt: creditedAt.toISOString(), adminId: req.userId },
+    new mongoose.Types.ObjectId(req.userId!)
+  );
+
+  // Return the referrer's refreshed "referrals made" list for convenience.
+  const referralsMade = await Referral.find({ referrerMemberId })
+    .sort({ creditedAt: -1 })
+    .populate("newMemberId", "firstName lastName email memberNumber")
+    .lean();
+  res.json({ referral, referralsMade });
+});
+
 router.get("/members/:id/email-merge-data", async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) {
     res.status(400).json({ error: "Invalid id" });

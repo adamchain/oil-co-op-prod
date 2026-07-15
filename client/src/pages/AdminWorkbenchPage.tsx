@@ -81,7 +81,7 @@ type BillingEvent = {
   paidDate?: string | null;
 };
 type Comm = { _id: string; channel: string; subject?: string; status: string; createdAt: string };
-type ReferralPerson = { firstName?: string; lastName?: string; email?: string; memberNumber?: string };
+type ReferralPerson = { _id?: string; firstName?: string; lastName?: string; email?: string; memberNumber?: string };
 type Referral = { referrerMemberId?: ReferralPerson };
 type ReferralMade = { _id: string; creditedAt?: string; newMemberId?: ReferralPerson };
 type NoteEntry = { _id?: string; text: string; createdAt: string; createdBy: string };
@@ -406,6 +406,11 @@ export default function AdminWorkbenchPage() {
   const [referrerQuery, setReferrerQuery] = useState("");
   const [referrerSaving, setReferrerSaving] = useState(false);
   const [referrerError, setReferrerError] = useState("");
+  // "Members they referred" admin edit controls.
+  const [referralAddOpen, setReferralAddOpen] = useState(false);
+  const [referralAddQuery, setReferralAddQuery] = useState("");
+  const [referralsMadeSaving, setReferralsMadeSaving] = useState(false);
+  const [referralsMadeError, setReferralsMadeError] = useState("");
 
   // Oil Company editing state
   const [editingOilCo, setEditingOilCo] = useState<OilCompany | null>(null);
@@ -467,6 +472,201 @@ export default function AdminWorkbenchPage() {
         <span>{title}</span>
         <span className="admin-wb-collapse-chevron" aria-hidden="true">{collapsed ? "+" : "−"}</span>
       </button>
+    );
+  }
+
+  // Shared "Referrals by member" block: view + full admin CRUD over the referral
+  // relationships. Rendered both on the Data Entry tab and the dedicated tab.
+  function renderReferralsByMember() {
+    const referrerName = referral?.referrerMemberId
+      ? `${referral.referrerMemberId.firstName || ""} ${referral.referrerMemberId.lastName || ""}`.trim() || "None"
+      : "None";
+    const referredIds = new Set(
+      referralsMade.map((r) => r.newMemberId?._id).filter(Boolean) as string[]
+    );
+    return (
+      <>
+        <div className="admin-card admin-workbench-section">
+          <div className="admin-toolbar" style={{ justifyContent: "space-between", marginBottom: "0.75rem" }}>
+            <h2 style={{ margin: 0 }}>Referred by</h2>
+            {!referrerEditing && (
+              <div style={{ display: "flex", gap: "0.5rem" }}>
+                <button type="button" className="admin-btn" onClick={() => { setReferrerEditing(true); setReferrerError(""); }}>
+                  {referral?.referrerMemberId ? "Change" : "Set referrer"}
+                </button>
+                {referral?.referrerMemberId && (
+                  <button type="button" className="admin-btn" disabled={referrerSaving} onClick={() => void saveReferrer(null)}>
+                    Clear
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="admin-table-wrap">
+            <table className="admin-table">
+              <thead><tr><th>Referrer</th><th>Member #</th><th>Email</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td>{referrerName}</td>
+                  <td>{referral?.referrerMemberId?.memberNumber || "—"}</td>
+                  <td>{referral?.referrerMemberId?.email || "—"}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          {referrerError && <p className="admin-error" style={{ marginTop: "0.5rem" }}>{referrerError}</p>}
+          {referrerEditing && (
+            <div style={{ marginTop: "0.75rem" }}>
+              <div className="admin-toolbar" style={{ marginBottom: "0.5rem" }}>
+                <input
+                  className="admin-input"
+                  autoFocus
+                  placeholder="Search members by name, member #, or email…"
+                  value={referrerQuery}
+                  onChange={(e) => setReferrerQuery(e.target.value)}
+                  style={{ flex: 1 }}
+                />
+                <button type="button" className="admin-btn" onClick={() => { setReferrerEditing(false); setReferrerQuery(""); }}>
+                  Cancel
+                </button>
+              </div>
+              {referrerQuery.trim().length >= 2 && (
+                <div className="admin-table-wrap" style={{ maxHeight: "260px", overflowY: "auto" }}>
+                  <table className="admin-table">
+                    <tbody>
+                      {(() => {
+                        const needle = referrerQuery.trim().toLowerCase();
+                        const matches = members
+                          .filter((m) => m._id !== current?._id)
+                          .filter((m) => {
+                            const hay = `${m.firstName} ${m.lastName} ${m.memberNumber || ""} ${m.email}`.toLowerCase();
+                            return hay.includes(needle);
+                          })
+                          .slice(0, 25);
+                        if (matches.length === 0) {
+                          return <tr><td className="admin-meta">No matches</td></tr>;
+                        }
+                        return matches.map((m) => (
+                          <tr key={m._id} style={{ cursor: "pointer" }} onClick={() => { if (!referrerSaving) void saveReferrer(m._id); }}>
+                            <td>{`${m.firstName || ""} ${m.lastName || ""}`.trim() || "—"}</td>
+                            <td>{m.memberNumber || "—"}</td>
+                            <td>{m.email}</td>
+                          </tr>
+                        ));
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="admin-card admin-workbench-section">
+          <div className="admin-toolbar" style={{ justifyContent: "space-between", marginBottom: "0.75rem" }}>
+            <h2 style={{ margin: 0 }}>Members they referred ({referralsMade.length})</h2>
+            {!referralAddOpen && (
+              <button
+                type="button"
+                className="admin-btn"
+                disabled={referralsMadeSaving}
+                onClick={() => { setReferralAddOpen(true); setReferralsMadeError(""); setReferralAddQuery(""); }}
+              >
+                + Add referral
+              </button>
+            )}
+          </div>
+          {referralsMadeError && <p className="admin-error" style={{ marginBottom: "0.5rem" }}>{referralsMadeError}</p>}
+          {referralAddOpen && (
+            <div style={{ marginBottom: "0.75rem" }}>
+              <div className="admin-toolbar" style={{ marginBottom: "0.5rem" }}>
+                <input
+                  className="admin-input"
+                  autoFocus
+                  placeholder="Search members to credit as referred by this member…"
+                  value={referralAddQuery}
+                  onChange={(e) => setReferralAddQuery(e.target.value)}
+                  style={{ flex: 1 }}
+                />
+                <button type="button" className="admin-btn" onClick={() => { setReferralAddOpen(false); setReferralAddQuery(""); }}>
+                  Cancel
+                </button>
+              </div>
+              {referralAddQuery.trim().length >= 2 && (
+                <div className="admin-table-wrap" style={{ maxHeight: "260px", overflowY: "auto" }}>
+                  <table className="admin-table">
+                    <tbody>
+                      {(() => {
+                        const needle = referralAddQuery.trim().toLowerCase();
+                        const matches = members
+                          .filter((m) => m._id !== current?._id && !referredIds.has(m._id))
+                          .filter((m) => {
+                            const hay = `${m.firstName} ${m.lastName} ${m.memberNumber || ""} ${m.email}`.toLowerCase();
+                            return hay.includes(needle);
+                          })
+                          .slice(0, 25);
+                        if (matches.length === 0) {
+                          return <tr><td className="admin-meta">No matches</td></tr>;
+                        }
+                        return matches.map((m) => (
+                          <tr key={m._id} style={{ cursor: "pointer" }} onClick={() => { if (!referralsMadeSaving) void setReferralMade(m._id, true); }}>
+                            <td>{`${m.firstName || ""} ${m.lastName || ""}`.trim() || "—"}</td>
+                            <td>{m.memberNumber || "—"}</td>
+                            <td>{m.email}</td>
+                          </tr>
+                        ));
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+          <div className="admin-table-wrap">
+            <table className="admin-table">
+              <thead><tr><th>Member</th><th>Member #</th><th>Email</th><th>Joined</th><th></th></tr></thead>
+              <tbody>
+                {referralsMade.length === 0 ? (
+                  <tr><td colSpan={5} className="admin-meta">No referrals yet</td></tr>
+                ) : (
+                  referralsMade.map((r) => (
+                    <tr key={r._id}>
+                      <td>{r.newMemberId ? `${r.newMemberId.firstName || ""} ${r.newMemberId.lastName || ""}`.trim() || "—" : "—"}</td>
+                      <td>{r.newMemberId?.memberNumber || "—"}</td>
+                      <td>{r.newMemberId?.email || "—"}</td>
+                      <td>
+                        <input
+                          className="admin-input"
+                          type="date"
+                          style={{ width: "150px" }}
+                          disabled={referralsMadeSaving}
+                          value={r.creditedAt ? new Date(r.creditedAt).toISOString().slice(0, 10) : ""}
+                          onChange={(e) => { if (e.target.value) void saveReferralDate(r._id, e.target.value); }}
+                        />
+                      </td>
+                      <td>
+                        <button
+                          type="button"
+                          className="admin-btn admin-btn-ghost"
+                          disabled={referralsMadeSaving || !r.newMemberId?._id}
+                          onClick={() => {
+                            const name = r.newMemberId ? `${r.newMemberId.firstName || ""} ${r.newMemberId.lastName || ""}`.trim() : "this member";
+                            if (r.newMemberId?._id && window.confirm(`Remove ${name || "this member"} from referrals made by this member?`)) {
+                              void setReferralMade(r.newMemberId._id, false);
+                            }
+                          }}
+                        >
+                          Remove
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </>
     );
   }
 
@@ -565,6 +765,57 @@ export default function AdminWorkbenchPage() {
       setReferrerError(e instanceof Error ? e.message : "Update failed");
     } finally {
       setReferrerSaving(false);
+    }
+  }
+
+  // Reload the current member's referral data (used after editing "referrals made").
+  async function reloadCurrentReferrals() {
+    if (!token || !current) return;
+    const r = await api<{ referral: Referral | null; referralsMade?: ReferralMade[] }>(
+      `/api/admin/members/${current._id}`,
+      { token }
+    );
+    setReferral(r.referral || null);
+    setReferralsMade(r.referralsMade || []);
+  }
+
+  // Admin correction: manually add a member to the current member's "referrals made" list,
+  // or remove one (referrerMemberId=null on that member).
+  async function setReferralMade(newMemberId: string, add: boolean) {
+    if (!token || !current) return;
+    setReferralsMadeSaving(true);
+    setReferralsMadeError("");
+    try {
+      await api(
+        `/api/admin/members/${newMemberId}/referrer`,
+        { method: "PUT", token, body: JSON.stringify({ referrerMemberId: add ? current._id : null }) }
+      );
+      await reloadCurrentReferrals();
+      setReferralAddOpen(false);
+      setReferralAddQuery("");
+    } catch (e) {
+      setReferralsMadeError(e instanceof Error ? e.message : "Update failed");
+    } finally {
+      setReferralsMadeSaving(false);
+    }
+  }
+
+  // Admin correction: edit an existing referral's credited date.
+  async function saveReferralDate(referralId: string, creditedAt: string) {
+    if (!token || !creditedAt) return;
+    setReferralsMadeSaving(true);
+    setReferralsMadeError("");
+    try {
+      const r = await api<{ referralsMade?: ReferralMade[] }>(
+        `/api/admin/referrals/${referralId}`,
+        { method: "PATCH", token, body: JSON.stringify({ creditedAt }) }
+      );
+      if (r.referralsMade) setReferralsMade(r.referralsMade);
+      else await reloadCurrentReferrals();
+    } catch (e) {
+      setReferralsMadeError(e instanceof Error ? e.message : "Update failed");
+    } finally {
+      setReferralsMadeSaving(false);
     }
   }
 
@@ -2068,6 +2319,9 @@ export default function AdminWorkbenchPage() {
                   </div>
                 </div>
               </div>
+              <div className="admin-workbench-data-entry" style={{ marginTop: "1rem" }}>
+                {renderReferralsByMember()}
+              </div>
               </>)}
             </div>
 
@@ -2548,104 +2802,7 @@ export default function AdminWorkbenchPage() {
 
         {activeTab === "REFERRALS BY MEMBER" && (
           <div className="admin-workbench-data-entry">
-            <div className="admin-card admin-workbench-section">
-              <div className="admin-toolbar" style={{ justifyContent: "space-between", marginBottom: "0.75rem" }}>
-                <h2 style={{ margin: 0 }}>Referred by</h2>
-                {!referrerEditing && (
-                  <div style={{ display: "flex", gap: "0.5rem" }}>
-                    <button type="button" className="admin-btn" onClick={() => { setReferrerEditing(true); setReferrerError(""); }}>
-                      {referral?.referrerMemberId ? "Change" : "Set referrer"}
-                    </button>
-                    {referral?.referrerMemberId && (
-                      <button type="button" className="admin-btn" disabled={referrerSaving} onClick={() => void saveReferrer(null)}>
-                        Clear
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-              <div className="admin-table-wrap">
-                <table className="admin-table">
-                  <thead><tr><th>Referrer</th><th>Member #</th><th>Email</th></tr></thead>
-                  <tbody>
-                    <tr>
-                      <td>{referral?.referrerMemberId ? `${referral.referrerMemberId.firstName || ""} ${referral.referrerMemberId.lastName || ""}`.trim() || "None" : "None"}</td>
-                      <td>{referral?.referrerMemberId?.memberNumber || "—"}</td>
-                      <td>{referral?.referrerMemberId?.email || "—"}</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-              {referrerError && <p className="admin-error" style={{ marginTop: "0.5rem" }}>{referrerError}</p>}
-              {referrerEditing && (
-                <div style={{ marginTop: "0.75rem" }}>
-                  <div className="admin-toolbar" style={{ marginBottom: "0.5rem" }}>
-                    <input
-                      className="admin-input"
-                      autoFocus
-                      placeholder="Search members by name, member #, or email…"
-                      value={referrerQuery}
-                      onChange={(e) => setReferrerQuery(e.target.value)}
-                      style={{ flex: 1 }}
-                    />
-                    <button type="button" className="admin-btn" onClick={() => { setReferrerEditing(false); setReferrerQuery(""); }}>
-                      Cancel
-                    </button>
-                  </div>
-                  {referrerQuery.trim().length >= 2 && (
-                    <div className="admin-table-wrap" style={{ maxHeight: "260px", overflowY: "auto" }}>
-                      <table className="admin-table">
-                        <tbody>
-                          {(() => {
-                            const needle = referrerQuery.trim().toLowerCase();
-                            const matches = members
-                              .filter((m) => m._id !== current?._id)
-                              .filter((m) => {
-                                const hay = `${m.firstName} ${m.lastName} ${m.memberNumber || ""} ${m.email}`.toLowerCase();
-                                return hay.includes(needle);
-                              })
-                              .slice(0, 25);
-                            if (matches.length === 0) {
-                              return <tr><td className="admin-meta">No matches</td></tr>;
-                            }
-                            return matches.map((m) => (
-                              <tr key={m._id} style={{ cursor: "pointer" }} onClick={() => { if (!referrerSaving) void saveReferrer(m._id); }}>
-                                <td>{`${m.firstName || ""} ${m.lastName || ""}`.trim() || "—"}</td>
-                                <td>{m.memberNumber || "—"}</td>
-                                <td>{m.email}</td>
-                              </tr>
-                            ));
-                          })()}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="admin-card admin-workbench-section">
-              <h2>Members they referred ({referralsMade.length})</h2>
-              <div className="admin-table-wrap">
-                <table className="admin-table">
-                  <thead><tr><th>Member</th><th>Member #</th><th>Email</th><th>Joined</th></tr></thead>
-                  <tbody>
-                    {referralsMade.length === 0 ? (
-                      <tr><td colSpan={4} className="admin-meta">No referrals yet</td></tr>
-                    ) : (
-                      referralsMade.map((r) => (
-                        <tr key={r._id}>
-                          <td>{r.newMemberId ? `${r.newMemberId.firstName || ""} ${r.newMemberId.lastName || ""}`.trim() || "—" : "—"}</td>
-                          <td>{r.newMemberId?.memberNumber || "—"}</td>
-                          <td>{r.newMemberId?.email || "—"}</td>
-                          <td>{r.creditedAt ? new Date(r.creditedAt).toLocaleDateString() : "—"}</td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            {renderReferralsByMember()}
           </div>
         )}
 
