@@ -1,177 +1,81 @@
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { PriceCard, StepsSection, TownsSection, FuelCards, HomeBody } from "./homeSections";
+import {
+  StepsSection,
+  TownsSection,
+  HomeBody,
+  ValueBand,
+  SavingsSection,
+  WhyChooseSection,
+  TestimonialsBand,
+  FinalCtaBand,
+  ImageSlot,
+} from "./homeSections";
 
 /**
  * Citizen's Oil Co-op public marketing homepage.
- * Ships three switchable layout options (A/B/C) so staff can compare directions;
- * a floating switcher persists the choice. Content sections are shared across all three.
+ * A single, settled layout aligned with the client's reference design:
+ * split hero → value band → how it works → real savings → why choose →
+ * coverage → detailed content → testimonials → closing CTA.
+ * Photography drops into the wired <ImageSlot> placeholders.
  */
 
-type LayoutKey = "a" | "b" | "c";
-
-const LAYOUTS: { key: LayoutKey; label: string; note: string }[] = [
-  { key: "a", label: "Streamlined", note: "Split hero · price card" },
-  { key: "b", label: "Bold Banner", note: "Green banner · fuel cards" },
-  { key: "c", label: "Minimal", note: "Big centered headline" },
-];
-
-/* ---------- Hero variants ---------- */
-
-function HeroClassic() {
+function Hero() {
   return (
-    <section className="mkt-hero">
+    <section className="mkt-hero mkt-hero--pro">
       <div className="mkt-hero-bg" aria-hidden />
       <div className="mkt-hero-inner">
         <p className="mkt-hero-tag">Heating oil · Propane · and more</p>
-        <h1>Stop Over Paying for your Heating Fuel.</h1>
+        <h1>Stop overpaying for heating oil &amp; propane.</h1>
         <p>
-          Citizen&apos;s Oil Co-op negotiates group pricing so members pay less for full-service heating oil and propane
-          — with someone in your corner if something goes wrong.
+          Join the region&apos;s trusted buyers&apos; club and receive discounted pricing from local, full-service
+          heating companies — with someone in your corner if something goes wrong.
         </p>
         <div className="mkt-hero-actions">
           <Link to="/signup" className="mkt-btn mkt-btn-primary mkt-btn-lg">
-            Join the Co-op
+            Become a member
           </Link>
-          <a href="tel:8605616011" className="mkt-btn mkt-btn-ghost mkt-btn-lg">
-            Call 860-561-6011
-          </a>
-        </div>
-        <div className="mkt-hero-trust">
-          <span>
-            <strong>3,000+</strong> members
-          </span>
-          <span>
-            <strong>30+</strong> years negotiating
-          </span>
-          <span>
-            <strong>$250–$300</strong> typical seasonal savings
-          </span>
-        </div>
-      </div>
-      <PriceCard />
-    </section>
-  );
-}
-
-function HeroBanner() {
-  return (
-    <section className="mkt-hero-banner">
-      <div className="mkt-hero-banner-inner">
-        <img src="/coop-logo.png" alt="Citizen's Oil Co-op" className="mkt-hero-banner-logo" />
-        <p className="mkt-hero-banner-tag">Citizen&apos;s Oil Co-op</p>
-        <h1>Stop Over Paying for your Heating Fuel.</h1>
-        <p>Group-negotiated pricing on full-service heating oil and propane across CT, RI, NY &amp; MA.</p>
-        <div className="mkt-hero-actions" style={{ justifyContent: "center" }}>
-          <Link to="/signup" className="mkt-btn mkt-btn-lg mkt-btn-on-accent">
-            Join the Co-op
-          </Link>
-          <a href="tel:8605616011" className="mkt-btn mkt-btn-lg mkt-btn-ghost-light">
-            Call 860-561-6011
-          </a>
-        </div>
-        <div className="mkt-hero-banner-price">
-          <span className="mkt-hero-banner-price-label">Average heating oil price</span>
-          <span className="mkt-hero-banner-price-value">$4.899</span>
-          <span className="mkt-hero-banner-price-note">week of 03/30/26</span>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function HeroMinimal() {
-  return (
-    <section className="mkt-hero-minimal">
-      <div className="mkt-hero-minimal-inner">
-        <p className="mkt-hero-tag">Heating oil · Propane · and more</p>
-        <h1>Stop Over Paying for your Heating Fuel.</h1>
-        <p>Members across CT, RI, NY &amp; MA save with group-negotiated, full-service pricing.</p>
-        <div className="mkt-hero-actions" style={{ justifyContent: "center" }}>
-          <Link to="/signup" className="mkt-btn mkt-btn-primary mkt-btn-lg">
-            Join the Co-op
-          </Link>
-          <a href="tel:8605616011" className="mkt-btn mkt-btn-ghost mkt-btn-lg">
-            Call 860-561-6011
-          </a>
-        </div>
-        <div className="mkt-hero-minimal-price">
-          <strong>$4.899</strong> avg. heating oil price · week of 03/30/26
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ---------- Switcher ---------- */
-
-function readInitialLayout(): LayoutKey {
-  const fromUrl = new URLSearchParams(window.location.search).get("layout");
-  if (fromUrl === "a" || fromUrl === "b" || fromUrl === "c") return fromUrl;
-  const stored = window.localStorage.getItem("coop_layout");
-  if (stored === "a" || stored === "b" || stored === "c") return stored;
-  return "a";
-}
-
-function LayoutSwitcher({ value, onChange }: { value: LayoutKey; onChange: (k: LayoutKey) => void }) {
-  return (
-    <div className="mkt-layout-switch" role="group" aria-label="Preview layout options">
-      <span className="mkt-layout-switch-label">Layout preview</span>
-      <div className="mkt-layout-switch-btns">
-        {LAYOUTS.map((l) => (
-          <button
-            key={l.key}
-            type="button"
-            className={l.key === value ? "active" : ""}
-            onClick={() => onChange(l.key)}
-            title={l.note}
+          <a
+            href="https://oilco-op.com/"
+            className="mkt-btn mkt-btn-ghost mkt-btn-lg"
+            target="_blank"
+            rel="noopener noreferrer"
           >
-            {l.label}
-          </button>
-        ))}
+            See today&apos;s pricing
+          </a>
+        </div>
+        <p className="mkt-hero-check">
+          <span className="mkt-check-badge" aria-hidden>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+              <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </span>
+          Over 3,000 families across CT, RI, NY &amp; MA are already saving.
+        </p>
       </div>
-    </div>
+      <div className="mkt-hero-media">
+        <ImageSlot
+          src="/site/truck.jpg"
+          alt="A heating-oil delivery truck at a member's home"
+          label="Photo: heating-oil delivery at a member's home"
+          className="mkt-img-slot--hero"
+        />
+      </div>
+    </section>
   );
 }
-
-/* ---------- Page ---------- */
 
 export default function PublicHomePage() {
-  const [layout, setLayout] = useState<LayoutKey>(readInitialLayout);
-
-  useEffect(() => {
-    window.localStorage.setItem("coop_layout", layout);
-    window.scrollTo({ top: 0 });
-  }, [layout]);
-
   return (
     <>
-      {layout === "a" && (
-        <>
-          <HeroClassic />
-          <StepsSection />
-          <TownsSection />
-        </>
-      )}
-      {layout === "b" && (
-        <>
-          <HeroBanner />
-          <FuelCards />
-          <StepsSection />
-          <TownsSection />
-        </>
-      )}
-      {layout === "c" && (
-        <>
-          <HeroMinimal />
-          <TownsSection />
-          <StepsSection />
-        </>
-      )}
-
+      <Hero />
+      <ValueBand />
+      <StepsSection />
+      <SavingsSection />
+      <WhyChooseSection />
+      <TownsSection />
       <HomeBody />
-
-      <LayoutSwitcher value={layout} onChange={setLayout} />
+      <TestimonialsBand />
+      <FinalCtaBand />
     </>
   );
 }

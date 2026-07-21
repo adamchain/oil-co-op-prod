@@ -74,20 +74,23 @@ export default function MarketingLayout() {
             >
               Contact
             </a>
+            <a href="tel:8605616011" className="mkt-nav-phone" onClick={close}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+                <path d="M5 4h3l1.5 4-2 1.5a11 11 0 0 0 5 5l1.5-2 4 1.5V19a2 2 0 0 1-2.2 2A16 16 0 0 1 4 6.2 2 2 0 0 1 6 4" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+              860-561-6011
+            </a>
             {!member ? (
               <>
-                <Link to="/signup" className="mkt-nav-cta" onClick={close}>
-                  Join the Co-op
-                </Link>
                 <Link to="/login" onClick={close}>
                   Member sign in
+                </Link>
+                <Link to="/signup" className="mkt-btn mkt-btn-primary mkt-nav-btn" onClick={close}>
+                  Become a member
                 </Link>
               </>
             ) : (
               <>
-                <Link to="/account" className="mkt-nav-cta" onClick={close}>
-                  My account
-                </Link>
                 <button
                   type="button"
                   className="mkt-btn mkt-btn-ghost"
@@ -99,6 +102,9 @@ export default function MarketingLayout() {
                 >
                   Sign out
                 </button>
+                <Link to="/account" className="mkt-btn mkt-btn-primary mkt-nav-btn" onClick={close}>
+                  My account
+                </Link>
               </>
             )}
           </nav>
