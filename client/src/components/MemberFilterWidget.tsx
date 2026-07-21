@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-export type FilterFieldType = "text" | "date" | "boolean" | "enum" | "ref";
+export type FilterFieldType = "text" | "number" | "date" | "boolean" | "enum" | "ref";
 
 export type FilterOperator =
   | "contains"
@@ -14,7 +14,11 @@ export type FilterOperator =
   | "is_true"
   | "is_false"
   | "is"
-  | "is_not";
+  | "is_not"
+  | "gt"
+  | "gte"
+  | "lt"
+  | "lte";
 
 export type FilterFieldOption = { value: string; label: string };
 
@@ -85,6 +89,7 @@ export const STATIC_FILTER_FIELDS: FilterFieldDef[] = [
       { value: "OTHER", label: "OTHER" },
     ],
   },
+  { key: "referralCount", label: "Total Referred", type: "number", group: "Status" },
 
   // Oil
   { key: "oilCompanyId._id", label: "Oil Company", type: "ref", group: "Oil" },
@@ -209,6 +214,8 @@ export function operatorsForType(type: FilterFieldType): FilterOperator[] {
   switch (type) {
     case "text":
       return ["contains", "equals", "starts_with", "is_empty", "is_not_empty"];
+    case "number":
+      return ["equals", "gte", "lte", "gt", "lt"];
     case "date":
       return ["on", "before", "after", "is_empty", "is_not_empty"];
     case "boolean":
@@ -234,6 +241,10 @@ export function operatorLabel(op: FilterOperator): string {
     case "is_false": return "is unchecked";
     case "is": return "is";
     case "is_not": return "is not";
+    case "gt": return "greater than";
+    case "gte": return "at least";
+    case "lt": return "less than";
+    case "lte": return "at most";
   }
 }
 
@@ -292,6 +303,18 @@ export function evaluateFilter(
       if (filter.operator === "contains") return target ? text.includes(target) : true;
       if (filter.operator === "equals") return text === target;
       if (filter.operator === "starts_with") return target ? text.startsWith(target) : true;
+      return false;
+    }
+    case "number": {
+      const target = Number(String(filter.value).trim());
+      if (filter.value === "" || Number.isNaN(target)) return true;
+      const value = empty ? 0 : Number(raw);
+      if (Number.isNaN(value)) return false;
+      if (filter.operator === "equals") return value === target;
+      if (filter.operator === "gt") return value > target;
+      if (filter.operator === "gte") return value >= target;
+      if (filter.operator === "lt") return value < target;
+      if (filter.operator === "lte") return value <= target;
       return false;
     }
     case "boolean": {
@@ -746,7 +769,7 @@ export function MemberFilterWidget({ filters, onFiltersChange, fields }: Props) 
                     </select>
                   ) : showValue ? (
                     <input
-                      type={def?.type === "date" ? "date" : "text"}
+                      type={def?.type === "date" ? "date" : def?.type === "number" ? "number" : "text"}
                       value={f.value}
                       onChange={(e) => updateFilter(f.id, { value: e.target.value })}
                       placeholder="Value"

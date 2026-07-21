@@ -404,6 +404,19 @@ router.get("/members", async (req, res) => {
   } else if (tokens.length > 1) {
     members = members.slice(0, 1000);
   }
+
+  // Attach each member's total number of referrals made (referrerMemberId === member._id),
+  // so the workbench can display, sort, and filter by "Total Referred".
+  const memberIds = members.map((m) => m._id);
+  const referralCounts = await Referral.aggregate<{ _id: mongoose.Types.ObjectId; count: number }>([
+    { $match: { referrerMemberId: { $in: memberIds } } },
+    { $group: { _id: "$referrerMemberId", count: { $sum: 1 } } },
+  ]);
+  const referralCountByMember = new Map(referralCounts.map((r) => [String(r._id), r.count]));
+  for (const m of members) {
+    (m as Record<string, unknown>).referralCount = referralCountByMember.get(String(m._id)) || 0;
+  }
+
   res.json({ members });
 });
 

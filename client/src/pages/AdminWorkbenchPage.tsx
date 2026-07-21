@@ -63,6 +63,7 @@ type Member = {
   createdAt?: string;
   oilCompanyId?: { _id: string; name: string } | null;
   legacyProfile?: Record<string, unknown>;
+  referralCount?: number;
 };
 
 type OilCompany = { _id: string; name: string; contactEmail?: string; contactPhone?: string; notes?: string; active?: boolean };
@@ -82,7 +83,7 @@ type BillingEvent = {
 };
 type Comm = { _id: string; channel: string; subject?: string; status: string; createdAt: string };
 type ReferralPerson = { _id?: string; firstName?: string; lastName?: string; email?: string; memberNumber?: string };
-type Referral = { referrerMemberId?: ReferralPerson };
+type Referral = { referrerMemberId?: ReferralPerson; creditedAt?: string };
 type ReferralMade = { _id: string; creditedAt?: string; newMemberId?: ReferralPerson };
 type NoteEntry = { _id?: string; text: string; createdAt: string; createdBy: string };
 type DeliveryHistoryRow = {
@@ -317,6 +318,7 @@ const WORKSHEET_COLUMNS: WorksheetColumn[] = [
   { key: "howJoined", label: "How Joined", group: "Status", get: (m) => lpStr(m, "howJoined") },
   { key: "referralSource", label: "Referral Source", group: "Status", get: (m) => lpStr(m, "referralSource") },
   { key: "referredById", label: "Referred By ID", group: "Status", get: (m) => lpStr(m, "referredById") },
+  { key: "referralCount", label: "Total Referred", group: "Status", get: (m) => String(m.referralCount ?? 0) },
   { key: "dateReferred", label: "Date Referred", group: "Status", get: (m) => lpStr(m, "dateReferred") },
   { key: "callBack", label: "Call Back", group: "Status", get: (m) => lpStr(m, "callBack") },
   { key: "callBackDate", label: "Call Back Date", group: "Status", get: (m) => lpStr(m, "callBackDate") },
@@ -504,12 +506,16 @@ export default function AdminWorkbenchPage() {
           </div>
           <div className="admin-table-wrap">
             <table className="admin-table">
-              <thead><tr><th>Referrer</th><th>Member #</th><th>Email</th></tr></thead>
+              <thead><tr><th>Referrer</th><th>Member #</th><th>Date Referred</th></tr></thead>
               <tbody>
                 <tr>
                   <td>{referrerName}</td>
                   <td>{referral?.referrerMemberId?.memberNumber || "—"}</td>
-                  <td>{referral?.referrerMemberId?.email || "—"}</td>
+                  <td>
+                    {referral?.referrerMemberId && referral?.creditedAt
+                      ? new Date(referral.creditedAt).toISOString().slice(0, 10)
+                      : "—"}
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -624,16 +630,15 @@ export default function AdminWorkbenchPage() {
           )}
           <div className="admin-table-wrap">
             <table className="admin-table">
-              <thead><tr><th>Member</th><th>Member #</th><th>Email</th><th>Joined</th><th></th></tr></thead>
+              <thead><tr><th>Member</th><th>Member #</th><th>Date Referred</th><th></th></tr></thead>
               <tbody>
                 {referralsMade.length === 0 ? (
-                  <tr><td colSpan={5} className="admin-meta">No referrals yet</td></tr>
+                  <tr><td colSpan={4} className="admin-meta">No referrals yet</td></tr>
                 ) : (
                   referralsMade.map((r) => (
                     <tr key={r._id}>
                       <td>{r.newMemberId ? `${r.newMemberId.firstName || ""} ${r.newMemberId.lastName || ""}`.trim() || "—" : "—"}</td>
                       <td>{r.newMemberId?.memberNumber || "—"}</td>
-                      <td>{r.newMemberId?.email || "—"}</td>
                       <td>
                         <input
                           className="admin-input"
