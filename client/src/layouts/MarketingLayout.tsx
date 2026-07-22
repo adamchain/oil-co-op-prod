@@ -47,32 +47,25 @@ export default function MarketingLayout() {
               How it works
             </a>
             <a
-              href="/#services"
-              className={activeHash === "#services" ? "active" : ""}
-              onClick={() => setHash("#services")}
+              href="/#savings"
+              className={activeHash === "#savings" ? "active" : ""}
+              onClick={() => setHash("#savings")}
             >
-              Services
+              Savings
             </a>
             <a
-              href="/#membership"
-              className={activeHash === "#membership" ? "active" : ""}
-              onClick={() => setHash("#membership")}
+              href="/#why"
+              className={activeHash === "#why" ? "active" : ""}
+              onClick={() => setHash("#why")}
             >
-              Membership
+              Why us
             </a>
             <a
-              href="/#community"
-              className={activeHash === "#community" ? "active" : ""}
-              onClick={() => setHash("#community")}
+              href="/#towns"
+              className={activeHash === "#towns" ? "active" : ""}
+              onClick={() => setHash("#towns")}
             >
-              Community
-            </a>
-            <a
-              href="/#contact"
-              className={activeHash === "#contact" ? "active" : ""}
-              onClick={() => setHash("#contact")}
-            >
-              Contact
+              Coverage
             </a>
             <a href="tel:8605616011" className="mkt-nav-phone" onClick={close}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>

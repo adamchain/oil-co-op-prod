@@ -37,11 +37,12 @@ export function PriceCard() {
 /** Three sign-up steps + "Call today and join!" */
 export function StepsSection() {
   return (
-    <section className="mkt-section mkt-steps" id="how">
-      <div className="mkt-container">
-        <p className="mkt-eyebrow">How it works</p>
-        <h2 className="mkt-section-title">Saving starts in three simple steps</h2>
-        <div className="mkt-rule" aria-hidden />
+    <section className="mkt-steps" id="how">
+      <div className="mkt-steps-banner">
+        <p className="mkt-eyebrow mkt-eyebrow-light">How it works</p>
+        <h2>Saving starts in three simple steps</h2>
+      </div>
+      <div className="mkt-container mkt-steps-body">
         <ul className="mkt-steps-list">
           <li className="mkt-step">
             <span className="mkt-step-num">1</span>
@@ -144,8 +145,8 @@ export function HomeBody() {
           <div className="mkt-split">
             <div className="mkt-prose">
               <p>
-                Through group purchasing, members typically save <strong>$250–$300 a heating season</strong> — often{" "}
-                <strong>40–60¢ per gallon</strong> below average posted prices. And membership is{" "}
+                Through group purchasing, members typically save <strong>$450–$600 a heating season</strong> (based on
+                900 gallons) — consistently below average posted prices. And membership is{" "}
                 <strong>not a fixed-price lock-in</strong>: you keep full control of your service.
               </p>
               <p>
@@ -378,8 +379,6 @@ export function HomeBody() {
         </div>
       </section>
 
-      <ValueBand />
-
       <section className="mkt-section" id="community">
         <div className="mkt-container">
           <h2 className="mkt-section-title">Community &amp; partnerships</h2>
@@ -577,38 +576,34 @@ export function SavingsSection() {
               Real savings, real results
             </p>
             <h2>The average member saves</h2>
-            <span className="mkt-savings-figure">$250–$300</span>
+            <span className="mkt-savings-figure">$450–$600</span>
             <p>
-              per heating season on oil and propane — often <strong>40–60¢ per gallon</strong> below average posted
-              prices, with no fixed-price lock-in.
+              per heating season, based on <strong>900 gallons</strong> — Co-op pricing runs consistently below the
+              state average, with no fixed-price lock-in.
             </p>
             <Link to="/signup" className="mkt-btn mkt-btn-primary">
               See member savings
             </Link>
           </div>
 
-          <div className="mkt-compare" role="img" aria-label="Retail prices versus negotiated Co-op prices">
-            <div className="mkt-compare-col">
-              <h4>Without membership</h4>
-              <div className="mkt-bars" aria-hidden>
-                <span className="mkt-bar mkt-bar-a" />
-                <span className="mkt-bar mkt-bar-b" />
-                <span className="mkt-bar mkt-bar-c" />
-              </div>
-              <span className="mkt-compare-price">$$$</span>
-              <span className="mkt-compare-note">Retail prices — you pay more.</span>
+          <figure className="mkt-trend" aria-label="Co-op price runs consistently below the state average price">
+            <figcaption className="mkt-trend-title">Co-op price vs. state average</figcaption>
+            <svg className="mkt-trend-svg" viewBox="0 0 320 180" role="img">
+              {/* axes */}
+              <line x1="34" y1="12" x2="34" y2="150" className="mkt-trend-axis" />
+              <line x1="34" y1="150" x2="308" y2="150" className="mkt-trend-axis" />
+              {/* state average (upper, gray) */}
+              <polyline className="mkt-trend-line mkt-trend-line--avg" points="34,60 90,48 146,72 202,46 258,64 308,44" />
+              {/* co-op price (lower, green) */}
+              <polyline className="mkt-trend-line mkt-trend-line--coop" points="34,104 90,96 146,116 202,92 258,108 308,90" />
+              <text x="171" y="170" className="mkt-trend-axis-label">Time →</text>
+              <text x="20" y="90" className="mkt-trend-axis-label" transform="rotate(-90 20 90)">Price →</text>
+            </svg>
+            <div className="mkt-trend-legend">
+              <span className="mkt-trend-key mkt-trend-key--avg">State average price</span>
+              <span className="mkt-trend-key mkt-trend-key--coop">Co-op price</span>
             </div>
-            <div className="mkt-compare-col mkt-compare-col--you">
-              <h4>With Co-op membership</h4>
-              <div className="mkt-bars" aria-hidden>
-                <span className="mkt-bar mkt-bar-x" />
-                <span className="mkt-bar mkt-bar-y" />
-                <span className="mkt-bar mkt-bar-z" />
-              </div>
-              <span className="mkt-compare-price">$$</span>
-              <span className="mkt-compare-note">Negotiated prices — you save more.</span>
-            </div>
-          </div>
+          </figure>
 
           <ImageSlot
             src="/site/family.jpg"

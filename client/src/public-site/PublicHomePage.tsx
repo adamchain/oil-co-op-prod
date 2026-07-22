@@ -2,21 +2,22 @@ import { Link } from "react-router-dom";
 import {
   StepsSection,
   TownsSection,
-  HomeBody,
+  ValueBand,
   SavingsSection,
   WhyChooseSection,
-  TestimonialsBand,
-  FinalCtaBand,
   ImageSlot,
 } from "./homeSections";
 
 /**
  * Citizen's Oil Co-op public marketing homepage.
- * A single, settled layout aligned with the client's reference design:
- * split hero → value band → how it works → real savings → why choose →
- * coverage → detailed content → testimonials → closing CTA.
+ * Lean, conversion-first order per the 7/21 client notes:
+ * hero (with this-week's price) → how it works (3 steps, first thing a
+ * visitor sees) → the 3 C's → real savings → why choose → towns we serve.
  * Photography drops into the wired <ImageSlot> placeholders.
  */
+
+// Weekly posted average — placeholder value; update from the office / oilco-op.com.
+const WEEKLY_OIL_PRICE = "$4.899";
 
 function Hero() {
   return (
@@ -33,14 +34,18 @@ function Hero() {
           <Link to="/signup" className="mkt-btn mkt-btn-primary mkt-btn-lg">
             Become a member
           </Link>
-          <a
-            href="https://oilco-op.com/"
-            className="mkt-btn mkt-btn-ghost mkt-btn-lg"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            See today&apos;s pricing
-          </a>
+          <div className="mkt-hero-price" role="group" aria-label="This week's average heating oil price">
+            <span className="mkt-hero-price-label">This week&apos;s avg. heating oil</span>
+            <span className="mkt-hero-price-value">{WEEKLY_OIL_PRICE}<span className="mkt-hero-price-unit">/gal</span></span>
+            <a
+              href="https://oilco-op.com/"
+              className="mkt-hero-price-link"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              See full pricing
+            </a>
+          </div>
         </div>
         <p className="mkt-hero-check">
           <span className="mkt-check-badge" aria-hidden>
@@ -48,7 +53,7 @@ function Hero() {
               <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </span>
-          Over 3,000 families across CT, RI, NY &amp; MA are already saving.
+          Over 5,000 families across CT, RI, NY &amp; MA are already saving.
         </p>
       </div>
       <div className="mkt-hero-media">
@@ -68,12 +73,10 @@ export default function PublicHomePage() {
     <>
       <Hero />
       <StepsSection />
+      <ValueBand />
       <SavingsSection />
       <WhyChooseSection />
       <TownsSection />
-      <HomeBody />
-      <TestimonialsBand />
-      <FinalCtaBand />
     </>
   );
 }

@@ -1769,3 +1769,190 @@
   font-size: 0.95rem;
   color: rgba(255, 255, 255, 0.9);
 }
+
+/* ============================================================
+   7/21 client-notes revisions
+   ============================================================ */
+
+/* Hero: show this week's price inline (no click-through required) */
+.mkt-hero-actions {
+  align-items: center;
+}
+
+.mkt-hero-price {
+  display: inline-flex;
+  flex-direction: column;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  box-shadow: var(--shadow);
+  line-height: 1.15;
+}
+
+.mkt-hero-price-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.mkt-hero-price-value {
+  font-family: var(--font-display);
+  font-size: 1.55rem;
+  font-weight: 600;
+  color: var(--color-accent);
+}
+
+.mkt-hero-price-unit {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  margin-left: 0.1rem;
+}
+
+.mkt-hero-price-link {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-accent);
+  text-decoration: none;
+  margin-top: 0.1rem;
+}
+
+.mkt-hero-price-link:hover {
+  text-decoration: underline;
+}
+
+/* Steps: "Saving starts in three simple steps" in a green banner, first thing after hero */
+.mkt-steps {
+  scroll-margin-top: 5.5rem;
+}
+
+.mkt-steps-banner {
+  background: linear-gradient(150deg, var(--color-forest) 0%, var(--color-forest-2) 100%);
+  color: #fff;
+  text-align: center;
+  padding: 2.25rem 1.5rem 2rem;
+}
+
+.mkt-steps-banner h2 {
+  font-family: var(--font-display);
+  font-size: clamp(1.6rem, 3vw, 2.1rem);
+  font-weight: 600;
+  margin: 0.15rem 0 0;
+}
+
+.mkt-eyebrow-light {
+  color: #bfe6cd;
+}
+
+.mkt-steps-body {
+  padding: 2.75rem 1.5rem 3rem;
+}
+
+/* Real savings: generic trend — Co-op price consistently below state average (no dollar figures) */
+.mkt-trend {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem 1.5rem 1.1rem;
+  box-shadow: var(--shadow);
+}
+
+.mkt-trend-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--color-text);
+  margin-bottom: 0.6rem;
+}
+
+.mkt-trend-svg {
+  width: 100%;
+  height: 170px;
+}
+
+.mkt-trend-axis {
+  stroke: var(--color-border);
+  stroke-width: 1.5;
+}
+
+.mkt-trend-axis-label {
+  fill: var(--color-text-muted);
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.mkt-trend-line {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mkt-trend-line--avg {
+  stroke: #9aa79f;
+  stroke-dasharray: 5 4;
+}
+
+.mkt-trend-line--coop {
+  stroke: var(--color-accent);
+}
+
+.mkt-trend-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  margin-top: 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.mkt-trend-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--color-text-muted);
+}
+
+.mkt-trend-key::before {
+  content: "";
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+.mkt-trend-key--coop {
+  color: var(--color-accent);
+}
+
+.mkt-trend-key--avg {
+  color: #97a39b;
+}
+
+/* Why thousands choose: keep all features on a single row across */
+.mkt-why-grid {
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1.25rem 0.6rem;
+}
+
+.mkt-why-icon {
+  width: 50px;
+  height: 50px;
+}
+
+@media (max-width: 860px) {
+  .mkt-why-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .mkt-why-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

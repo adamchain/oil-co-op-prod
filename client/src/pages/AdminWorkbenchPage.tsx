@@ -91,9 +91,22 @@ type ReferralPerson = {
   legacyProfile?: { legacyId?: string };
 };
 
-/** Member ID shown in the referral panel — matches the top-left ID field (memberNumber, falling back to legacy ID). */
+/**
+ * Show just the sequential ID number (the Approach ID, e.g. "15857"), stripping any
+ * leading company-code prefix like "IVES-15857" → "15857". Members switch companies,
+ * so the company code should never be part of the displayed ID. Values without a
+ * clean "LETTERS-<digits>" shape (e.g. "OC-3XED-035A" or a bare "15857") pass through.
+ */
+export const displayMemberId = (raw?: string | null): string => {
+  const s = (raw || "").trim();
+  if (!s) return "—";
+  const m = s.match(/^[A-Za-z]+[-\s_]?(\d+)$/);
+  return m ? m[1] : s;
+};
+
+/** Member ID shown in the referral panel — matches the top-left ID field. */
 const referralPersonId = (p?: ReferralPerson | null): string =>
-  p?.memberNumber || p?.legacyProfile?.legacyId || "—";
+  displayMemberId(p?.memberNumber || p?.legacyProfile?.legacyId || "");
 type Referral = { referrerMemberId?: ReferralPerson; creditedAt?: string };
 type ReferralMade = { _id: string; creditedAt?: string; newMemberId?: ReferralPerson };
 type NoteEntry = { _id?: string; text: string; createdAt: string; createdBy: string };
@@ -1984,7 +1997,7 @@ export default function AdminWorkbenchPage() {
                   <label style={{ flex: "0 0 auto", width: "110px" }}>
                     ID
                     <span className="admin-input admin-input-static" aria-readonly="true">
-                      {current.memberNumber || legacyValue("legacyId") || "—"}
+                      {displayMemberId(current.memberNumber || legacyValue("legacyId"))}
                     </span>
                   </label>
                   <label style={{ flex: "0 0 auto", width: "130px" }}>
