@@ -427,7 +427,7 @@ router.get("/members/:id", async (req, res) => {
   }
   const member = await Member.findById(req.params.id)
     .populate("oilCompanyId")
-    .populate("referredByMemberId", "firstName lastName email memberNumber");
+    .populate("referredByMemberId", "firstName lastName email memberNumber legacyProfile.legacyId");
   if (!member || member.role !== "member") {
     res.status(404).json({ error: "Not found" });
     return;
@@ -436,10 +436,10 @@ router.get("/members/:id", async (req, res) => {
     BillingEvent.find({ memberId: member._id }).sort({ createdAt: -1 }).limit(50).lean(),
     ActivityLog.find({ memberId: member._id }).sort({ createdAt: -1 }).limit(100).lean(),
     CommunicationLog.find({ memberId: member._id }).sort({ createdAt: -1 }).limit(50).lean(),
-    Referral.findOne({ newMemberId: member._id }).populate("referrerMemberId", "firstName lastName email memberNumber").lean(),
+    Referral.findOne({ newMemberId: member._id }).populate("referrerMemberId", "firstName lastName email memberNumber legacyProfile.legacyId").lean(),
     Referral.find({ referrerMemberId: member._id })
       .sort({ creditedAt: -1 })
-      .populate("newMemberId", "firstName lastName email memberNumber")
+      .populate("newMemberId", "firstName lastName email memberNumber legacyProfile.legacyId")
       .lean(),
   ]);
   res.json({ member, billing, activity, communications, referral, referralsMade });
@@ -484,11 +484,11 @@ router.put("/members/:id/referrer", async (req: AuthedRequest, res) => {
 
   const [referral, referralsMade] = await Promise.all([
     Referral.findOne({ newMemberId: memberId })
-      .populate("referrerMemberId", "firstName lastName email memberNumber")
+      .populate("referrerMemberId", "firstName lastName email memberNumber legacyProfile.legacyId")
       .lean(),
     Referral.find({ referrerMemberId: memberId })
       .sort({ creditedAt: -1 })
-      .populate("newMemberId", "firstName lastName email memberNumber")
+      .populate("newMemberId", "firstName lastName email memberNumber legacyProfile.legacyId")
       .lean(),
   ]);
   res.json({ referral, referralsMade });
@@ -533,7 +533,7 @@ router.patch("/referrals/:referralId", async (req: AuthedRequest, res) => {
   // Return the referrer's refreshed "referrals made" list for convenience.
   const referralsMade = await Referral.find({ referrerMemberId })
     .sort({ creditedAt: -1 })
-    .populate("newMemberId", "firstName lastName email memberNumber")
+    .populate("newMemberId", "firstName lastName email memberNumber legacyProfile.legacyId")
     .lean();
   res.json({ referral, referralsMade });
 });

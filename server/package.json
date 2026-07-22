@@ -12,7 +12,8 @@
     "disable-alerts": "tsx src/scripts/disableAllAlerts.ts",
     "reseed-templates": "tsx src/scripts/reseedEmailTemplates.ts",
     "import:ri-members": "tsx src/scripts/importRiMembers.ts",
-    "create:oil-import-members": "tsx src/scripts/createOilImportMembers.ts"
+    "create:oil-import-members": "tsx src/scripts/createOilImportMembers.ts",
+    "backfill:referrals": "tsx src/scripts/backfillReferrals.ts"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

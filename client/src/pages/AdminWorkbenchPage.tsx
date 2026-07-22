@@ -82,7 +82,18 @@ type BillingEvent = {
   paidDate?: string | null;
 };
 type Comm = { _id: string; channel: string; subject?: string; status: string; createdAt: string };
-type ReferralPerson = { _id?: string; firstName?: string; lastName?: string; email?: string; memberNumber?: string };
+type ReferralPerson = {
+  _id?: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  memberNumber?: string;
+  legacyProfile?: { legacyId?: string };
+};
+
+/** Member ID shown in the referral panel — matches the top-left ID field (memberNumber, falling back to legacy ID). */
+const referralPersonId = (p?: ReferralPerson | null): string =>
+  p?.memberNumber || p?.legacyProfile?.legacyId || "—";
 type Referral = { referrerMemberId?: ReferralPerson; creditedAt?: string };
 type ReferralMade = { _id: string; creditedAt?: string; newMemberId?: ReferralPerson };
 type NoteEntry = { _id?: string; text: string; createdAt: string; createdBy: string };
@@ -409,6 +420,8 @@ export default function AdminWorkbenchPage() {
   const [referrerSaving, setReferrerSaving] = useState(false);
   const [referrerError, setReferrerError] = useState("");
   // "Members they referred" admin edit controls.
+  // Collapsed by default: the section shows just the total; click the bar to reveal the list.
+  const [referralsListOpen, setReferralsListOpen] = useState(false);
   const [referralAddOpen, setReferralAddOpen] = useState(false);
   const [referralAddQuery, setReferralAddQuery] = useState("");
   const [referralsMadeSaving, setReferralsMadeSaving] = useState(false);
@@ -506,11 +519,11 @@ export default function AdminWorkbenchPage() {
           </div>
           <div className="admin-table-wrap">
             <table className="admin-table">
-              <thead><tr><th>Referrer</th><th>Member #</th><th>Date Referred</th></tr></thead>
+              <thead><tr><th>Referrer</th><th>Member ID</th><th>Date Referred</th></tr></thead>
               <tbody>
                 <tr>
                   <td>{referrerName}</td>
-                  <td>{referral?.referrerMemberId?.memberNumber || "—"}</td>
+                  <td>{referral?.referrerMemberId ? referralPersonId(referral.referrerMemberId) : "—"}</td>
                   <td>
                     {referral?.referrerMemberId && referral?.creditedAt
                       ? new Date(referral.creditedAt).toISOString().slice(0, 10)
@@ -569,9 +582,18 @@ export default function AdminWorkbenchPage() {
         </div>
 
         <div className="admin-card admin-workbench-section">
-          <div className="admin-toolbar" style={{ justifyContent: "space-between", marginBottom: "0.75rem" }}>
-            <h2 style={{ margin: 0 }}>Members they referred ({referralsMade.length})</h2>
-            {!referralAddOpen && (
+          <div className="admin-toolbar" style={{ justifyContent: "space-between", marginBottom: referralsListOpen ? "0.75rem" : 0 }}>
+            <button
+              type="button"
+              onClick={() => setReferralsListOpen((o) => !o)}
+              aria-expanded={referralsListOpen}
+              title={referralsListOpen ? "Hide list" : "Show list"}
+              style={{ display: "flex", alignItems: "center", gap: "0.5rem", background: "none", border: "none", cursor: "pointer", font: "inherit", padding: 0, color: "inherit" }}
+            >
+              <span aria-hidden style={{ display: "inline-block", transition: "transform 0.15s", transform: referralsListOpen ? "rotate(90deg)" : "none", fontSize: "0.8rem" }}>▶</span>
+              <h2 style={{ margin: 0 }}>Members they referred ({referralsMade.length})</h2>
+            </button>
+            {referralsListOpen && !referralAddOpen && (
               <button
                 type="button"
                 className="admin-btn"
@@ -582,6 +604,7 @@ export default function AdminWorkbenchPage() {
               </button>
             )}
           </div>
+          {referralsListOpen && (<>
           {referralsMadeError && <p className="admin-error" style={{ marginBottom: "0.5rem" }}>{referralsMadeError}</p>}
           {referralAddOpen && (
             <div style={{ marginBottom: "0.75rem" }}>
@@ -630,7 +653,7 @@ export default function AdminWorkbenchPage() {
           )}
           <div className="admin-table-wrap">
             <table className="admin-table">
-              <thead><tr><th>Member</th><th>Member #</th><th>Date Referred</th><th></th></tr></thead>
+              <thead><tr><th>Member</th><th>Member ID</th><th>Date Referred</th><th></th></tr></thead>
               <tbody>
                 {referralsMade.length === 0 ? (
                   <tr><td colSpan={4} className="admin-meta">No referrals yet</td></tr>
@@ -638,7 +661,7 @@ export default function AdminWorkbenchPage() {
                   referralsMade.map((r) => (
                     <tr key={r._id}>
                       <td>{r.newMemberId ? `${r.newMemberId.firstName || ""} ${r.newMemberId.lastName || ""}`.trim() || "—" : "—"}</td>
-                      <td>{r.newMemberId?.memberNumber || "—"}</td>
+                      <td>{r.newMemberId ? referralPersonId(r.newMemberId) : "—"}</td>
                       <td>
                         <input
                           className="admin-input"
@@ -670,6 +693,7 @@ export default function AdminWorkbenchPage() {
               </tbody>
             </table>
           </div>
+          </>)}
         </div>
       </>
     );

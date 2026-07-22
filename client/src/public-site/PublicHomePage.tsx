@@ -3,7 +3,6 @@ import {
   StepsSection,
   TownsSection,
   HomeBody,
-  ValueBand,
   SavingsSection,
   WhyChooseSection,
   TestimonialsBand,
@@ -68,7 +67,6 @@ export default function PublicHomePage() {
   return (
     <>
       <Hero />
-      <ValueBand />
       <StepsSection />
       <SavingsSection />
       <WhyChooseSection />

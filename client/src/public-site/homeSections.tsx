@@ -378,6 +378,8 @@ export function HomeBody() {
         </div>
       </section>
 
+      <ValueBand />
+
       <section className="mkt-section" id="community">
         <div className="mkt-container">
           <h2 className="mkt-section-title">Community &amp; partnerships</h2>
