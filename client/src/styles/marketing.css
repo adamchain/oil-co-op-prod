@@ -1777,6 +1777,13 @@
 /* Hero: show this week's price inline (no click-through required) */
 .mkt-hero-actions {
   align-items: center;
+  gap: 1rem 1.25rem;
+  margin-top: 0.5rem;
+}
+
+/* More breathing room between the price/CTA row and the trust line below it */
+.mkt-hero-check {
+  margin-top: 2.25rem;
 }
 
 .mkt-hero-price {
