@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Link, Outlet } from "react-router-dom";
+import { Link, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../authContext";
 
 export default function MarketingLayout() {
   const { member, logout } = useAuth();
+  const location = useLocation();
   const [navOpen, setNavOpen] = useState(false);
   const [activeHash, setActiveHash] = useState<string>(window.location.hash || "#about");
   const [referrerName, setReferrerName] = useState("");
@@ -23,6 +24,8 @@ export default function MarketingLayout() {
     setActiveHash(hash);
     close();
   };
+
+  const navActive = (path: string) => (location.pathname === path ? "active" : undefined);
 
   return (
     <div className="marketing-site">
@@ -46,6 +49,9 @@ export default function MarketingLayout() {
             <a href="/#how" className={activeHash === "#how" ? "active" : ""} onClick={() => setHash("#how")}>
               How it works
             </a>
+            <Link to="/services" className={navActive("/services")} onClick={close}>
+              Services
+            </Link>
             <a
               href="/#savings"
               className={activeHash === "#savings" ? "active" : ""}
@@ -53,20 +59,12 @@ export default function MarketingLayout() {
             >
               Savings
             </a>
-            <a
-              href="/#why"
-              className={activeHash === "#why" ? "active" : ""}
-              onClick={() => setHash("#why")}
-            >
-              Why us
-            </a>
-            <a
-              href="/#towns"
-              className={activeHash === "#towns" ? "active" : ""}
-              onClick={() => setHash("#towns")}
-            >
-              Coverage
-            </a>
+            <Link to="/faq" className={navActive("/faq")} onClick={close}>
+              FAQ
+            </Link>
+            <Link to="/community" className={navActive("/community")} onClick={close}>
+              Community
+            </Link>
             <a href="tel:8605616011" className="mkt-nav-phone" onClick={close}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
                 <path d="M5 4h3l1.5 4-2 1.5a11 11 0 0 0 5 5l1.5-2 4 1.5V19a2 2 0 0 1-2.2 2A16 16 0 0 1 4 6.2 2 2 0 0 1 6 4" strokeLinecap="round" strokeLinejoin="round" />
@@ -79,7 +77,7 @@ export default function MarketingLayout() {
                   Member sign in
                 </Link>
                 <Link to="/signup" className="mkt-btn mkt-btn-primary mkt-nav-btn" onClick={close}>
-                  Become a member
+                  Join now
                 </Link>
               </>
             ) : (
@@ -113,6 +111,21 @@ export default function MarketingLayout() {
               <img src={logoSrc} alt="Oil Co-op logo" className="mkt-logo-image mkt-logo-image-footer" />
             </Link>
             <div className="mkt-footer-nav">
+              <Link to="/services" onClick={close}>
+                Services
+              </Link>
+              <Link to="/community" onClick={close}>
+                Community
+              </Link>
+              <Link to="/referral" onClick={close}>
+                Referral program
+              </Link>
+              <Link to="/faq" onClick={close}>
+                FAQ
+              </Link>
+              <Link to="/heating-prices" onClick={close}>
+                Heating prices
+              </Link>
               <Link to="/our-story" onClick={close}>
                 Our story
               </Link>
@@ -121,12 +134,6 @@ export default function MarketingLayout() {
               </Link>
               <Link to="/testimonials" onClick={close}>
                 Testimonials
-              </Link>
-              <Link to="/faq" onClick={close}>
-                FAQ
-              </Link>
-              <Link to="/heating-prices" onClick={close}>
-                Heating prices
               </Link>
               <a href="mailto:hutson@oilco-op.com">hutson@oilco-op.com</a>
               <a href="tel:8605616011">860-561-6011</a>
@@ -137,7 +144,7 @@ export default function MarketingLayout() {
               {!member ? (
                 <>
                   <Link to="/signup" onClick={close}>
-                    Join
+                    Join now
                   </Link>
                   <Link to="/login" onClick={close}>
                     Sign in

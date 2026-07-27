@@ -8,6 +8,9 @@ import MeetTeamPage from "./public-site/MeetTeamPage";
 import TestimonialsPage from "./public-site/TestimonialsPage";
 import FaqPage from "./public-site/FaqPage";
 import HeatingPricesPage from "./public-site/HeatingPricesPage";
+import ServicesPage from "./public-site/ServicesPage";
+import CommunityPage from "./public-site/CommunityPage";
+import ReferralPage from "./public-site/ReferralPage";
 import SignupPage from "./pages/SignupPage";
 import LoginPage from "./pages/LoginPage";
 import AccountPage from "./pages/AccountPage";
@@ -46,6 +49,9 @@ export default function App() {
           <Route path="/testimonials" element={<TestimonialsPage />} />
           <Route path="/faq" element={<FaqPage />} />
           <Route path="/heating-prices" element={<HeatingPricesPage />} />
+          <Route path="/services" element={<ServicesPage />} />
+          <Route path="/community" element={<CommunityPage />} />
+          <Route path="/referral" element={<ReferralPage />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/login" element={<LoginPage />} />
         </Route>

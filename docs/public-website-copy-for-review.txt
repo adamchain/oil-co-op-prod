@@ -27,17 +27,15 @@ Logo alt text:
   Oil Co-op logo
 
 Navigation links:
-  About
-  Our story
   How it works
-  Membership
   Services
-  Going green
+  Savings
+  FAQ
   Community
-  Contact
+  (phone) 860-561-6011
 
 Logged-out actions:
-  Join the Co-op
+  Join now
   Member sign in
 
 Logged-in actions:
@@ -58,12 +56,16 @@ Contact links:
   Fax 860-561-9588
 
 Footer links:
+  Services
+  Community
+  Referral program
+  FAQ
+  Heating prices
   Our story
   Meet our team
   Testimonials
-  FAQ
   Admin
-  Join
+  Join now
   Sign in
   My account (when logged in)
   oilco-op.com
@@ -854,6 +856,70 @@ A: For over three decades, we've helped thousands of homeowners find competitive
 CTA:
   Ready to save on home energy?
   Button: Become a member → /signup
+
+
+================================================================================
+SERVICES PAGE (/services)
+================================================================================
+
+Hero headline: Everything your membership includes.
+Hero sub: More than discounted fuel. Your membership comes with valuable
+          benefits all year long.
+Hero image: /site/family.jpg
+
+--- Save money ---
+Blurb: Lower your home energy costs with exclusive member benefits.
+Cards (icon + title + short summary; Learn more expands detail):
+  Discounted Heating Oil
+  Discounted Propane
+  Electricity Supply Options
+  Home & Auto Insurance
+
+--- Go green ---
+Blurb: Smart energy solutions that help your wallet and the environment.
+Cards:
+  Solar Consultations
+  Bioheat® (Cleaner Heating Oil)
+  Composting Discounts
+  Home Energy Audits
+
+--- Why become a member? ---
+Blurb: We do the work so you can save with confidence.
+Cards:
+  Consumer Advocacy
+  Discounts for Seniors, Veterans & First Responders
+  Local Partner Network
+
+Bottom CTA:
+  Join over 5,000 Connecticut homeowners and start saving today.
+  Button: Become a member → /signup
+
+
+================================================================================
+COMMUNITY PAGE (/community)
+================================================================================
+
+Page title: Community involvement
+Lead: The Co-op donates and sponsors local organizations — because saving
+      together should also mean giving back.
+
+Partners: Roxbury Fuel Bank; WHYBL; Buena Vista POA; CCAG; Friends of
+          Fernridge Park; Our Lady of Calvary Retreat Center
+Next Step callout: $10 nonprofit donation on join (not combinable with referral)
+
+
+================================================================================
+REFERRAL PAGE (/referral)
+================================================================================
+
+Page title: Referral program
+Lead: Share the Co-op with friends and neighbors — and earn membership rewards
+      when they join and stay active.
+
+Cards:
+  Refer five, dues waived for life
+  Individual referrals (waived dues / raffles when announced)
+CTA: Join now · Refer someone (scrolls to footer form)
 
 
 ================================================================================
