@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import { api } from "../api";
 import {
   StepsSection,
   TownsSection,
@@ -16,10 +18,38 @@ import {
  * Photography drops into the wired <ImageSlot> placeholders.
  */
 
-// Weekly posted average — placeholder value; update from the office / oilco-op.com.
-const WEEKLY_OIL_PRICE = "$4.899";
+type CurrentOilPrice = {
+  weekOf: string;
+  coopPrice: number;
+};
+
+function formatPrice(n: number): string {
+  return `$${n.toFixed(3)}`;
+}
+
+function formatWeekOf(weekOf: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(weekOf);
+  if (!m) return weekOf;
+  return `${m[2]}/${m[3]}/${m[1].slice(2)}`;
+}
 
 function Hero() {
+  const [price, setPrice] = useState<CurrentOilPrice | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void api<{ oilPrice: CurrentOilPrice }>("/api/oil-prices/current")
+      .then((res) => {
+        if (!cancelled && res.oilPrice) setPrice(res.oilPrice);
+      })
+      .catch(() => {
+        /* keep empty until office publishes a row */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <section className="mkt-hero mkt-hero--pro">
       <div className="mkt-hero-bg" aria-hidden />
@@ -36,15 +66,14 @@ function Hero() {
           </Link>
           <div className="mkt-hero-price" role="group" aria-label="This week's average heating oil price">
             <span className="mkt-hero-price-label">This week&apos;s avg. heating oil</span>
-            <span className="mkt-hero-price-value">{WEEKLY_OIL_PRICE}<span className="mkt-hero-price-unit">/gal</span></span>
-            <a
-              href="https://oilco-op.com/"
-              className="mkt-hero-price-link"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
+            <span className="mkt-hero-price-value">
+              {price ? formatPrice(price.coopPrice) : "—"}
+              <span className="mkt-hero-price-unit">/gal</span>
+            </span>
+            {price && <span className="mkt-hero-price-week">week of {formatWeekOf(price.weekOf)}</span>}
+            <Link to="/heating-prices" className="mkt-hero-price-link">
               See full pricing
-            </a>
+            </Link>
           </div>
         </div>
         <p className="mkt-hero-check">

@@ -19,17 +19,11 @@ export function PriceCard() {
   return (
     <aside className="mkt-price-card" aria-live="polite">
       <span className="mkt-price-label">Average heating oil price</span>
-      <span className="mkt-price-value">$ 4.899</span>
-      <span className="mkt-price-period">week of 03/30/26 · see oilco-op.com for current posted price</span>
-      <a
-        href="https://oilco-op.com/"
-        className="mkt-btn mkt-btn-ghost"
-        style={{ marginTop: "1rem", width: "100%" }}
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        Price comparison on oilco-op.com
-      </a>
+      <span className="mkt-price-value">See homepage</span>
+      <span className="mkt-price-period">Managed in Admin → Oil Prices</span>
+      <Link to="/heating-prices" className="mkt-btn mkt-btn-ghost" style={{ marginTop: "1rem", width: "100%" }}>
+        See price comparison
+      </Link>
     </aside>
   );
 }

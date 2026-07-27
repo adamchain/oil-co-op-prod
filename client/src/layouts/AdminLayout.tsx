@@ -23,6 +23,9 @@ export default function AdminLayout() {
           <NavLink to="/admin/oil-companies" className={linkClass} onClick={() => setSidebarOpen(false)}>
             Companies
           </NavLink>
+          <NavLink to="/admin/oil-prices" className={linkClass} onClick={() => setSidebarOpen(false)}>
+            Oil Prices
+          </NavLink>
           <NavLink to="/admin/members" className={linkClass} onClick={() => setSidebarOpen(false)}>
             Members
           </NavLink>

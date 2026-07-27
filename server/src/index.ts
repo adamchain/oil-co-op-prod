@@ -10,6 +10,7 @@ import meRoutes from "./routes/me.js";
 import adminRoutes from "./routes/admin.js";
 import deliveriesRoutes from "./routes/deliveries.js";
 import paymentsRoutes from "./routes/payments.js";
+import oilPricesRoutes from "./routes/oilPrices.js";
 import { startScheduledJobs } from "./services/jobs.js";
 
 const app = express();
@@ -38,6 +39,7 @@ app.get("/api/health", (_req, res) => {
 
 app.use("/api/auth", authRoutes);
 app.use("/api/me", meRoutes);
+app.use("/api/oil-prices", oilPricesRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/admin/deliveries", deliveriesRoutes);
 app.use("/api/payments", paymentsRoutes);

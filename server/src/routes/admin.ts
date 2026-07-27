@@ -13,6 +13,7 @@ import { Referral } from "../models/Referral.js";
 import { PaymentToken } from "../models/PaymentToken.js";
 import { EmailTemplate, EMAIL_TEMPLATE_KEYS } from "../models/EmailTemplate.js";
 import { EmailBranding } from "../models/EmailBranding.js";
+import { OilPrice } from "../models/OilPrice.js";
 import { getEmailBranding } from "../services/emailBranding.js";
 import { logActivity } from "../services/activity.js";
 import { registerMember, registerMemberSchema } from "../services/memberRegistration.js";
@@ -20,6 +21,8 @@ import { setMemberReferrer } from "../services/referrals.js";
 import { sendMemberEmail, sendPaymentLinkEmail } from "../services/mail.js";
 import { applyTemplateVariables, ensureEmailTemplates } from "../services/emailTemplateStore.js";
 import { loadMemberEmailMergeData } from "../services/memberEmailMerge.js";
+import { ensureOilPrices } from "../services/oilPriceStore.js";
+import { computePriceDifference } from "../data/oilPriceSeed.js";
 import { nextJuneFirstAfterSignup } from "../utils/juneBilling.js";
 import { expandStateQuery, US_STATE_ABBR_TO_NAME } from "../utils/stateAbbreviations.js";
 import { chargeCard, addPaymentProfile, createCustomerProfile } from "../services/authorizeNet.js";
@@ -1852,6 +1855,142 @@ router.post("/assistant", async (req: AuthedRequest, res) => {
   }
 
   res.json({ response, data, timestamp: new Date().toISOString() });
+});
+
+// —— Oil prices (weekly Co-op / state averages for public site) ——
+
+const weekOfSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "weekOf must be YYYY-MM-DD");
+
+const oilPriceBodySchema = z.object({
+  weekOf: weekOfSchema,
+  coopPrice: z.number().finite().positive(),
+  statePrice: z.number().finite().positive().nullable().optional(),
+  priceDifference: z.number().finite().nullable().optional(),
+  season: z.number().int().min(0).max(99).nullable().optional(),
+  firstOfMonth: z.boolean().optional(),
+});
+
+function normalizeOilPriceInput(body: z.infer<typeof oilPriceBodySchema>) {
+  const statePrice = body.statePrice ?? null;
+  const priceDifference =
+    body.priceDifference !== undefined
+      ? body.priceDifference
+      : computePriceDifference(body.coopPrice, statePrice);
+  return {
+    weekOf: body.weekOf,
+    coopPrice: body.coopPrice,
+    statePrice,
+    priceDifference,
+    season: body.season ?? null,
+    firstOfMonth: Boolean(body.firstOfMonth),
+  };
+}
+
+router.get("/oil-prices", async (req, res) => {
+  await ensureOilPrices();
+  const rawLimit = Number(req.query.limit ?? 200);
+  const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(Math.floor(rawLimit), 1), 2000) : 200;
+  const list = await OilPrice.find().sort({ weekOf: -1 }).limit(limit).lean();
+  res.json({ oilPrices: list });
+});
+
+router.post("/oil-prices", async (req: AuthedRequest, res) => {
+  const parsed = oilPriceBodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const data = normalizeOilPriceInput(parsed.data);
+  try {
+    const oilPrice = await OilPrice.create(data);
+    await logActivity(
+      new mongoose.Types.ObjectId(req.userId!),
+      "admin_oil_price_created",
+      { weekOf: data.weekOf, coopPrice: data.coopPrice, adminId: req.userId },
+      new mongoose.Types.ObjectId(req.userId!)
+    );
+    res.status(201).json({ oilPrice });
+  } catch (err) {
+    const code = (err as { code?: number })?.code;
+    if (code === 11000) {
+      res.status(409).json({ error: "A price row already exists for that week" });
+      return;
+    }
+    throw err;
+  }
+});
+
+router.patch("/oil-prices/:id", async (req: AuthedRequest, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const parsed = oilPriceBodySchema.partial().safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const oilPrice = await OilPrice.findById(req.params.id);
+  if (!oilPrice) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  const body = parsed.data;
+  if (body.weekOf !== undefined) oilPrice.weekOf = body.weekOf;
+  if (body.coopPrice !== undefined) oilPrice.coopPrice = body.coopPrice;
+  if (body.statePrice !== undefined) oilPrice.statePrice = body.statePrice;
+  if (body.season !== undefined) oilPrice.season = body.season;
+  if (body.firstOfMonth !== undefined) oilPrice.firstOfMonth = body.firstOfMonth;
+
+  if (body.priceDifference !== undefined) {
+    oilPrice.priceDifference = body.priceDifference;
+  } else if (body.coopPrice !== undefined || body.statePrice !== undefined) {
+    oilPrice.priceDifference = computePriceDifference(oilPrice.coopPrice, oilPrice.statePrice);
+  }
+
+  try {
+    await oilPrice.save();
+  } catch (err) {
+    const code = (err as { code?: number })?.code;
+    if (code === 11000) {
+      res.status(409).json({ error: "A price row already exists for that week" });
+      return;
+    }
+    throw err;
+  }
+
+  await logActivity(
+    new mongoose.Types.ObjectId(req.userId!),
+    "admin_oil_price_updated",
+    { weekOf: oilPrice.weekOf, coopPrice: oilPrice.coopPrice, adminId: req.userId },
+    new mongoose.Types.ObjectId(req.userId!)
+  );
+  res.json({ oilPrice });
+});
+
+router.delete("/oil-prices/:id", async (req: AuthedRequest, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const oilPrice = await OilPrice.findById(req.params.id);
+  if (!oilPrice) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const weekOf = oilPrice.weekOf;
+  await oilPrice.deleteOne();
+  await logActivity(
+    new mongoose.Types.ObjectId(req.userId!),
+    "admin_oil_price_deleted",
+    { weekOf, adminId: req.userId },
+    new mongoose.Types.ObjectId(req.userId!)
+  );
+  res.json({ ok: true });
 });
 
 export default router;

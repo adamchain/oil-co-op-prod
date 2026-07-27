@@ -6,6 +6,8 @@ import PublicHomePage from "./public-site/PublicHomePage";
 import OurStoryPage from "./public-site/OurStoryPage";
 import MeetTeamPage from "./public-site/MeetTeamPage";
 import TestimonialsPage from "./public-site/TestimonialsPage";
+import FaqPage from "./public-site/FaqPage";
+import HeatingPricesPage from "./public-site/HeatingPricesPage";
 import SignupPage from "./pages/SignupPage";
 import LoginPage from "./pages/LoginPage";
 import AccountPage from "./pages/AccountPage";
@@ -20,6 +22,7 @@ import AdminEmailTemplatesPage from "./pages/AdminEmailTemplatesPage";
 import AdminAgentsPage from "./pages/AdminAgentsPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 import AdminOilCompaniesPage from "./pages/AdminOilCompaniesPage";
+import AdminOilPricesPage from "./pages/AdminOilPricesPage";
 import AdminDeliveryImportPage from "./pages/AdminDeliveryImportPage";
 import AdminDeliverySearchPage from "./pages/AdminDeliverySearchPage";
 import AdminAddCustomerPage from "./pages/AdminAddCustomerPage";
@@ -41,6 +44,8 @@ export default function App() {
           <Route path="/our-story" element={<OurStoryPage />} />
           <Route path="/team" element={<MeetTeamPage />} />
           <Route path="/testimonials" element={<TestimonialsPage />} />
+          <Route path="/faq" element={<FaqPage />} />
+          <Route path="/heating-prices" element={<HeatingPricesPage />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/login" element={<LoginPage />} />
         </Route>
@@ -57,6 +62,7 @@ export default function App() {
             <Route path="dashboard" element={<AdminDashboardPage />} />
             <Route path="workbench" element={<AdminWorkbenchPage />} />
             <Route path="oil-companies" element={<AdminOilCompaniesPage />} />
+            <Route path="oil-prices" element={<AdminOilPricesPage />} />
             <Route path="add-customer" element={<AdminAddCustomerPage />} />
             <Route path="members" element={<AdminMembersPage />} />
             <Route path="members/:id" element={<AdminMemberPage />} />

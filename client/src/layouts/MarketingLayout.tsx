@@ -122,6 +122,12 @@ export default function MarketingLayout() {
               <Link to="/testimonials" onClick={close}>
                 Testimonials
               </Link>
+              <Link to="/faq" onClick={close}>
+                FAQ
+              </Link>
+              <Link to="/heating-prices" onClick={close}>
+                Heating prices
+              </Link>
               <a href="mailto:hutson@oilco-op.com">hutson@oilco-op.com</a>
               <a href="tel:8605616011">860-561-6011</a>
               <span style={{ color: "rgba(255,255,255,0.55)", fontSize: "0.9rem" }}>Fax 860-561-9588</span>

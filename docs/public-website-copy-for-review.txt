@@ -58,6 +58,10 @@ Contact links:
   Fax 860-561-9588
 
 Footer links:
+  Our story
+  Meet our team
+  Testimonials
+  FAQ
   Admin
   Join
   Sign in
@@ -141,8 +145,8 @@ HOMEPAGE — AVERAGE HEATING OIL PRICE CARD
 ================================================================================
 
 Label: Average heating oil price
-Price: $ 4.899
-Note: week of 03/30/26 · see oilco-op.com for current posted price
+Price: [current Co-op price from Admin → Oil Prices]
+Note: week of [week date] · See full pricing → /heating-prices
 Button: Price comparison on oilco-op.com
 
 
@@ -646,6 +650,211 @@ Toggle labels:
 
 Error messages:
   Save failed
+
+
+================================================================================
+FAQ PAGE (/faq)
+================================================================================
+
+Page title: Frequently asked questions
+Lead: Answers about membership, pricing, choosing a heating company, propane
+      tanks, and what happens after you join.
+
+Category jump links (six):
+  General Information
+  Membership
+  Pricing
+  Choosing Your Heating Company
+  Propane and Propane Tanks
+  Sign me up! What happens next?
+
+Interaction: Each question is an accordion — click to expand the answer.
+
+--- 1. General Information ---
+
+Q: What is Citizen's Oil Co-op?
+A: Citizen's Oil Co-op is a membership-based buyers club that helps homeowners
+   save money on heating oil, propane, and other home energy services. We
+   negotiate competitive pricing with trusted local full-service companies and
+   help members find the best fit for their home.
+
+Q: How long has Citizen's Oil Co-op been in business?
+A: We've been helping homeowners save on home energy for over 30 years and
+   proudly serve more than 5,000 members throughout Connecticut, Rhode Island,
+   Westchester County NY, and select communities in Massachusetts.
+
+Q: Do you deliver heating oil or propane?
+A: No. We don't deliver fuel or service heating equipment. Instead, we partner
+   with trusted local full-service heating oil and propane companies that handle
+   deliveries, equipment service, and customer support at a discounted price for
+   members.
+
+Q: What is your service area?
+A: We proudly serve homeowners throughout:
+   • Connecticut – All towns
+   • Rhode Island – All towns
+   • New York – Westchester County only
+   • Select communities in Massachusetts
+   If you're unsure whether your town is covered, just contact us—we're happy
+   to help.
+
+--- 2. Membership ---
+
+Q: How much does membership cost?
+A: Membership is $35 per year ($25 for seniors) with a one-time $10 application
+   fee for new accounts and provides access to Co-op pricing along with
+   additional member benefits. You can join at any time. Canceling your Co-op
+   membership does not terminate your oil or propane account. You must contact
+   the company directly to do this.
+
+Q: What does membership include?
+A: Membership includes:
+   • Access to Co-op negotiated heating oil or propane pricing
+   • Electricity supply rate options
+   • Free solar consultation through Trinity Solar
+   • Discounted Home Energy Audit through New England Smart Energy
+   • Free home and auto insurance quote from Bearingstar Insurance
+   • Additional seasonal offers and member discounts
+
+Q: Who should join the Co-op?
+A: Our members are homeowners who want competitive pricing, dependable service,
+   and the peace of mind that comes from working with a trusted local company—
+   without spending hours shopping around every year.
+
+--- 3. Pricing ---
+
+Q: How does Co-op pricing work?
+A: Co-op pricing is a discounted variable price that changes with the energy
+   market. Through our long-term agreements with participating heating oil and
+   propane companies, members receive competitive pricing that reflects current
+   market conditions.
+   If market prices go down, your Co-op price goes down. If market prices
+   increase, your Co-op price will adjust accordingly.
+   Each morning, we provide our participating companies with that day's Co-op
+   price, and members are billed the Co-op price in effect on the date of their
+   delivery.
+
+Q: Is the Co-op price fixed?
+A: No. Heating oil and propane prices change with the energy market. Your Co-op
+   pricing changes as market prices change, but it's based on pricing we've
+   negotiated with our participating companies.
+   We do work with one oil company that offers a fixed rate for members. Please
+   call us or request more information to see if this company covers your town.
+
+Q: How much can I save?
+A: Savings vary depending on market conditions and your location, but the
+   average Co-op member can save up to $600 a year. (Based on usage of 900
+   gallons.)
+
+--- 4. Choosing Your Heating Company ---
+
+Q: How do you decide which company I'll use?
+A: We recommend the participating company from our network that's the best
+   overall fit based on your location, pricing, service options, and personal
+   preferences.
+
+Q: Can I keep my current heating company?
+A: If you're already using one of our participating companies, we'll usually
+   keep you with that company while applying Co-op pricing to your account.
+   Nothing will change with your service other than a better price on your oil
+   or propane.
+
+Q: Can I choose a specific company?
+A: Yes. If you have a preferred company, we'll do our best to accommodate your
+   request whenever possible.
+
+Q: What if my current company isn't part of the Co-op?
+A: To take advantage of Co-op pricing you do have to work with one of the
+   companies in our network. We'll recommend one of our participating companies
+   that serves your area and is the best fit for you. We'll guide you through
+   the transition and answer any questions you may have.
+
+Q: Will I still receive full service?
+A: Yes. You'll continue to receive the same full-service benefits offered by
+   your participating company, including fuel delivery, equipment service,
+   emergency support, and other available programs.
+
+Q: Do I have to sign up for automatic delivery?
+A: Not always. Some participating companies offer both automatic delivery and
+   will-call options, while others require automatic delivery. We'll help you
+   find the option that best fits your needs.
+
+Q: Do I have to purchase a service contract?
+A: No. Service contracts are optional, although many members choose one for
+   added peace of mind and equipment protection. We'll explain your options so
+   you can decide what's right for you.
+
+--- 5. Propane and Propane Tanks ---
+
+Q: Do I own my propane tank?
+A: It depends. Some homeowners own their propane tank, while others rent one
+   from their propane provider.
+
+Q: What's the difference between owning and renting a propane tank?
+A: If you own your tank, you're free to choose the propane company that fills
+   it. This gives you greater flexibility if you ever decide to switch
+   providers.
+   If you rent your tank, the tank belongs to your propane company. Because of
+   safety and liability requirements, only that company can fill or service its
+   own tank.
+
+Q: Is it better to own or rent a propane tank?
+A: Both options have advantages.
+   Owning your tank:
+   • Freedom to choose your propane supplier
+   • More flexibility if you decide to switch companies
+   • No annual tank rental fee
+   • Higher upfront investment
+   Renting your tank:
+   • Little or no upfront cost
+   • The propane company maintains the tank
+   • Annual rental fee may apply
+   • You'll typically purchase propane from that company while using their tank
+   We'll gladly explain the differences and help you understand which option
+   best fits your situation.
+
+Q: Can I switch propane companies if I rent my tank?
+A: Yes.
+   If you decide to switch propane companies, the new company will typically:
+   • Perform a safety inspection
+   • Remove the existing rental tank
+   • Install their own rental tank
+   • Transfer your account and service
+   If there's propane remaining in the old tank, the previous company is
+   required to reimburse you for the unused fuel. The exact process may vary
+   slightly by company.
+
+--- 6. Sign me up! What happens next? ---
+
+Q: What happens after I join?
+A: After you become a member, we'll review your location and preferences,
+   recommend the participating company that's the best fit, and forward your
+   information so they can contact you to set up your oil or propane account at
+   Co-op pricing.
+
+Q: How long does it take to get started?
+A: Most new members hear from their assigned participating company within a day
+   or two after joining to complete their account setup. To schedule a first
+   delivery for a new account we typically recommend 7–10 days.
+
+Q: Why should I join Citizen's Oil Co-op instead of calling companies myself?
+A: We've spent more than 30 years building relationships with trusted heating
+   companies and negotiating competitive pricing on behalf of our members.
+   Instead of spending your time calling multiple companies, comparing prices,
+   and trying to determine who's offering the best value, you can rely on
+   Citizen's Oil Co-op to help connect you with a trusted provider that fits
+   your needs.
+
+Q: Why do homeowners trust Citizen's Oil Co-op?
+A: For over three decades, we've helped thousands of homeowners find competitive
+   pricing through trusted local heating companies. Our goal is simple: make
+   home energy easier by helping our members receive fair pricing, dependable
+   service, and honest guidance.
+
+CTA:
+  Ready to save on home energy?
+  Button: Become a member → /signup
+
 
 ================================================================================
 END OF DOCUMENT
