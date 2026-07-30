@@ -31,7 +31,7 @@ Navigation links:
   Services
   Savings
   FAQ
-  Community
+  Community Partnerships
   (phone) 860-561-6011
 
 Logged-out actions:
@@ -57,10 +57,11 @@ Contact links:
 
 Footer links:
   Services
-  Community
+  Community Partnerships
   Referral program
   FAQ
   Heating prices
+  Related links
   Our story
   Meet our team
   Testimonials
@@ -899,13 +900,39 @@ Bottom CTA:
 COMMUNITY PAGE (/community)
 ================================================================================
 
-Page title: Community involvement
-Lead: The Co-op donates and sponsors local organizations — because saving
-      together should also mean giving back.
+Page title: Community Partnerships
+Nav label: Community Partnerships
 
-Partners: Roxbury Fuel Bank; WHYBL; Buena Vista POA; CCAG; Friends of
-          Fernridge Park; Our Lady of Calvary Retreat Center
-Next Step callout: $10 nonprofit donation on join (not combinable with referral)
+Hero:
+  Building strong communities through partnerships that help members save —
+  and give back to the organizations they care about.
+  Image: /site/house.jpg (placeholder — replace with New England town photo)
+
+--- The Next Step Program ---
+Kicker: Helping our members give back from day one.
+Body: For every new member, the Co-op donates $10 to a Community Partner of the
+      member's choice — at no additional cost. Bi-annual payments when > $50.
+      Cannot combine with referral program on the same signup.
+Footer line: Every new member has the opportunity to support one of our
+             Community Partners at no additional cost.
+
+--- Our Community Partners (admin-managed) ---
+Seeded starting partners: CCAG, CSO, UCPEA, AAUP
+Each card: photo, short name, blurb, Visit website
+Admin: /admin/community → Partners tab (add/edit/delete/hide)
+
+--- Become a Community Partner ---
+Looking for nonprofits, schools, unions, churches, local groups.
+CTA: Contact us → hutson@oilco-op.com · 860-561-6011
+
+--- Community Events (admin-managed) ---
+Columns: Upcoming events | Recent events (with optional photo)
+Placeholder/fictional events seeded for layout; replace with real ones.
+Admin: /admin/community → Events tab
+
+--- Bottom band ---
+Better together · Thank you for being part of the Citizen's Oil Co-op family.
+Button: Become a member
 
 
 ================================================================================
@@ -920,6 +947,36 @@ Cards:
   Refer five, dues waived for life
   Individual referrals (waived dues / raffles when announced)
 CTA: Join now · Refer someone (scrolls to footer form)
+
+
+================================================================================
+RELATED LINKS PAGE (/links)
+================================================================================
+
+Page title: Links to Oil Co-op Friends and Partners
+Lead: In this section you will find various links to companies working with us
+      to benefit consumers through our group purchase program.
+
+Copied from oilco-op.com/links/ (pending internal accuracy review):
+  BantamWesson Energy
+  EIA US Energy Information Administration
+  CRC Energy
+  DDLC
+  Deitch Energy
+  Hale Hill Biofuels
+  Hi-Ho Petroleum
+  Hoffman Fuel
+  Ives Brothers
+  The Kaufman Fuel Company
+  PETRO Fuel
+  Saveway Petroleum, Inc.
+  Superior Plus Energy Services
+  Thomaston Oil
+  Automatic TLC
+  Valley Oil
+
+Footer nav label: Related links
+Not in main header (discoverable / SEO support page)
 
 
 ================================================================================

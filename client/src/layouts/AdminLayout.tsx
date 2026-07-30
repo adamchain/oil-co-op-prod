@@ -44,6 +44,9 @@ export default function AdminLayout() {
           <NavLink to="/admin/oil-prices" className={linkClass} onClick={() => setSidebarOpen(false)}>
             Oil Prices
           </NavLink>
+          <NavLink to="/admin/community" className={linkClass} onClick={() => setSidebarOpen(false)}>
+            Community
+          </NavLink>
         </nav>
         <div className="admin-sidebar-bottom">
           <NavLink

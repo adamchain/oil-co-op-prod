@@ -63,7 +63,7 @@ export default function MarketingLayout() {
               FAQ
             </Link>
             <Link to="/community" className={navActive("/community")} onClick={close}>
-              Community
+              Community Partnerships
             </Link>
             <a href="tel:8605616011" className="mkt-nav-phone" onClick={close}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
@@ -115,7 +115,7 @@ export default function MarketingLayout() {
                 Services
               </Link>
               <Link to="/community" onClick={close}>
-                Community
+                Community Partnerships
               </Link>
               <Link to="/referral" onClick={close}>
                 Referral program
@@ -125,6 +125,9 @@ export default function MarketingLayout() {
               </Link>
               <Link to="/heating-prices" onClick={close}>
                 Heating prices
+              </Link>
+              <Link to="/links" onClick={close}>
+                Related links
               </Link>
               <Link to="/our-story" onClick={close}>
                 Our story

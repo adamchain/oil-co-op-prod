@@ -14,6 +14,8 @@ import { PaymentToken } from "../models/PaymentToken.js";
 import { EmailTemplate, EMAIL_TEMPLATE_KEYS } from "../models/EmailTemplate.js";
 import { EmailBranding } from "../models/EmailBranding.js";
 import { OilPrice } from "../models/OilPrice.js";
+import { CommunityPartner } from "../models/CommunityPartner.js";
+import { CommunityEvent } from "../models/CommunityEvent.js";
 import { getEmailBranding } from "../services/emailBranding.js";
 import { logActivity } from "../services/activity.js";
 import { registerMember, registerMemberSchema } from "../services/memberRegistration.js";
@@ -22,6 +24,7 @@ import { sendMemberEmail, sendPaymentLinkEmail } from "../services/mail.js";
 import { applyTemplateVariables, ensureEmailTemplates } from "../services/emailTemplateStore.js";
 import { loadMemberEmailMergeData } from "../services/memberEmailMerge.js";
 import { ensureOilPrices } from "../services/oilPriceStore.js";
+import { ensureCommunityContent } from "../services/communityStore.js";
 import { computePriceDifference } from "../data/oilPriceSeed.js";
 import { nextJuneFirstAfterSignup } from "../utils/juneBilling.js";
 import { expandStateQuery, US_STATE_ABBR_TO_NAME } from "../utils/stateAbbreviations.js";
@@ -1988,6 +1991,168 @@ router.delete("/oil-prices/:id", async (req: AuthedRequest, res) => {
     new mongoose.Types.ObjectId(req.userId!),
     "admin_oil_price_deleted",
     { weekOf, adminId: req.userId },
+    new mongoose.Types.ObjectId(req.userId!)
+  );
+  res.json({ ok: true });
+});
+
+// —— Community partners & events (public Community Partnerships page) ——
+
+const partnerBodySchema = z.object({
+  name: z.string().trim().min(1),
+  shortName: z.string().trim().optional().default(""),
+  blurb: z.string().optional().default(""),
+  websiteUrl: z.string().trim().optional().default(""),
+  imageUrl: z.string().trim().optional().default(""),
+  logoUrl: z.string().trim().optional().default(""),
+  sortOrder: z.number().int().optional().default(0),
+  active: z.boolean().optional().default(true),
+});
+
+const eventBodySchema = z.object({
+  title: z.string().trim().min(1),
+  eventDate: z.string().trim().optional().default(""),
+  location: z.string().trim().optional().default(""),
+  blurb: z.string().optional().default(""),
+  imageUrl: z.string().trim().optional().default(""),
+  kind: z.enum(["upcoming", "recent"]).optional().default("upcoming"),
+  sortOrder: z.number().int().optional().default(0),
+  active: z.boolean().optional().default(true),
+});
+
+router.get("/community/partners", async (_req, res) => {
+  await ensureCommunityContent();
+  const partners = await CommunityPartner.find().sort({ sortOrder: 1, name: 1 }).lean();
+  res.json({ partners });
+});
+
+router.post("/community/partners", async (req: AuthedRequest, res) => {
+  const parsed = partnerBodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const partner = await CommunityPartner.create(parsed.data);
+  await logActivity(
+    new mongoose.Types.ObjectId(req.userId!),
+    "admin_community_partner_created",
+    { name: partner.name, adminId: req.userId },
+    new mongoose.Types.ObjectId(req.userId!)
+  );
+  res.status(201).json({ partner });
+});
+
+router.patch("/community/partners/:id", async (req: AuthedRequest, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const parsed = partnerBodySchema.partial().safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const partner = await CommunityPartner.findById(req.params.id);
+  if (!partner) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  Object.assign(partner, parsed.data);
+  await partner.save();
+  await logActivity(
+    new mongoose.Types.ObjectId(req.userId!),
+    "admin_community_partner_updated",
+    { name: partner.name, adminId: req.userId },
+    new mongoose.Types.ObjectId(req.userId!)
+  );
+  res.json({ partner });
+});
+
+router.delete("/community/partners/:id", async (req: AuthedRequest, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const partner = await CommunityPartner.findById(req.params.id);
+  if (!partner) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const name = partner.name;
+  await partner.deleteOne();
+  await logActivity(
+    new mongoose.Types.ObjectId(req.userId!),
+    "admin_community_partner_deleted",
+    { name, adminId: req.userId },
+    new mongoose.Types.ObjectId(req.userId!)
+  );
+  res.json({ ok: true });
+});
+
+router.get("/community/events", async (_req, res) => {
+  await ensureCommunityContent();
+  const events = await CommunityEvent.find().sort({ kind: 1, sortOrder: 1, eventDate: -1 }).lean();
+  res.json({ events });
+});
+
+router.post("/community/events", async (req: AuthedRequest, res) => {
+  const parsed = eventBodySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const event = await CommunityEvent.create(parsed.data);
+  await logActivity(
+    new mongoose.Types.ObjectId(req.userId!),
+    "admin_community_event_created",
+    { title: event.title, adminId: req.userId },
+    new mongoose.Types.ObjectId(req.userId!)
+  );
+  res.status(201).json({ event });
+});
+
+router.patch("/community/events/:id", async (req: AuthedRequest, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const parsed = eventBodySchema.partial().safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const event = await CommunityEvent.findById(req.params.id);
+  if (!event) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  Object.assign(event, parsed.data);
+  await event.save();
+  await logActivity(
+    new mongoose.Types.ObjectId(req.userId!),
+    "admin_community_event_updated",
+    { title: event.title, adminId: req.userId },
+    new mongoose.Types.ObjectId(req.userId!)
+  );
+  res.json({ event });
+});
+
+router.delete("/community/events/:id", async (req: AuthedRequest, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const event = await CommunityEvent.findById(req.params.id);
+  if (!event) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const title = event.title;
+  await event.deleteOne();
+  await logActivity(
+    new mongoose.Types.ObjectId(req.userId!),
+    "admin_community_event_deleted",
+    { title, adminId: req.userId },
     new mongoose.Types.ObjectId(req.userId!)
   );
   res.json({ ok: true });

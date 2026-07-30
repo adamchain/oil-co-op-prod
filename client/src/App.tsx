@@ -11,6 +11,7 @@ import HeatingPricesPage from "./public-site/HeatingPricesPage";
 import ServicesPage from "./public-site/ServicesPage";
 import CommunityPage from "./public-site/CommunityPage";
 import ReferralPage from "./public-site/ReferralPage";
+import RelatedLinksPage from "./public-site/RelatedLinksPage";
 import SignupPage from "./pages/SignupPage";
 import LoginPage from "./pages/LoginPage";
 import AccountPage from "./pages/AccountPage";
@@ -26,6 +27,7 @@ import AdminAgentsPage from "./pages/AdminAgentsPage";
 import AdminDashboardPage from "./pages/AdminDashboardPage";
 import AdminOilCompaniesPage from "./pages/AdminOilCompaniesPage";
 import AdminOilPricesPage from "./pages/AdminOilPricesPage";
+import AdminCommunityPage from "./pages/AdminCommunityPage";
 import AdminDeliveryImportPage from "./pages/AdminDeliveryImportPage";
 import AdminDeliverySearchPage from "./pages/AdminDeliverySearchPage";
 import AdminAddCustomerPage from "./pages/AdminAddCustomerPage";
@@ -52,6 +54,7 @@ export default function App() {
           <Route path="/services" element={<ServicesPage />} />
           <Route path="/community" element={<CommunityPage />} />
           <Route path="/referral" element={<ReferralPage />} />
+          <Route path="/links" element={<RelatedLinksPage />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/login" element={<LoginPage />} />
         </Route>
@@ -69,6 +72,7 @@ export default function App() {
             <Route path="workbench" element={<AdminWorkbenchPage />} />
             <Route path="oil-companies" element={<AdminOilCompaniesPage />} />
             <Route path="oil-prices" element={<AdminOilPricesPage />} />
+            <Route path="community" element={<AdminCommunityPage />} />
             <Route path="add-customer" element={<AdminAddCustomerPage />} />
             <Route path="members" element={<AdminMembersPage />} />
             <Route path="members/:id" element={<AdminMemberPage />} />
