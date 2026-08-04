@@ -60,7 +60,7 @@ function Hero() {
           heating companies — with someone in your corner if something goes wrong.
         </p>
         <div className="mkt-hero-actions">
-          <Link to="/signup" className="mkt-btn mkt-btn-primary mkt-btn-lg">
+          <Link to="/signup" className="mkt-btn mkt-btn-primary mkt-hero-join">
             Join Now
           </Link>
           <div className="mkt-hero-price" role="group" aria-label="This week's average heating oil price">
