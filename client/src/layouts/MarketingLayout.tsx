@@ -84,8 +84,7 @@ export default function MarketingLayout() {
               <>
                 <button
                   type="button"
-                  className="mkt-btn mkt-btn-ghost"
-                  style={{ padding: "0.4rem 0.75rem", fontSize: "0.85rem" }}
+                  className="mkt-btn mkt-btn-ghost mkt-nav-btn"
                   onClick={() => {
                     logout();
                     close();

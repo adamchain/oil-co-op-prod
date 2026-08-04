@@ -149,13 +149,17 @@
   color: var(--color-accent);
 }
 
-.mkt-nav-btn {
-  padding: 0.35rem 0.85rem;
-  font-size: 0.82rem;
+.mkt-btn.mkt-nav-btn {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.85rem;
   font-weight: 600;
   line-height: 1.2;
   color: #fff !important;
   border-radius: 8px;
+}
+
+.mkt-btn.mkt-btn-ghost.mkt-nav-btn {
+  color: var(--color-text) !important;
 }
 
 @media (max-width: 900px) {
