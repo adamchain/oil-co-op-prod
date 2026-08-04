@@ -589,7 +589,6 @@ export function SavingsSection() {
               <strong>Mark &amp; Alison Laucella</strong>
               Middletown · members since 2007
             </cite>
-            <p className="mkt-savings-quote-note">Placeholder — swap for a Google review or Meredith&apos;s cropped review images.</p>
           </figure>
 
           <ImageSlot
