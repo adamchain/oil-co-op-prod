@@ -32,7 +32,9 @@ export default function TestimonialsPage() {
       </div>
 
       <p className="mkt-lead">
-        <Link to="/signup">Join the Co-op →</Link>
+        <Link to="/signup" className="mkt-btn mkt-btn-primary">
+          Join Now
+        </Link>
       </p>
     </div>
   );

@@ -2193,6 +2193,75 @@
   max-width: 28rem;
 }
 
+.mkt-svc-referral {
+  background: #e7f0e7;
+  border-bottom: 1px solid rgba(14, 118, 60, 0.12);
+  padding: 1rem 0;
+}
+
+.mkt-svc-referral-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.mkt-svc-referral-copy {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--color-text);
+}
+
+.mkt-svc-referral-copy strong {
+  color: var(--color-accent);
+}
+
+.mkt-svc-referral-toggle {
+  display: inline;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 700;
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.mkt-svc-referral-toggle:hover {
+  color: var(--color-accent-hover);
+}
+
+.mkt-svc-referral-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+  max-width: 52rem;
+}
+
+.mkt-svc-referral-form input {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.mkt-svc-referral-form button {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+
+@media (max-width: 720px) {
+  .mkt-svc-referral-form {
+    grid-template-columns: 1fr;
+  }
+}
+
 .mkt-svc-category {
   padding: 3rem 0;
   background: #f4f6f4;

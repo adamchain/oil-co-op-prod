@@ -396,7 +396,7 @@ export default function FaqPage() {
           Ready to save on home energy?
         </p>
         <Link to="/signup" className="mkt-btn mkt-btn-primary mkt-btn-lg">
-          Become a member
+          Join Now
         </Link>
       </div>
     </div>

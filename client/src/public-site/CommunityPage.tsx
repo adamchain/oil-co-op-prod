@@ -266,7 +266,7 @@ export default function CommunityPage() {
           <div className="mkt-comm-thanks-actions">
             <p>Thank you for being part of the Citizen&apos;s Oil Co-op family.</p>
             <Link to="/signup" className="mkt-btn mkt-btn-on-accent">
-              Become a member
+              Join Now
             </Link>
           </div>
         </div>

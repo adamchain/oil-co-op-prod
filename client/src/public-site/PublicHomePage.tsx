@@ -12,10 +12,9 @@ import {
 
 /**
  * Citizen's Oil Co-op public marketing homepage.
- * Lean, conversion-first order per the 7/21 client notes:
- * hero (with this-week's price) → how it works (3 steps, first thing a
- * visitor sees) → the 3 C's → real savings → why choose → towns we serve.
- * Photography drops into the wired <ImageSlot> placeholders.
+ * Order per 7/30 client notes:
+ * hero → how it works (3 steps) → towns we serve → real savings →
+ * why choose → value band (3 C's) at the bottom.
  */
 
 type CurrentOilPrice = {
@@ -62,7 +61,7 @@ function Hero() {
         </p>
         <div className="mkt-hero-actions">
           <Link to="/signup" className="mkt-btn mkt-btn-primary mkt-btn-lg">
-            Become a member
+            Join Now
           </Link>
           <div className="mkt-hero-price" role="group" aria-label="This week's average heating oil price">
             <div className="mkt-hero-price-main">
@@ -110,10 +109,10 @@ export default function PublicHomePage() {
     <>
       <Hero />
       <StepsSection />
-      <ValueBand />
+      <TownsSection />
       <SavingsSection />
       <WhyChooseSection />
-      <TownsSection />
+      <ValueBand />
     </>
   );
 }

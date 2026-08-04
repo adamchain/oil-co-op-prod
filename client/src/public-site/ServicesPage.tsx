@@ -381,6 +381,89 @@ function CategoryBlock({
   );
 }
 
+function ReferralCallout() {
+  const [open, setOpen] = useState(false);
+  const [referrerName, setReferrerName] = useState("");
+  const [referrerEmail, setReferrerEmail] = useState("");
+  const [friendName, setFriendName] = useState("");
+  const [friendEmail, setFriendEmail] = useState("");
+  const [friendPhone, setFriendPhone] = useState("");
+
+  return (
+    <section className="mkt-svc-referral" id="refer-neighbor" aria-label="Referral program">
+      <div className="mkt-container mkt-svc-referral-inner">
+        <p className="mkt-svc-referral-copy">
+          <strong>Already a member?</strong> Don&apos;t forget about our referral program. Have your neighbor sign up
+          and we&apos;ll waive your membership next year!{" "}
+          <button
+            type="button"
+            className="mkt-svc-referral-toggle"
+            aria-expanded={open}
+            aria-controls="svc-referral-form"
+            onClick={() => setOpen((prev) => !prev)}
+          >
+            Click here if you would like us to reach out to someone you know.
+          </button>
+        </p>
+        {open && (
+          <form
+            id="svc-referral-form"
+            className="mkt-svc-referral-form"
+            action="mailto:hutson@oilco-op.com"
+            method="post"
+            encType="text/plain"
+          >
+            <input
+              type="text"
+              name="your_name"
+              placeholder="Your name"
+              value={referrerName}
+              onChange={(e) => setReferrerName(e.target.value)}
+              required
+              autoComplete="name"
+            />
+            <input
+              type="email"
+              name="your_email"
+              placeholder="Your email"
+              value={referrerEmail}
+              onChange={(e) => setReferrerEmail(e.target.value)}
+              required
+              autoComplete="email"
+            />
+            <input
+              type="text"
+              name="friend_name"
+              placeholder="Friend's name"
+              value={friendName}
+              onChange={(e) => setFriendName(e.target.value)}
+              required
+            />
+            <input
+              type="email"
+              name="friend_email"
+              placeholder="Friend's email"
+              value={friendEmail}
+              onChange={(e) => setFriendEmail(e.target.value)}
+              required
+            />
+            <input
+              type="tel"
+              name="friend_phone"
+              placeholder="Friend's phone (optional)"
+              value={friendPhone}
+              onChange={(e) => setFriendPhone(e.target.value)}
+            />
+            <button type="submit" className="mkt-btn mkt-btn-primary">
+              Send referral
+            </button>
+          </form>
+        )}
+      </div>
+    </section>
+  );
+}
+
 /** Services / member benefits page — Save Money, Go Green, Why become a member. */
 export default function ServicesPage() {
   return (
@@ -393,6 +476,8 @@ export default function ServicesPage() {
           <p>More than discounted fuel. Your membership comes with valuable benefits all year long.</p>
         </div>
       </section>
+
+      <ReferralCallout />
 
       <CategoryBlock
         id="save-money"
@@ -442,7 +527,7 @@ export default function ServicesPage() {
         <div className="mkt-container mkt-svc-cta-inner">
           <p>Join over 5,000 Connecticut homeowners and start saving today.</p>
           <Link to="/signup" className="mkt-btn mkt-btn-primary mkt-btn-lg">
-            Become a member →
+            Join Now
           </Link>
         </div>
       </section>

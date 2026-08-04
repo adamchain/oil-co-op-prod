@@ -77,7 +77,7 @@ export default function HeatingPricesPage() {
 
       <p style={{ marginBottom: "1.5rem" }}>
         <Link to="/signup" className="mkt-btn mkt-btn-primary">
-          Join Citizen&apos;s Oil Co-op
+          Join Now
         </Link>
       </p>
 

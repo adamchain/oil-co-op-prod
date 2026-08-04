@@ -28,12 +28,11 @@ export function PriceCard() {
   );
 }
 
-/** Three sign-up steps + "Call today and join!" */
+/** Three sign-up steps + Join Now CTA. */
 export function StepsSection() {
   return (
     <section className="mkt-steps" id="how">
       <div className="mkt-steps-banner">
-        <p className="mkt-eyebrow mkt-eyebrow-light">How it works</p>
         <h2>Saving starts in three simple steps</h2>
       </div>
       <div className="mkt-container mkt-steps-body">
@@ -54,9 +53,9 @@ export function StepsSection() {
             <p>Your supplier sets up the account, delivery, and billing — at the discounted Co-op rate.</p>
           </li>
         </ul>
-        <div className="mkt-hero-actions" style={{ justifyContent: "center", marginTop: "2rem" }}>
+        <div className="mkt-hero-actions" style={{ justifyContent: "center", marginTop: "1.5rem" }}>
           <Link to="/signup" className="mkt-btn mkt-btn-primary mkt-btn-lg">
-            Call today and join!
+            Join Now
           </Link>
         </div>
       </div>
@@ -148,7 +147,7 @@ export function HomeBody() {
                 at the negotiated rate. <strong>It&apos;s that easy.</strong>
               </p>
               <Link to="/signup" className="mkt-btn mkt-btn-primary">
-                Join Citizen&apos;s Oil Co-op
+                Join Now
               </Link>
             </div>
             <div className="mkt-stats">
@@ -460,7 +459,7 @@ export function HomeBody() {
           <p>Heating oil · Bioheat · Propane · Electric programs · Insurance · Audits · Solar</p>
           <div className="mkt-hero-actions" style={{ justifyContent: "center" }}>
             <Link to="/signup" className="mkt-btn mkt-btn-primary mkt-btn-lg">
-              Join Citizen&apos;s Oil Co-op online
+              Join Now
             </Link>
           </div>
           <p className="mkt-sync-note">Confirm current rates, fees, and offers with the office.</p>
@@ -559,7 +558,7 @@ export function ValueBand() {
   );
 }
 
-/** Real savings — figure + retail-vs-member comparison + photo slot. */
+/** Real savings — figure + member testimonial placeholder + photo slot. */
 export function SavingsSection() {
   return (
     <section className="mkt-section mkt-savings" id="savings">
@@ -576,27 +575,21 @@ export function SavingsSection() {
               state average, with no fixed-price lock-in.
             </p>
             <Link to="/signup" className="mkt-btn mkt-btn-primary">
-              See member savings
+              Join Now
             </Link>
           </div>
 
-          <figure className="mkt-trend" aria-label="Co-op price runs consistently below the state average price">
-            <figcaption className="mkt-trend-title">Co-op price vs. state average</figcaption>
-            <svg className="mkt-trend-svg" viewBox="0 0 320 180" role="img">
-              {/* axes */}
-              <line x1="34" y1="12" x2="34" y2="150" className="mkt-trend-axis" />
-              <line x1="34" y1="150" x2="308" y2="150" className="mkt-trend-axis" />
-              {/* state average (upper, gray) */}
-              <polyline className="mkt-trend-line mkt-trend-line--avg" points="34,60 90,48 146,72 202,46 258,64 308,44" />
-              {/* co-op price (lower, green) */}
-              <polyline className="mkt-trend-line mkt-trend-line--coop" points="34,104 90,96 146,116 202,92 258,108 308,90" />
-              <text x="171" y="170" className="mkt-trend-axis-label">Time →</text>
-              <text x="20" y="90" className="mkt-trend-axis-label" transform="rotate(-90 20 90)">Price →</text>
-            </svg>
-            <div className="mkt-trend-legend">
-              <span className="mkt-trend-key mkt-trend-key--avg">State average price</span>
-              <span className="mkt-trend-key mkt-trend-key--coop">Co-op price</span>
-            </div>
+          <figure className="mkt-savings-quote">
+            <Stars />
+            <blockquote>
+              &ldquo;The reduced per-gallon cost helps our household budget — we keep telling friends about the
+              program.&rdquo;
+            </blockquote>
+            <cite>
+              <strong>Mark &amp; Alison Laucella</strong>
+              Middletown · members since 2007
+            </cite>
+            <p className="mkt-savings-quote-note">Placeholder — swap for a Google review or Meredith&apos;s cropped review images.</p>
           </figure>
 
           <ImageSlot
@@ -778,7 +771,7 @@ export function FinalCtaBand() {
         <p>Join the region&apos;s trusted home-heating buyers&apos; club today.</p>
         <div className="mkt-finalcta-actions">
           <Link to="/signup" className="mkt-btn mkt-btn-lg mkt-btn-on-accent">
-            Become a member today
+            Join Now
           </Link>
           <a href="tel:8605616011" className="mkt-finalcta-phone">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
