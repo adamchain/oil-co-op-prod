@@ -1774,17 +1774,27 @@
    7/21 client-notes revisions
    ============================================================ */
 
-/* Hero: CTA + this week's price as one aligned action row */
+/* Hero: CTA + this week's price as one matched-height action row */
+.mkt-hero--pro {
+  padding-top: 2.25rem;
+  padding-bottom: 2.5rem;
+}
+
 .mkt-hero--pro h1 {
   color: var(--color-forest);
   line-height: 1.18;
   letter-spacing: -0.01em;
+  margin-bottom: 0.85rem;
 }
 
 .mkt-hero--pro .mkt-hero-inner > p {
-  margin-bottom: 1.35rem;
+  margin-bottom: 1.15rem;
   line-height: 1.55;
   max-width: 34rem;
+}
+
+.mkt-hero--pro .mkt-hero-media {
+  min-height: 300px;
 }
 
 .mkt-hero-actions {
@@ -1795,13 +1805,16 @@
 
 .mkt-hero-actions .mkt-btn-lg {
   align-self: stretch;
-  min-height: 3.5rem;
+  display: inline-flex;
+  align-items: center;
+  min-height: 3.65rem;
+  height: auto;
   padding: 0.85rem 1.65rem;
 }
 
-/* More breathing room between the price/CTA row and the trust line below it */
+/* Extra space so the trust line balances the white space under the CTA row */
 .mkt-hero-check {
-  margin-top: 1.75rem;
+  margin-top: 2.5rem;
 }
 
 .mkt-hero-price {
@@ -1813,7 +1826,8 @@
   border-radius: var(--radius);
   background: rgba(255, 255, 255, 0.72);
   line-height: 1.15;
-  min-height: 3.5rem;
+  min-height: 3.65rem;
+  box-sizing: border-box;
 }
 
 .mkt-hero-price-main {
@@ -1947,23 +1961,28 @@
   color: #fff;
 }
 
-/* Steps: "Saving starts in three simple steps" in a green banner, first thing after hero */
+/* Steps: compact banner so the 3 steps show sooner after landing */
 .mkt-steps {
   scroll-margin-top: 5.5rem;
+  padding: 0 1.25rem;
 }
 
 .mkt-steps-banner {
   background: linear-gradient(150deg, var(--color-forest) 0%, var(--color-forest-2) 100%);
   color: #fff;
   text-align: center;
-  padding: 2.25rem 1.5rem 2rem;
+  padding: 1.1rem 1.5rem;
+  max-width: 720px;
+  margin: 0 auto;
+  border-radius: var(--radius-lg);
 }
 
 .mkt-steps-banner h2 {
   font-family: var(--font-display);
-  font-size: clamp(1.6rem, 3vw, 2.1rem);
+  font-size: clamp(1.35rem, 2.6vw, 1.75rem);
   font-weight: 600;
-  margin: 0.15rem 0 0;
+  margin: 0;
+  line-height: 1.25;
 }
 
 .mkt-eyebrow-light {
@@ -1971,10 +1990,48 @@
 }
 
 .mkt-steps-body {
-  padding: 2.75rem 1.5rem 3rem;
+  padding: 1.75rem 0 2.25rem;
 }
 
-/* Real savings: generic trend — Co-op price consistently below state average (no dollar figures) */
+/* Savings: member testimonial in place of the old trend chart */
+.mkt-savings-quote {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 1.5rem 1.5rem 1.35rem;
+  box-shadow: var(--shadow);
+  height: 100%;
+}
+
+.mkt-savings-quote blockquote {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.05rem, 2vw, 1.25rem);
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--color-text);
+}
+
+.mkt-savings-quote cite {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  font-style: normal;
+  font-size: 0.88rem;
+  color: var(--color-text-muted);
+  line-height: 1.35;
+}
+
+.mkt-savings-quote cite strong {
+  color: var(--color-text);
+  font-size: 0.95rem;
+}
+
+/* Legacy trend chart styles (unused on homepage; kept for safety) */
 .mkt-trend {
   margin: 0;
   display: flex;
