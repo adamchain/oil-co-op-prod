@@ -1030,10 +1030,135 @@
   }
 }
 
-.mkt-error {
-  color: #b91c1c;
-  font-size: 0.9rem;
-  margin: 0.5rem 0;
+.mkt-signup-page {
+  max-width: 760px;
+}
+
+.mkt-signup-section {
+  margin: 0 0 1.75rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.mkt-signup-section:last-of-type {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.mkt-signup-section h2 {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin: 0 0 1rem;
+  color: var(--color-forest);
+}
+
+.mkt-row3 {
+  display: grid;
+  grid-template-columns: 1.4fr 0.55fr 1.4fr;
+  gap: 1rem;
+}
+
+@media (max-width: 640px) {
+  .mkt-row3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mkt-field-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  line-height: 1.4;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+}
+
+.mkt-fee-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.65rem 0.85rem;
+  background: var(--color-bg-alt);
+  border-radius: var(--radius);
+  margin-bottom: 0.5rem;
+  font-size: 0.95rem;
+}
+
+.mkt-fee-row strong {
+  color: var(--color-accent);
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+}
+
+.mkt-yesno {
+  border: none;
+  padding: 0;
+  margin: 0 0 1rem;
+}
+
+.mkt-yesno legend {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  margin-bottom: 0.45rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.mkt-yesno-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.5rem;
+}
+
+.mkt-yesno-options label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--color-text);
+  text-transform: none;
+  letter-spacing: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.mkt-card-section {
+  background: #f8f8f8;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-top: 0.5rem;
+}
+
+.mkt-card-section h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.mkt-card-section > p {
+  font-size: 0.85rem;
+  color: #666;
+  margin: 0 0 1rem;
+}
+
+.mkt-check-note {
+  background: #fff8e6;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-top: 0.5rem;
+  border: 1px solid #f0d070;
+}
+
+.mkt-check-note p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #665;
 }
 
 .mkt-page-title {
