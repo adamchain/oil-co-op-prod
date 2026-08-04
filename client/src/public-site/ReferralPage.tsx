@@ -41,7 +41,7 @@ export default function ReferralPage() {
 
       <p style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem" }}>
         <Link to="/signup" className="mkt-btn mkt-btn-primary">
-          Join now
+          Join Now
         </Link>
         <a href="#refer" className="mkt-btn mkt-btn-ghost" onClick={(e) => {
           e.preventDefault();

@@ -77,7 +77,7 @@ export default function MarketingLayout() {
                   Member sign in
                 </Link>
                 <Link to="/signup" className="mkt-btn mkt-btn-primary mkt-nav-btn" onClick={close}>
-                  Join now
+                  Join Now
                 </Link>
               </>
             ) : (
@@ -147,7 +147,7 @@ export default function MarketingLayout() {
               {!member ? (
                 <>
                   <Link to="/signup" onClick={close}>
-                    Join now
+                    Join Now
                   </Link>
                   <Link to="/login" onClick={close}>
                     Sign in
