@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import type { ReactNode } from "react";
 
@@ -303,19 +304,29 @@ const WHY_MEMBER: BenefitCard[] = [
   },
 ];
 
-function BenefitCardItem({ card }: { card: BenefitCard }) {
+function BenefitCardItem({
+  card,
+  open,
+  onToggle,
+}: {
+  card: BenefitCard;
+  open: boolean;
+  onToggle: () => void;
+}) {
   return (
-    <details className="mkt-svc-card">
-      <summary>
-        {card.icon}
-        <span className="mkt-svc-card-title">{card.title}</span>
-        <span className="mkt-svc-card-summary">{card.summary}</span>
-        <span className="mkt-svc-card-more">
-          Learn more <span aria-hidden>→</span>
-        </span>
-      </summary>
-      <div className="mkt-svc-card-detail mkt-prose">{card.detail}</div>
-    </details>
+    <button
+      type="button"
+      className={`mkt-svc-card${open ? " is-open" : ""}`}
+      aria-expanded={open}
+      onClick={onToggle}
+    >
+      {card.icon}
+      <span className="mkt-svc-card-title">{card.title}</span>
+      <span className="mkt-svc-card-summary">{card.summary}</span>
+      <span className="mkt-svc-card-more">
+        {open ? "Show less" : "Learn more"} <span aria-hidden>{open ? "↑" : "→"}</span>
+      </span>
+    </button>
   );
 }
 
@@ -334,6 +345,9 @@ function CategoryBlock({
   blurb: string;
   cards: BenefitCard[];
 }) {
+  const [openId, setOpenId] = useState<string | null>(null);
+  const openCard = cards.find((c) => c.id === openId) ?? null;
+
   return (
     <section className={`mkt-svc-category mkt-svc-category--${tone}`} id={id}>
       <div className="mkt-container mkt-svc-category-inner">
@@ -344,10 +358,23 @@ function CategoryBlock({
           <h2>{title}</h2>
           <p>{blurb}</p>
         </div>
-        <div className={`mkt-svc-grid ${cards.length === 3 ? "mkt-svc-grid--3" : ""}`}>
-          {cards.map((card) => (
-            <BenefitCardItem key={card.id} card={card} />
-          ))}
+        <div className="mkt-svc-category-main">
+          <div className={`mkt-svc-grid ${cards.length === 3 ? "mkt-svc-grid--3" : ""}`}>
+            {cards.map((card) => (
+              <BenefitCardItem
+                key={card.id}
+                card={card}
+                open={openId === card.id}
+                onToggle={() => setOpenId((prev) => (prev === card.id ? null : card.id))}
+              />
+            ))}
+          </div>
+          {openCard && (
+            <div className="mkt-svc-detail-panel mkt-prose" role="region" aria-label={`${openCard.title} details`}>
+              <h3>{openCard.title}</h3>
+              {openCard.detail}
+            </div>
+          )}
         </div>
       </div>
     </section>

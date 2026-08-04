@@ -1774,46 +1774,79 @@
    7/21 client-notes revisions
    ============================================================ */
 
-/* Hero: show this week's price inline (no click-through required) */
+/* Hero: CTA + this week's price as one aligned action row */
+.mkt-hero--pro h1 {
+  color: var(--color-forest);
+  line-height: 1.18;
+  letter-spacing: -0.01em;
+}
+
+.mkt-hero--pro .mkt-hero-inner > p {
+  margin-bottom: 1.35rem;
+  line-height: 1.55;
+  max-width: 34rem;
+}
+
 .mkt-hero-actions {
-  align-items: center;
-  gap: 1rem 1.25rem;
-  margin-top: 0.5rem;
+  align-items: stretch;
+  gap: 0.85rem 1rem;
+  margin-top: 0;
+}
+
+.mkt-hero-actions .mkt-btn-lg {
+  align-self: stretch;
+  min-height: 3.5rem;
+  padding: 0.85rem 1.65rem;
 }
 
 /* More breathing room between the price/CTA row and the trust line below it */
 .mkt-hero-check {
-  margin-top: 2.25rem;
+  margin-top: 1.75rem;
 }
 
 .mkt-hero-price {
   display: inline-flex;
-  flex-direction: column;
-  padding: 0.5rem 1rem;
+  align-items: center;
+  gap: 0.85rem 1.15rem;
+  padding: 0.55rem 1.1rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  background: var(--color-surface);
-  box-shadow: var(--shadow);
+  background: rgba(255, 255, 255, 0.72);
   line-height: 1.15;
+  min-height: 3.5rem;
+}
+
+.mkt-hero-price-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.mkt-hero-price-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding-left: 1rem;
+  border-left: 1px solid var(--color-border);
 }
 
 .mkt-hero-price-label {
-  font-size: 0.68rem;
+  font-size: 0.65rem;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.07em;
   color: var(--color-text-muted);
   font-weight: 600;
 }
 
 .mkt-hero-price-value {
   font-family: var(--font-display);
-  font-size: 1.55rem;
+  font-size: 1.45rem;
   font-weight: 600;
   color: var(--color-accent);
 }
 
 .mkt-hero-price-unit {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: 500;
   color: var(--color-text-muted);
   margin-left: 0.1rem;
@@ -1822,19 +1855,24 @@
 .mkt-hero-price-week {
   font-size: 0.72rem;
   color: var(--color-text-muted);
-  margin-top: 0.15rem;
 }
 
 .mkt-hero-price-link {
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--color-accent);
   text-decoration: none;
-  margin-top: 0.1rem;
 }
 
 .mkt-hero-price-link:hover {
   text-decoration: underline;
+}
+
+@media (max-width: 560px) {
+  .mkt-hero-price {
+    width: 100%;
+    justify-content: space-between;
+  }
 }
 
 .mkt-price-table-wrap {
@@ -2156,7 +2194,7 @@
 }
 
 .mkt-svc-category {
-  padding: 2.75rem 0;
+  padding: 3rem 0;
   background: #f4f6f4;
 }
 
@@ -2170,9 +2208,14 @@
 
 .mkt-svc-category-inner {
   display: grid;
-  grid-template-columns: minmax(180px, 240px) 1fr;
-  gap: 2rem 2.5rem;
+  grid-template-columns: minmax(180px, 220px) 1fr;
+  gap: 1.75rem 2.25rem;
   align-items: start;
+}
+
+.mkt-svc-category-label {
+  position: sticky;
+  top: 5.5rem;
 }
 
 .mkt-svc-category-label h2 {
@@ -2217,10 +2260,18 @@
   height: 1.35rem;
 }
 
+.mkt-svc-category-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
 .mkt-svc-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 1rem;
+  align-items: stretch;
 }
 
 .mkt-svc-grid--3 {
@@ -2232,28 +2283,46 @@
 }
 
 .mkt-svc-card {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: 1.15rem 1.15rem 1rem;
-  box-shadow: var(--shadow);
-}
-
-.mkt-svc-card--static {
-  display: block;
-}
-
-.mkt-svc-card summary {
-  list-style: none;
-  cursor: pointer;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 0.45rem;
+  width: 100%;
+  height: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 1.2rem 1.15rem 1.05rem;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition);
 }
 
-.mkt-svc-card summary::-webkit-details-marker {
-  display: none;
+.mkt-svc-card:hover {
+  border-color: rgba(14, 118, 60, 0.35);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-1px);
+}
+
+.mkt-svc-card.is-open {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 1px var(--color-accent), var(--shadow);
+}
+
+.mkt-svc-category--navy .mkt-svc-card:hover {
+  border-color: rgba(30, 58, 95, 0.35);
+}
+
+.mkt-svc-category--navy .mkt-svc-card.is-open {
+  border-color: var(--svc-navy);
+  box-shadow: 0 0 0 1px var(--svc-navy), var(--shadow);
+}
+
+.mkt-svc-card--static {
+  display: block;
 }
 
 .mkt-svc-icon {
@@ -2282,32 +2351,60 @@
   font-size: 0.88rem;
   color: var(--color-text-muted);
   line-height: 1.45;
+  flex: 1 1 auto;
 }
 
 .mkt-svc-card-more {
   font-size: 0.82rem;
   font-weight: 700;
   color: var(--color-accent);
-  margin-top: 0.25rem;
+  margin-top: auto;
+  padding-top: 0.55rem;
 }
 
 .mkt-svc-category--navy .mkt-svc-card-more {
   color: var(--svc-navy);
 }
 
-.mkt-svc-card[open] .mkt-svc-card-more {
-  opacity: 0.55;
+.mkt-svc-card.is-open .mkt-svc-card-more {
+  opacity: 0.7;
 }
 
-.mkt-svc-card-detail {
-  margin-top: 0.85rem;
-  padding-top: 0.85rem;
-  border-top: 1px solid var(--color-border);
-  font-size: 0.9rem;
+.mkt-svc-detail-panel {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-accent);
+  border-radius: var(--radius);
+  padding: 1.15rem 1.35rem;
+  font-size: 0.95rem;
+  animation: mkt-svc-panel-in 0.2s ease;
 }
 
-.mkt-svc-card-detail p:last-child {
+.mkt-svc-category--navy .mkt-svc-detail-panel {
+  border-left-color: var(--svc-navy);
+}
+
+.mkt-svc-detail-panel h3 {
+  margin: 0 0 0.65rem;
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.mkt-svc-detail-panel p:last-child {
   margin-bottom: 0;
+}
+
+@keyframes mkt-svc-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .mkt-svc-cta {
@@ -2344,6 +2441,10 @@
   .mkt-svc-category-inner {
     grid-template-columns: 1fr;
     gap: 1.25rem;
+  }
+
+  .mkt-svc-category-label {
+    position: static;
   }
 
   .mkt-svc-grid,

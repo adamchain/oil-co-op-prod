@@ -65,15 +65,23 @@ function Hero() {
             Become a member
           </Link>
           <div className="mkt-hero-price" role="group" aria-label="This week's average heating oil price">
-            <span className="mkt-hero-price-label">This week&apos;s avg. heating oil</span>
-            <span className="mkt-hero-price-value">
-              {price ? formatPrice(price.coopPrice) : "—"}
-              <span className="mkt-hero-price-unit">/gal</span>
-            </span>
-            {price && <span className="mkt-hero-price-week">week of {formatWeekOf(price.weekOf)}</span>}
-            <Link to="/heating-prices" className="mkt-hero-price-link">
-              See full pricing
-            </Link>
+            <div className="mkt-hero-price-main">
+              <span className="mkt-hero-price-label">This week&apos;s avg. heating oil</span>
+              <span className="mkt-hero-price-value">
+                {price ? formatPrice(price.coopPrice) : "—"}
+                <span className="mkt-hero-price-unit">/gal</span>
+              </span>
+            </div>
+            <div className="mkt-hero-price-meta">
+              {price && <span className="mkt-hero-price-week">week of {formatWeekOf(price.weekOf)}</span>}
+              <Link
+                to="/heating-prices"
+                className="mkt-hero-price-link"
+                onClick={(e) => e.stopPropagation()}
+              >
+                See full pricing
+              </Link>
+            </div>
           </div>
         </div>
         <p className="mkt-hero-check">
