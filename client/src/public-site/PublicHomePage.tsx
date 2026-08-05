@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import {
@@ -16,7 +16,7 @@ import {
  * hero → how it works (3 steps) → towns we serve → real savings →
  * why choose → value band (3 C's) at the bottom.
  *
- * Hero area ships several layout examples in a horizontal scroller
+ * Hero area ships several layout examples stepped with Prev/Next
  * so staff can compare directions (price strip, price-first, etc.).
  */
 
@@ -69,6 +69,19 @@ function CheckLine() {
   );
 }
 
+function HeroMedia() {
+  return (
+    <div className="mkt-hero-media">
+      <ImageSlot
+        src="/site/truck.jpg"
+        alt="A heating-oil delivery truck at a member's home"
+        label="Photo: heating-oil delivery at a member's home"
+        className="mkt-img-slot--hero"
+      />
+    </div>
+  );
+}
+
 /** A — Current pro split: CTA + compact price strip + media */
 function HeroPro({ price }: { price: CurrentOilPrice | null }) {
   return (
@@ -104,24 +117,17 @@ function HeroPro({ price }: { price: CurrentOilPrice | null }) {
         <HeroPhoneLink />
         <CheckLine />
       </div>
-      <div className="mkt-hero-media">
-        <ImageSlot
-          src="/site/truck.jpg"
-          alt="A heating-oil delivery truck at a member's home"
-          label="Photo: heating-oil delivery at a member's home"
-          className="mkt-img-slot--hero"
-        />
-      </div>
+      <HeroMedia />
     </section>
   );
 }
 
-/** B — Large price stacked above the headline */
+/** B — Large price stacked above the headline + media */
 function HeroPriceAbove({ price }: { price: CurrentOilPrice | null }) {
   return (
     <section className="mkt-hero mkt-hero--price-above">
       <div className="mkt-hero-bg" aria-hidden />
-      <div className="mkt-hero-inner mkt-hero-inner--center">
+      <div className="mkt-hero-inner">
         <p className="mkt-hero-tag">This week&apos;s Co-op heating oil</p>
         <div className="mkt-hero-price-hero" role="group" aria-label="This week's average heating oil price">
           <span className="mkt-hero-price-hero-value">
@@ -135,7 +141,7 @@ function HeroPriceAbove({ price }: { price: CurrentOilPrice | null }) {
           Group-negotiated rates from local, full-service companies — with someone in your corner if something goes
           wrong.
         </p>
-        <div className="mkt-hero-actions" style={{ justifyContent: "center" }}>
+        <div className="mkt-hero-actions">
           <Link to="/signup" className="mkt-btn mkt-btn-primary mkt-btn-lg">
             Join Now
           </Link>
@@ -148,74 +154,81 @@ function HeroPriceAbove({ price }: { price: CurrentOilPrice | null }) {
         </p>
         <CheckLine />
       </div>
+      <HeroMedia />
     </section>
   );
 }
 
-/** C — Price as the focal panel beside short copy */
+/** C — Price panel focus + media */
 function HeroPriceFocus({ price }: { price: CurrentOilPrice | null }) {
   return (
     <section className="mkt-hero mkt-hero--price-focus">
       <div className="mkt-hero-bg" aria-hidden />
-      <aside className="mkt-hero-price-panel" aria-label="This week's average heating oil price">
-        <span className="mkt-hero-price-panel-label">This week&apos;s avg. heating oil</span>
-        <span className="mkt-hero-price-panel-value">
-          {price ? formatPrice(price.coopPrice) : "—"}
-          <span className="mkt-hero-price-panel-unit">/gal</span>
-        </span>
-        {price && <span className="mkt-hero-price-panel-week">week of {formatWeekOf(price.weekOf)}</span>}
-        <Link to="/heating-prices" className="mkt-btn mkt-btn-ghost" style={{ marginTop: "1.25rem", width: "100%" }}>
-          See full pricing
-        </Link>
-      </aside>
-      <div className="mkt-hero-inner">
-        <p className="mkt-hero-tag">Heating oil · Propane · and more</p>
-        <h1>The price members pay.</h1>
-        <p>
-          Join Citizen&apos;s Oil Co-op for discounted full-service delivery — negotiated as a group, delivered by
-          local companies you can trust.
-        </p>
-        <div className="mkt-hero-actions">
-          <Link to="/signup" className="mkt-btn mkt-btn-primary mkt-btn-lg">
-            Join Now
+      <div className="mkt-hero-inner mkt-hero-inner--with-panel">
+        <aside className="mkt-hero-price-panel" aria-label="This week's average heating oil price">
+          <span className="mkt-hero-price-panel-label">This week&apos;s avg. heating oil</span>
+          <span className="mkt-hero-price-panel-value">
+            {price ? formatPrice(price.coopPrice) : "—"}
+            <span className="mkt-hero-price-panel-unit">/gal</span>
+          </span>
+          {price && <span className="mkt-hero-price-panel-week">week of {formatWeekOf(price.weekOf)}</span>}
+          <Link to="/heating-prices" className="mkt-btn mkt-btn-ghost" style={{ marginTop: "1.25rem", width: "100%" }}>
+            See full pricing
           </Link>
-          <HeroPhoneLink className="mkt-btn mkt-btn-ghost mkt-btn-lg mkt-hero-phone-btn" />
+        </aside>
+        <div>
+          <p className="mkt-hero-tag">Heating oil · Propane · and more</p>
+          <h1>The price members pay.</h1>
+          <p>
+            Join Citizen&apos;s Oil Co-op for discounted full-service delivery — negotiated as a group, delivered by
+            local companies you can trust.
+          </p>
+          <div className="mkt-hero-actions">
+            <Link to="/signup" className="mkt-btn mkt-btn-primary mkt-btn-lg">
+              Join Now
+            </Link>
+            <HeroPhoneLink className="mkt-btn mkt-btn-ghost mkt-btn-lg mkt-hero-phone-btn" />
+          </div>
+          <CheckLine />
         </div>
-        <CheckLine />
       </div>
+      <HeroMedia />
     </section>
   );
 }
 
-/** D — Green banner with oversized price */
+/** D — Green banner with oversized price + media */
 function HeroBannerPrice({ price }: { price: CurrentOilPrice | null }) {
   return (
     <section className="mkt-hero-banner mkt-hero-banner--price">
-      <div className="mkt-hero-banner-inner">
-        <p className="mkt-hero-banner-tag">Citizen&apos;s Oil Co-op · this week</p>
-        <div className="mkt-hero-banner-price-xl" role="group" aria-label="This week's average heating oil price">
-          <span className="mkt-hero-banner-price-xl-value">
-            {price ? formatPrice(price.coopPrice) : "—"}
-            <span className="mkt-hero-banner-price-xl-unit">/gal</span>
-          </span>
-          {price && <span className="mkt-hero-banner-price-xl-week">week of {formatWeekOf(price.weekOf)}</span>}
+      <div className="mkt-hero-banner-grid">
+        <div className="mkt-hero-banner-inner">
+          <p className="mkt-hero-banner-tag">Citizen&apos;s Oil Co-op · this week</p>
+          <div className="mkt-hero-banner-price-xl" role="group" aria-label="This week's average heating oil price">
+            <span className="mkt-hero-banner-price-xl-value">
+              {price ? formatPrice(price.coopPrice) : "—"}
+              <span className="mkt-hero-banner-price-xl-unit">/gal</span>
+            </span>
+            {price && <span className="mkt-hero-banner-price-xl-week">week of {formatWeekOf(price.weekOf)}</span>}
+          </div>
+          <h1>Stop overpaying for heating oil &amp; propane.</h1>
+          <p>Group-negotiated pricing on full-service heating oil and propane across CT, RI, NY &amp; MA.</p>
+          <div className="mkt-hero-actions">
+            <Link to="/signup" className="mkt-btn mkt-btn-lg mkt-btn-on-accent">
+              Join Now
+            </Link>
+            <a href="tel:8605616011" className="mkt-btn mkt-btn-lg mkt-btn-ghost-light mkt-hero-phone-btn">
+              <PhoneIcon size={18} />
+              860-561-6011
+            </a>
+          </div>
+          <p className="mkt-hero-banner-price-note" style={{ marginTop: "1.25rem" }}>
+            <Link to="/heating-prices" style={{ color: "#fff", fontWeight: 600 }}>
+              See full pricing →
+            </Link>
+          </p>
         </div>
-        <h1>Stop overpaying for heating oil &amp; propane.</h1>
-        <p>Group-negotiated pricing on full-service heating oil and propane across CT, RI, NY &amp; MA.</p>
-        <div className="mkt-hero-actions" style={{ justifyContent: "center" }}>
-          <Link to="/signup" className="mkt-btn mkt-btn-lg mkt-btn-on-accent">
-            Join Now
-          </Link>
-          <a href="tel:8605616011" className="mkt-btn mkt-btn-lg mkt-btn-ghost-light mkt-hero-phone-btn">
-            <PhoneIcon size={18} />
-            860-561-6011
-          </a>
-        </div>
-        <p className="mkt-hero-banner-price-note" style={{ marginTop: "1.25rem" }}>
-          <Link to="/heating-prices" style={{ color: "#fff", fontWeight: 600 }}>
-            See full pricing →
-          </Link>
-        </p>
+        <HeroMedia />
       </div>
     </section>
   );
@@ -231,7 +244,6 @@ const HERO_EXAMPLES = [
 function HeroGallery() {
   const [price, setPrice] = useState<CurrentOilPrice | null>(null);
   const [active, setActive] = useState(0);
-  const trackRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -247,42 +259,26 @@ function HeroGallery() {
     };
   }, []);
 
-  useEffect(() => {
-    const track = trackRef.current;
-    if (!track) return;
-
-    const onScroll = () => {
-      const slideWidth = track.clientWidth;
-      if (slideWidth <= 0) return;
-      const index = Math.round(track.scrollLeft / slideWidth);
-      setActive(Math.max(0, Math.min(index, HERO_EXAMPLES.length - 1)));
-    };
-
-    track.addEventListener("scroll", onScroll, { passive: true });
-    return () => track.removeEventListener("scroll", onScroll);
-  }, []);
-
-  const scrollTo = (index: number) => {
-    const track = trackRef.current;
-    if (!track) return;
-    const next = Math.max(0, Math.min(index, HERO_EXAMPLES.length - 1));
-    track.scrollTo({ left: next * track.clientWidth, behavior: "smooth" });
-    setActive(next);
+  const goTo = (index: number) => {
+    setActive(Math.max(0, Math.min(index, HERO_EXAMPLES.length - 1)));
   };
+
+  const current = HERO_EXAMPLES[active];
 
   return (
     <div className="mkt-hero-gallery">
       <div className="mkt-hero-gallery-chrome">
-        <p className="mkt-hero-gallery-label">Hero layout examples — swipe or use arrows</p>
+        <p className="mkt-hero-gallery-label">
+          Hero layout examples · {active + 1} of {HERO_EXAMPLES.length}
+        </p>
         <div className="mkt-hero-gallery-nav">
           <button
             type="button"
-            className="mkt-hero-gallery-arrow"
-            aria-label="Previous hero example"
+            className="mkt-hero-gallery-btn"
             disabled={active === 0}
-            onClick={() => scrollTo(active - 1)}
+            onClick={() => goTo(active - 1)}
           >
-            ‹
+            ← Prev
           </button>
           <div className="mkt-slide-dots" role="tablist" aria-label="Hero examples">
             {HERO_EXAMPLES.map((ex, i) => (
@@ -293,29 +289,24 @@ function HeroGallery() {
                 aria-selected={i === active}
                 aria-label={ex.label}
                 className={i === active ? "active" : ""}
-                onClick={() => scrollTo(i)}
+                onClick={() => goTo(i)}
               />
             ))}
           </div>
           <button
             type="button"
-            className="mkt-hero-gallery-arrow"
-            aria-label="Next hero example"
+            className="mkt-hero-gallery-btn"
             disabled={active === HERO_EXAMPLES.length - 1}
-            onClick={() => scrollTo(active + 1)}
+            onClick={() => goTo(active + 1)}
           >
-            ›
+            Next →
           </button>
         </div>
       </div>
 
-      <div className="mkt-hero-gallery-track" ref={trackRef}>
-        {HERO_EXAMPLES.map((ex) => (
-          <div className="mkt-hero-gallery-slide" key={ex.key}>
-            <p className="mkt-hero-slide-label">{ex.label}</p>
-            {ex.render(price)}
-          </div>
-        ))}
+      <div className="mkt-hero-gallery-stage">
+        <p className="mkt-hero-slide-label">{current.label}</p>
+        {current.render(price)}
       </div>
     </div>
   );

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../authContext";
+import { PENDING_PROPERTY_KEY, type PendingProperty } from "../utils/pendingProperty";
 
 type Property = {
   id: string;
@@ -37,8 +38,27 @@ type Me = {
   legacyProfile?: Record<string, unknown>;
 };
 
+function initials(first: string, last: string, email: string): string {
+  const a = first.trim().charAt(0);
+  const b = last.trim().charAt(0);
+  if (a || b) return `${a}${b}`.toUpperCase();
+  return (email.trim().charAt(0) || "?").toUpperCase();
+}
+
+function formatAddress(p: {
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+}): string {
+  return [p.addressLine1, p.addressLine2, [p.city, p.state].filter(Boolean).join(", "), p.postalCode]
+    .filter(Boolean)
+    .join(", ");
+}
+
 export default function AccountPage() {
-  const { token, member } = useAuth();
+  const { token, member, logout } = useAuth();
   const [me, setMe] = useState<Me | null>(null);
   const [err, setErr] = useState("");
   const [saving, setSaving] = useState(false);
@@ -90,6 +110,31 @@ export default function AccountPage() {
       })
       .catch((e) => setErr(String(e.message)));
   }, [token]);
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(PENDING_PROPERTY_KEY);
+      if (!raw) return;
+      const pending = JSON.parse(raw) as PendingProperty;
+      if (!pending?.addressLine1) return;
+      setNewProperty({
+        label: pending.label || "Additional property",
+        addressLine1: pending.addressLine1 || "",
+        addressLine2: pending.addressLine2 || "",
+        city: pending.city || "",
+        state: pending.state || "",
+        postalCode: pending.postalCode || "",
+      });
+      setShowAddProperty(true);
+      sessionStorage.removeItem(PENDING_PROPERTY_KEY);
+      // Scroll to addresses after paint
+      window.setTimeout(() => {
+        document.getElementById("profile-address")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 150);
+    } catch {
+      sessionStorage.removeItem(PENDING_PROPERTY_KEY);
+    }
+  }, []);
 
   const ns = me?.notificationSettings || {};
   const properties = me?.properties?.length
@@ -204,277 +249,447 @@ export default function AccountPage() {
 
   if (!me) {
     return (
-      <div className="mkt-panel">
-        {err ? <p className="mkt-error">{err}</p> : <p className="mkt-lead">Loading…</p>}
+      <div className="mkt-profile">
+        <div className="mkt-profile-loading">
+          {err ? <p className="mkt-error">{err}</p> : <p className="mkt-lead">Loading your profile…</p>}
+        </div>
       </div>
     );
   }
 
   const next = me.nextAnnualBillingDate ? new Date(me.nextAnnualBillingDate) : null;
+  const displayName = [me.firstName, me.lastName].filter(Boolean).join(" ") || me.email;
+  const cityState = [me.city, me.state].filter(Boolean).join(", ");
 
   return (
-    <div className="mkt-panel" style={{ maxWidth: "720px" }}>
-      <h1 className="mkt-page-title">Hello, {me.firstName}</h1>
-      <p className="mkt-lead">
-        Member #<strong>{me.memberNumber}</strong>
-        {next && (
-          <>
-            {" "}
-            · Next June billing: <strong>{next.toLocaleDateString()}</strong>
-          </>
-        )}
-      </p>
-      {member?.role === "admin" && (
-        <p className="mkt-lead">
-          <Link to="/admin/members">Open admin console</Link>
-        </p>
-      )}
-      {!me.oilCompanyId && (
-        <div className="mkt-card-form" style={{ marginBottom: "1.25rem", borderLeft: "4px solid var(--color-accent)" }}>
-          <p className="mkt-lead" style={{ margin: 0 }}>
-            Your oil company isn&apos;t assigned yet. Staff will select it in the admin system and you&apos;ll get an
-            email when it&apos;s set.
-          </p>
-        </div>
-      )}
-      <p className="mkt-lead">
-        Referrals: <strong>{me.successfulReferralCount ?? 0}</strong> · Waive credits:{" "}
-        <strong>{me.referralWaiveCredits ?? 0}</strong> · Lifetime annual waiver:{" "}
-        <strong>{me.lifetimeAnnualFeeWaived ? "Yes" : "No"}</strong>
-      </p>
-
-      <div className="mkt-card-form">
-        <h2 className="mkt-section-title" style={{ textAlign: "left", fontSize: "1.25rem", marginBottom: "1.25rem" }}>
-          My Profile
-        </h2>
-
-        {/* Personal Information */}
-        <div style={{ marginBottom: "1.5rem" }}>
-          <h3 style={{ fontSize: "0.75rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#78716c", marginBottom: "0.75rem" }}>
-            Personal Information
-          </h3>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-            <div className="mkt-field">
-              <label>First name</label>
-              <input className="mkt-input" value={profile.firstName} onChange={(e) => setProfile((p) => ({ ...p, firstName: e.target.value }))} />
+    <div className="mkt-profile">
+      <header className="mkt-profile-header">
+        <div className="mkt-profile-header-inner">
+          <div className="mkt-profile-identity">
+            <div className="mkt-profile-avatar" aria-hidden>
+              {initials(me.firstName, me.lastName, me.email)}
             </div>
-            <div className="mkt-field">
-              <label>Last name</label>
-              <input className="mkt-input" value={profile.lastName} onChange={(e) => setProfile((p) => ({ ...p, lastName: e.target.value }))} />
-            </div>
-            <div className="mkt-field" style={{ gridColumn: "1 / -1" }}>
-              <label>Employer</label>
-              <input className="mkt-input" value={profile.employer} onChange={(e) => setProfile((p) => ({ ...p, employer: e.target.value }))} />
-            </div>
-          </div>
-        </div>
-
-        {/* Contact Information */}
-        <div style={{ marginBottom: "1.5rem" }}>
-          <h3 style={{ fontSize: "0.75rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#78716c", marginBottom: "0.75rem" }}>
-            Contact Information
-          </h3>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-            <div className="mkt-field">
-              <label>Phone (primary)</label>
-              <input className="mkt-input" type="tel" value={profile.phone} onChange={(e) => setProfile((p) => ({ ...p, phone: e.target.value }))} />
-            </div>
-            <div className="mkt-field">
-              <label>Phone (secondary)</label>
-              <input className="mkt-input" type="tel" value={profile.phone2} onChange={(e) => setProfile((p) => ({ ...p, phone2: e.target.value }))} placeholder="Optional" />
-            </div>
-            <div className="mkt-field">
-              <label>Phone (other)</label>
-              <input className="mkt-input" type="tel" value={profile.phone3} onChange={(e) => setProfile((p) => ({ ...p, phone3: e.target.value }))} placeholder="Optional" />
-            </div>
-            <div className="mkt-field">
-              <label>Email (secondary)</label>
-              <input className="mkt-input" type="email" value={profile.email2} onChange={(e) => setProfile((p) => ({ ...p, email2: e.target.value }))} placeholder="Optional" />
-            </div>
-          </div>
-        </div>
-
-        {/* Address */}
-        <div style={{ marginBottom: "1.5rem" }}>
-          <h3 style={{ fontSize: "0.75rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#78716c", marginBottom: "0.75rem" }}>
-            Primary address
-          </h3>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-            <div className="mkt-field" style={{ gridColumn: "1 / -1" }}>
-              <label>Street address</label>
-              <input className="mkt-input" value={profile.addressLine1} onChange={(e) => setProfile((p) => ({ ...p, addressLine1: e.target.value }))} />
-            </div>
-            <div className="mkt-field" style={{ gridColumn: "1 / -1" }}>
-              <label>Apt, suite, unit (optional)</label>
-              <input className="mkt-input" value={profile.addressLine2} onChange={(e) => setProfile((p) => ({ ...p, addressLine2: e.target.value }))} placeholder="Optional" />
-            </div>
-            <div className="mkt-field">
-              <label>City</label>
-              <input className="mkt-input" value={profile.city} onChange={(e) => setProfile((p) => ({ ...p, city: e.target.value }))} />
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-              <div className="mkt-field">
-                <label>State</label>
-                <input className="mkt-input" value={profile.state} onChange={(e) => setProfile((p) => ({ ...p, state: e.target.value }))} maxLength={2} style={{ textTransform: "uppercase" }} />
-              </div>
-              <div className="mkt-field">
-                <label>ZIP</label>
-                <input className="mkt-input" value={profile.postalCode} onChange={(e) => setProfile((p) => ({ ...p, postalCode: e.target.value }))} />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Additional properties */}
-        <div style={{ marginBottom: "1.5rem" }}>
-          <h3 style={{ fontSize: "0.75rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#78716c", marginBottom: "0.75rem" }}>
-            Property addresses
-          </h3>
-          <div className="mkt-property-list">
-            {properties.map((p) => (
-              <div key={p.id || `${p.addressLine1}-${p.postalCode}`} className="mkt-property-item">
-                <strong>
-                  {p.label || (p.isPrimary ? "Primary" : "Property")}
-                  {p.isPrimary ? " · Primary" : ""}
-                </strong>
-                <span>
-                  {[p.addressLine1, p.addressLine2, [p.city, p.state].filter(Boolean).join(", "), p.postalCode]
-                    .filter(Boolean)
-                    .join(", ")}
+            <div className="mkt-profile-identity-text">
+              <p className="mkt-profile-eyebrow">Member profile</p>
+              <h1 className="mkt-profile-name">{displayName}</h1>
+              <p className="mkt-profile-meta">
+                <span>Member #{me.memberNumber || "—"}</span>
+                <span className="mkt-profile-meta-sep" aria-hidden>
+                  ·
                 </span>
+                <span>{me.email}</span>
+                {cityState && (
+                  <>
+                    <span className="mkt-profile-meta-sep" aria-hidden>
+                      ·
+                    </span>
+                    <span>{cityState}</span>
+                  </>
+                )}
+              </p>
+              <div className="mkt-profile-badges">
+                {me.oilCompanyId ? (
+                  <span className="mkt-profile-badge mkt-profile-badge--ok">Oil company assigned</span>
+                ) : (
+                  <span className="mkt-profile-badge mkt-profile-badge--warn">Oil company pending</span>
+                )}
+                {me.lifetimeAnnualFeeWaived && (
+                  <span className="mkt-profile-badge mkt-profile-badge--ok">Lifetime annual waiver</span>
+                )}
+                {member?.role === "admin" && <span className="mkt-profile-badge">Admin</span>}
               </div>
-            ))}
+            </div>
+          </div>
+          <div className="mkt-profile-header-actions">
+            {member?.role === "admin" && (
+              <Link to="/admin/members" className="mkt-btn mkt-btn-ghost">
+                Admin console
+              </Link>
+            )}
+            <button type="button" className="mkt-btn mkt-btn-ghost" onClick={logout}>
+              Sign out
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <div className="mkt-profile-body">
+        <aside className="mkt-profile-aside">
+          <div className="mkt-profile-card mkt-profile-summary">
+            <h2>Membership</h2>
+            <dl className="mkt-profile-stats">
+              <div>
+                <dt>Member number</dt>
+                <dd>{me.memberNumber || "—"}</dd>
+              </div>
+              <div>
+                <dt>Next June billing</dt>
+                <dd>{next ? next.toLocaleDateString() : "—"}</dd>
+              </div>
+              <div>
+                <dt>Successful referrals</dt>
+                <dd>{me.successfulReferralCount ?? 0}</dd>
+              </div>
+              <div>
+                <dt>Waive credits</dt>
+                <dd>{me.referralWaiveCredits ?? 0}</dd>
+              </div>
+              <div>
+                <dt>Lifetime waiver</dt>
+                <dd>{me.lifetimeAnnualFeeWaived ? "Yes" : "No"}</dd>
+              </div>
+            </dl>
+            <Link to="/referral" className="mkt-profile-aside-link">
+              Refer a friend →
+            </Link>
           </div>
 
-          {!showAddProperty ? (
-            <button type="button" className="mkt-btn mkt-btn-ghost" onClick={() => setShowAddProperty(true)}>
-              Add another property address
-            </button>
-          ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginTop: "0.5rem" }}>
-              <div className="mkt-field" style={{ gridColumn: "1 / -1" }}>
-                <label>Label (optional)</label>
+          {!me.oilCompanyId && (
+            <div className="mkt-profile-card mkt-profile-notice">
+              <h2>Oil company</h2>
+              <p>
+                Your oil company isn&apos;t assigned yet. Staff will select it in the admin system and you&apos;ll get an
+                email when it&apos;s set.
+              </p>
+            </div>
+          )}
+
+          <nav className="mkt-profile-card mkt-profile-toc" aria-label="Profile sections">
+            <h2>On this page</h2>
+            <a href="#profile-personal">Personal information</a>
+            <a href="#profile-contact">Contact</a>
+            <a href="#profile-address">Addresses</a>
+            <a href="#profile-notifications">Notifications</a>
+          </nav>
+        </aside>
+
+        <div className="mkt-profile-main">
+          {err && <p className="mkt-error">{err}</p>}
+
+          <section className="mkt-profile-card" id="profile-personal">
+            <div className="mkt-profile-card-head">
+              <h2>Personal information</h2>
+              <p>Name and employer details on your membership record.</p>
+            </div>
+            <div className="mkt-profile-grid">
+              <div className="mkt-field">
+                <label htmlFor="profile-first">First name</label>
                 <input
+                  id="profile-first"
                   className="mkt-input"
-                  value={newProperty.label}
-                  onChange={(e) => setNewProperty((p) => ({ ...p, label: e.target.value }))}
-                  placeholder="e.g. Lake house"
-                />
-              </div>
-              <div className="mkt-field" style={{ gridColumn: "1 / -1" }}>
-                <label>Street address</label>
-                <input
-                  className="mkt-input"
-                  value={newProperty.addressLine1}
-                  onChange={(e) => setNewProperty((p) => ({ ...p, addressLine1: e.target.value }))}
-                />
-              </div>
-              <div className="mkt-field" style={{ gridColumn: "1 / -1" }}>
-                <label>Apt, suite, unit (optional)</label>
-                <input
-                  className="mkt-input"
-                  value={newProperty.addressLine2}
-                  onChange={(e) => setNewProperty((p) => ({ ...p, addressLine2: e.target.value }))}
+                  value={profile.firstName}
+                  onChange={(e) => setProfile((p) => ({ ...p, firstName: e.target.value }))}
                 />
               </div>
               <div className="mkt-field">
-                <label>City</label>
+                <label htmlFor="profile-last">Last name</label>
                 <input
+                  id="profile-last"
                   className="mkt-input"
-                  value={newProperty.city}
-                  onChange={(e) => setNewProperty((p) => ({ ...p, city: e.target.value }))}
+                  value={profile.lastName}
+                  onChange={(e) => setProfile((p) => ({ ...p, lastName: e.target.value }))}
                 />
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+              <div className="mkt-field mkt-profile-span-2">
+                <label htmlFor="profile-employer">Employer</label>
+                <input
+                  id="profile-employer"
+                  className="mkt-input"
+                  value={profile.employer}
+                  onChange={(e) => setProfile((p) => ({ ...p, employer: e.target.value }))}
+                />
+              </div>
+            </div>
+          </section>
+
+          <section className="mkt-profile-card" id="profile-contact">
+            <div className="mkt-profile-card-head">
+              <h2>Contact</h2>
+              <p>
+                Primary email is <strong>{me.email}</strong>. Add phones and a secondary email below.
+              </p>
+            </div>
+            <div className="mkt-profile-grid">
+              <div className="mkt-field">
+                <label htmlFor="profile-phone">Phone (primary)</label>
+                <input
+                  id="profile-phone"
+                  className="mkt-input"
+                  type="tel"
+                  value={profile.phone}
+                  onChange={(e) => setProfile((p) => ({ ...p, phone: e.target.value }))}
+                />
+              </div>
+              <div className="mkt-field">
+                <label htmlFor="profile-phone2">Phone (secondary)</label>
+                <input
+                  id="profile-phone2"
+                  className="mkt-input"
+                  type="tel"
+                  value={profile.phone2}
+                  onChange={(e) => setProfile((p) => ({ ...p, phone2: e.target.value }))}
+                  placeholder="Optional"
+                />
+              </div>
+              <div className="mkt-field">
+                <label htmlFor="profile-phone3">Phone (other)</label>
+                <input
+                  id="profile-phone3"
+                  className="mkt-input"
+                  type="tel"
+                  value={profile.phone3}
+                  onChange={(e) => setProfile((p) => ({ ...p, phone3: e.target.value }))}
+                  placeholder="Optional"
+                />
+              </div>
+              <div className="mkt-field">
+                <label htmlFor="profile-email2">Email (secondary)</label>
+                <input
+                  id="profile-email2"
+                  className="mkt-input"
+                  type="email"
+                  value={profile.email2}
+                  onChange={(e) => setProfile((p) => ({ ...p, email2: e.target.value }))}
+                  placeholder="Optional"
+                />
+              </div>
+            </div>
+          </section>
+
+          <section className="mkt-profile-card" id="profile-address">
+            <div className="mkt-profile-card-head">
+              <h2>Addresses</h2>
+              <p>Primary mailing address and any additional properties on your membership.</p>
+            </div>
+
+            <h3 className="mkt-profile-subhead">Primary address</h3>
+            <div className="mkt-profile-grid">
+              <div className="mkt-field mkt-profile-span-2">
+                <label htmlFor="profile-street">Street address</label>
+                <input
+                  id="profile-street"
+                  className="mkt-input"
+                  value={profile.addressLine1}
+                  onChange={(e) => setProfile((p) => ({ ...p, addressLine1: e.target.value }))}
+                />
+              </div>
+              <div className="mkt-field mkt-profile-span-2">
+                <label htmlFor="profile-apt">Apt, suite, unit (optional)</label>
+                <input
+                  id="profile-apt"
+                  className="mkt-input"
+                  value={profile.addressLine2}
+                  onChange={(e) => setProfile((p) => ({ ...p, addressLine2: e.target.value }))}
+                  placeholder="Optional"
+                />
+              </div>
+              <div className="mkt-field">
+                <label htmlFor="profile-city">City</label>
+                <input
+                  id="profile-city"
+                  className="mkt-input"
+                  value={profile.city}
+                  onChange={(e) => setProfile((p) => ({ ...p, city: e.target.value }))}
+                />
+              </div>
+              <div className="mkt-profile-city-row">
                 <div className="mkt-field">
-                  <label>State</label>
+                  <label htmlFor="profile-state">State</label>
                   <input
+                    id="profile-state"
                     className="mkt-input"
-                    value={newProperty.state}
-                    onChange={(e) => setNewProperty((p) => ({ ...p, state: e.target.value }))}
+                    value={profile.state}
+                    onChange={(e) => setProfile((p) => ({ ...p, state: e.target.value }))}
                     maxLength={2}
                     style={{ textTransform: "uppercase" }}
                   />
                 </div>
                 <div className="mkt-field">
-                  <label>ZIP</label>
+                  <label htmlFor="profile-zip">ZIP</label>
                   <input
+                    id="profile-zip"
                     className="mkt-input"
-                    value={newProperty.postalCode}
-                    onChange={(e) => setNewProperty((p) => ({ ...p, postalCode: e.target.value }))}
+                    value={profile.postalCode}
+                    onChange={(e) => setProfile((p) => ({ ...p, postalCode: e.target.value }))}
                   />
                 </div>
               </div>
-              <div style={{ gridColumn: "1 / -1", display: "flex", gap: "0.65rem", flexWrap: "wrap" }}>
-                <button type="button" className="mkt-btn mkt-btn-primary" disabled={addingProperty} onClick={() => void addProperty()}>
-                  {addingProperty ? "Adding…" : "Save property"}
-                </button>
-                <button
-                  type="button"
-                  className="mkt-btn mkt-btn-ghost"
-                  onClick={() => {
-                    setShowAddProperty(false);
-                    setErr("");
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
             </div>
-          )}
-        </div>
 
-        <button className="mkt-submit" type="button" onClick={() => void saveProfile()} disabled={profileSaving} style={{ marginTop: "0.5rem" }}>
-          {profileSaving ? "Saving..." : "Save profile"}
-        </button>
-      </div>
+            <h3 className="mkt-profile-subhead">Property addresses</h3>
+            {showAddProperty && newProperty.addressLine1 && (
+              <div className="mkt-modal-confirm" style={{ marginBottom: "1rem" }}>
+                <p className="mkt-modal-confirm-label">Ready to save from signup</p>
+                <p className="mkt-modal-confirm-address">
+                  Review the address below and click Save property to add it to your membership.
+                </p>
+              </div>
+            )}
+            <div className="mkt-property-list">
+              {properties.length === 0 ? (
+                <p className="mkt-profile-empty">No property addresses on file yet.</p>
+              ) : (
+                properties.map((p) => (
+                  <div key={p.id || `${p.addressLine1}-${p.postalCode}`} className="mkt-property-item">
+                    <strong>
+                      {p.label || (p.isPrimary ? "Primary" : "Property")}
+                      {p.isPrimary ? " · Primary" : ""}
+                    </strong>
+                    <span>{formatAddress(p)}</span>
+                  </div>
+                ))
+              )}
+            </div>
 
-      <div className="mkt-card-form">
-        <h2 className="mkt-section-title" style={{ textAlign: "left", fontSize: "1.25rem", marginBottom: "0.35rem" }}>
-          Notification settings
-        </h2>
-        <p className="mkt-lead" style={{ fontSize: "0.9rem", marginBottom: "1rem" }}>
-          Email and SMS preferences sync with the same fields staff see in reporting. June 1 reminders: 30, 7, and 1
-          day before your billing date when renewal reminders are on.
-        </p>
-        {err && <p className="mkt-error">{err}</p>}
-        <div className="mkt-toggle-list">
-          <Toggle
-            label="Email — master switch"
-            checked={Boolean(ns.emailEnabled)}
-            onChange={(v) => updateNs({ emailEnabled: v })}
-            disabled={saving}
-          />
-          <Toggle
-            label="Renewal reminders (30 / 7 / 1 days)"
-            checked={Boolean(ns.renewalReminders)}
-            onChange={(v) => updateNs({ renewalReminders: v })}
-            disabled={saving || !ns.emailEnabled}
-          />
-          <Toggle
-            label="Billing notices"
-            checked={Boolean(ns.billingNotices)}
-            onChange={(v) => updateNs({ billingNotices: v })}
-            disabled={saving || !ns.emailEnabled}
-          />
-          <Toggle
-            label="Oil company updates"
-            checked={Boolean(ns.oilCompanyUpdates)}
-            onChange={(v) => updateNs({ oilCompanyUpdates: v })}
-            disabled={saving || !ns.emailEnabled}
-          />
-          <Toggle
-            label="Marketing / newsletter"
-            checked={Boolean(ns.marketing)}
-            onChange={(v) => updateNs({ marketing: v })}
-            disabled={saving || !ns.emailEnabled}
-          />
-          <Toggle
-            label="SMS (when available)"
-            checked={Boolean(ns.smsEnabled)}
-            onChange={(v) => updateNs({ smsEnabled: v })}
-            disabled={saving}
-          />
+            {!showAddProperty ? (
+              <button type="button" className="mkt-btn mkt-btn-ghost" onClick={() => setShowAddProperty(true)}>
+                Add another property address
+              </button>
+            ) : (
+              <div className="mkt-profile-add-property">
+                <div className="mkt-profile-grid">
+                  <div className="mkt-field mkt-profile-span-2">
+                    <label htmlFor="new-prop-label">Label (optional)</label>
+                    <input
+                      id="new-prop-label"
+                      className="mkt-input"
+                      value={newProperty.label}
+                      onChange={(e) => setNewProperty((p) => ({ ...p, label: e.target.value }))}
+                      placeholder="e.g. Lake house"
+                    />
+                  </div>
+                  <div className="mkt-field mkt-profile-span-2">
+                    <label htmlFor="new-prop-street">Street address</label>
+                    <input
+                      id="new-prop-street"
+                      className="mkt-input"
+                      value={newProperty.addressLine1}
+                      onChange={(e) => setNewProperty((p) => ({ ...p, addressLine1: e.target.value }))}
+                    />
+                  </div>
+                  <div className="mkt-field mkt-profile-span-2">
+                    <label htmlFor="new-prop-apt">Apt, suite, unit (optional)</label>
+                    <input
+                      id="new-prop-apt"
+                      className="mkt-input"
+                      value={newProperty.addressLine2}
+                      onChange={(e) => setNewProperty((p) => ({ ...p, addressLine2: e.target.value }))}
+                    />
+                  </div>
+                  <div className="mkt-field">
+                    <label htmlFor="new-prop-city">City</label>
+                    <input
+                      id="new-prop-city"
+                      className="mkt-input"
+                      value={newProperty.city}
+                      onChange={(e) => setNewProperty((p) => ({ ...p, city: e.target.value }))}
+                    />
+                  </div>
+                  <div className="mkt-profile-city-row">
+                    <div className="mkt-field">
+                      <label htmlFor="new-prop-state">State</label>
+                      <input
+                        id="new-prop-state"
+                        className="mkt-input"
+                        value={newProperty.state}
+                        onChange={(e) => setNewProperty((p) => ({ ...p, state: e.target.value }))}
+                        maxLength={2}
+                        style={{ textTransform: "uppercase" }}
+                      />
+                    </div>
+                    <div className="mkt-field">
+                      <label htmlFor="new-prop-zip">ZIP</label>
+                      <input
+                        id="new-prop-zip"
+                        className="mkt-input"
+                        value={newProperty.postalCode}
+                        onChange={(e) => setNewProperty((p) => ({ ...p, postalCode: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="mkt-profile-inline-actions">
+                  <button
+                    type="button"
+                    className="mkt-btn mkt-btn-primary"
+                    disabled={addingProperty}
+                    onClick={() => void addProperty()}
+                  >
+                    {addingProperty ? "Adding…" : "Save property"}
+                  </button>
+                  <button
+                    type="button"
+                    className="mkt-btn mkt-btn-ghost"
+                    onClick={() => {
+                      setShowAddProperty(false);
+                      setErr("");
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="mkt-profile-save-bar">
+              <button
+                className="mkt-btn mkt-btn-primary"
+                type="button"
+                onClick={() => void saveProfile()}
+                disabled={profileSaving}
+              >
+                {profileSaving ? "Saving…" : "Save profile"}
+              </button>
+            </div>
+          </section>
+
+          <section className="mkt-profile-card" id="profile-notifications">
+            <div className="mkt-profile-card-head">
+              <h2>Notification settings</h2>
+              <p>
+                Email and SMS preferences sync with the same fields staff see in reporting. June 1 reminders: 30, 7, and
+                1 day before your billing date when renewal reminders are on.
+              </p>
+            </div>
+            <div className="mkt-toggle-list">
+              <Toggle
+                label="Email — master switch"
+                checked={Boolean(ns.emailEnabled)}
+                onChange={(v) => updateNs({ emailEnabled: v })}
+                disabled={saving}
+              />
+              <Toggle
+                label="Renewal reminders (30 / 7 / 1 days)"
+                checked={Boolean(ns.renewalReminders)}
+                onChange={(v) => updateNs({ renewalReminders: v })}
+                disabled={saving || !ns.emailEnabled}
+              />
+              <Toggle
+                label="Billing notices"
+                checked={Boolean(ns.billingNotices)}
+                onChange={(v) => updateNs({ billingNotices: v })}
+                disabled={saving || !ns.emailEnabled}
+              />
+              <Toggle
+                label="Oil company updates"
+                checked={Boolean(ns.oilCompanyUpdates)}
+                onChange={(v) => updateNs({ oilCompanyUpdates: v })}
+                disabled={saving || !ns.emailEnabled}
+              />
+              <Toggle
+                label="Marketing / newsletter"
+                checked={Boolean(ns.marketing)}
+                onChange={(v) => updateNs({ marketing: v })}
+                disabled={saving || !ns.emailEnabled}
+              />
+              <Toggle
+                label="SMS (when available)"
+                checked={Boolean(ns.smsEnabled)}
+                onChange={(v) => updateNs({ smsEnabled: v })}
+                disabled={saving}
+              />
+            </div>
+          </section>
         </div>
       </div>
     </div>
@@ -495,12 +710,7 @@ function Toggle({
   return (
     <label className="mkt-toggle-row" style={{ cursor: disabled ? "default" : "pointer" }}>
       <span>{label}</span>
-      <input
-        type="checkbox"
-        checked={checked}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.checked)}
-      />
+      <input type="checkbox" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
     </label>
   );
 }

@@ -3236,6 +3236,69 @@
   line-height: 1.5;
 }
 
+/* Signup existing-account modals */
+.mkt-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.25rem;
+  background: rgba(20, 33, 26, 0.48);
+  backdrop-filter: blur(3px);
+}
+
+.mkt-modal {
+  width: min(100%, 440px);
+  max-height: min(90vh, 640px);
+  overflow: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 1.5rem 1.5rem 1.35rem;
+}
+
+.mkt-modal h2 {
+  margin: 0 0 0.65rem;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  color: var(--color-forest);
+}
+
+.mkt-modal > p {
+  margin: 0 0 0.85rem;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.mkt-modal-confirm {
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius);
+  border: 1px solid rgba(14, 118, 60, 0.28);
+  background: rgba(14, 118, 60, 0.08);
+}
+
+.mkt-modal-confirm-label {
+  margin: 0 0 0.35rem !important;
+  font-size: 0.72rem !important;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-accent) !important;
+}
+
+.mkt-modal-confirm-address {
+  margin: 0 !important;
+  font-size: 1rem !important;
+  font-weight: 600;
+  color: var(--color-forest) !important;
+  line-height: 1.4 !important;
+}
+
 .mkt-property-list {
   display: flex;
   flex-direction: column;
@@ -3263,14 +3326,376 @@
   line-height: 1.4;
 }
 
+/* ============================================================
+   Member profile (/account)
+   ============================================================ */
+
+.mkt-profile {
+  width: 100%;
+  background:
+    linear-gradient(180deg, var(--color-bg-alt) 0%, var(--color-bg-alt) 11rem, var(--color-bg) 11rem);
+  padding-bottom: 4rem;
+}
+
+.mkt-profile-loading {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem;
+}
+
+.mkt-profile-header {
+  border-bottom: 1px solid var(--color-border);
+  background:
+    linear-gradient(135deg, rgba(14, 118, 60, 0.1) 0%, transparent 55%),
+    var(--color-bg-alt);
+}
+
+.mkt-profile-header-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 1.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.25rem 1.5rem;
+}
+
+.mkt-profile-identity {
+  display: flex;
+  align-items: center;
+  gap: 1.15rem;
+  min-width: 0;
+}
+
+.mkt-profile-avatar {
+  flex: none;
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 1.45rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #fff;
+  background: linear-gradient(160deg, var(--color-accent) 0%, var(--color-accent-hover) 100%);
+  box-shadow: var(--shadow);
+}
+
+.mkt-profile-identity-text {
+  min-width: 0;
+}
+
+.mkt-profile-eyebrow {
+  margin: 0 0 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+
+.mkt-profile-name {
+  margin: 0 0 0.35rem;
+  font-family: var(--font-display);
+  font-size: clamp(1.65rem, 3.5vw, 2.15rem);
+  font-weight: 600;
+  line-height: 1.15;
+  color: var(--color-forest);
+}
+
+.mkt-profile-meta {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.95rem;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.mkt-profile-meta-sep {
+  margin: 0 0.35rem;
+  opacity: 0.55;
+}
+
+.mkt-profile-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+
+.mkt-profile-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.28rem 0.65rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.mkt-profile-badge--ok {
+  border-color: rgba(14, 118, 60, 0.28);
+  background: rgba(14, 118, 60, 0.08);
+  color: var(--color-accent-hover);
+}
+
+.mkt-profile-badge--warn {
+  border-color: rgba(166, 120, 20, 0.35);
+  background: rgba(240, 190, 70, 0.18);
+  color: #7a5608;
+}
+
+.mkt-profile-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.mkt-profile-body {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1.75rem 1.5rem 0;
+  display: grid;
+  gap: 1.25rem;
+}
+
+@media (min-width: 900px) {
+  .mkt-profile-body {
+    grid-template-columns: 280px minmax(0, 1fr);
+    gap: 1.75rem;
+    align-items: start;
+  }
+}
+
+.mkt-profile-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+@media (min-width: 900px) {
+  .mkt-profile-aside {
+    position: sticky;
+    top: 5.5rem;
+  }
+}
+
+.mkt-profile-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+  min-width: 0;
+}
+
+.mkt-profile-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 1.35rem 1.4rem 1.5rem;
+  box-shadow: var(--shadow);
+}
+
+.mkt-profile-card > h2,
+.mkt-profile-card-head h2 {
+  margin: 0 0 0.35rem;
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--color-forest);
+}
+
+.mkt-profile-card-head {
+  margin-bottom: 1.15rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.mkt-profile-card-head p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.mkt-profile-summary .mkt-profile-stats {
+  margin: 0.85rem 0 1rem;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.mkt-profile-stats > div {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.mkt-profile-stats dt {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.mkt-profile-stats dd {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.mkt-profile-aside-link {
+  display: inline-flex;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--color-accent) !important;
+  text-decoration: none;
+}
+
+.mkt-profile-aside-link:hover {
+  text-decoration: underline;
+}
+
+.mkt-profile-notice {
+  border-left: 4px solid #c4921a;
+}
+
+.mkt-profile-notice p {
+  margin: 0.4rem 0 0;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.mkt-profile-toc {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.mkt-profile-toc a {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--color-text) !important;
+  text-decoration: none;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.mkt-profile-toc a:last-child {
+  border-bottom: none;
+}
+
+.mkt-profile-toc a:hover {
+  color: var(--color-accent) !important;
+}
+
+.mkt-profile-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0 1rem;
+}
+
+@media (min-width: 640px) {
+  .mkt-profile-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.mkt-profile-span-2 {
+  grid-column: 1 / -1;
+}
+
+.mkt-profile-city-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 1rem;
+}
+
+.mkt-profile-subhead {
+  margin: 1.35rem 0 0.75rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.mkt-profile-subhead:first-of-type {
+  margin-top: 0;
+}
+
+.mkt-profile-empty {
+  margin: 0 0 0.75rem;
+  color: var(--color-text-muted);
+  font-size: 0.92rem;
+}
+
+.mkt-profile-add-property {
+  margin-top: 0.35rem;
+  padding: 1rem;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-bg-alt);
+}
+
+.mkt-profile-inline-actions,
+.mkt-profile-save-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 0.85rem;
+}
+
+.mkt-profile-save-bar {
+  margin-top: 1.35rem;
+  padding-top: 1.15rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.mkt-profile .mkt-toggle-list {
+  max-width: none;
+}
+
+.mkt-profile .mkt-field {
+  margin-bottom: 0.85rem;
+}
+
+.mkt-profile .mkt-input,
+.mkt-profile .mkt-field input {
+  width: 100%;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.mkt-profile .mkt-input:focus,
+.mkt-profile .mkt-field input:focus {
+  outline: none;
+  border-color: var(--color-accent);
+}
+
+.mkt-profile section[id] {
+  scroll-margin-top: 6rem;
+}
+
 
 /* ============================================================
-   Hero layout examples gallery (horizontal scroll)
+   Hero layout examples gallery (Prev / Next)
    ============================================================ */
 
 .mkt-hero-gallery {
   position: relative;
-  background: var(--color-bg-alt);
+  background: var(--color-bg);
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -3282,7 +3707,10 @@
   gap: 0.75rem 1.25rem;
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0.85rem 1.5rem 0.5rem;
+  padding: 0.85rem 1.5rem 0.55rem;
+  background: var(--color-bg-alt);
+  border-bottom: 1px solid var(--color-border);
+  box-sizing: content-box;
 }
 
 .mkt-hero-gallery-label {
@@ -3304,54 +3732,41 @@
   margin-top: 0;
 }
 
-.mkt-hero-gallery-arrow {
-  width: 2rem;
-  height: 2rem;
-  border-radius: 50%;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-size: 1.35rem;
-  line-height: 1;
-  cursor: pointer;
+.mkt-hero-gallery-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: background var(--transition), border-color var(--transition), opacity var(--transition);
+  gap: 0.25rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition), color var(--transition), opacity var(--transition);
 }
 
-.mkt-hero-gallery-arrow:hover:not(:disabled) {
+.mkt-hero-gallery-btn:hover:not(:disabled) {
   border-color: var(--color-accent);
   color: var(--color-accent);
 }
 
-.mkt-hero-gallery-arrow:disabled {
+.mkt-hero-gallery-btn:disabled {
   opacity: 0.35;
   cursor: default;
 }
 
-.mkt-hero-gallery-track {
-  display: flex;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  scroll-behavior: smooth;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
-}
-
-.mkt-hero-gallery-slide {
-  flex: 0 0 100%;
-  scroll-snap-align: start;
-  scroll-snap-stop: always;
-  min-width: 100%;
+.mkt-hero-gallery-stage {
   background: var(--color-bg);
 }
 
 .mkt-hero-slide-label {
-  margin: 0;
-  padding: 0.35rem 1.5rem 0;
+  margin: 0 auto;
+  padding: 0.5rem 1.5rem 0;
   max-width: 1200px;
-  margin-inline: auto;
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--color-accent);
@@ -3385,44 +3800,37 @@
   flex: none;
 }
 
-/* —— B: large price above headline —— */
+/* —— B: large price above headline + media —— */
 .mkt-hero--price-above {
-  grid-template-columns: 1fr;
-  max-width: 900px;
-  text-align: center;
+  align-items: stretch;
   padding-top: 2.5rem;
   padding-bottom: 3rem;
 }
 
-.mkt-hero-inner--center {
-  margin: 0 auto;
-  text-align: center;
+@media (min-width: 900px) {
+  .mkt-hero--price-above {
+    grid-template-columns: 1.05fr 0.95fr;
+    gap: 2.5rem;
+  }
 }
 
-.mkt-hero-inner--center .mkt-hero-tag {
-  text-align: center;
-}
-
-.mkt-hero-inner--center > p {
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.mkt-hero-inner--center .mkt-hero-check {
+.mkt-hero--price-above .mkt-hero-inner {
+  display: flex;
+  flex-direction: column;
   justify-content: center;
 }
 
 .mkt-hero-price-hero {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.25rem;
   margin: 0.35rem 0 1rem;
 }
 
 .mkt-hero-price-hero-value {
   font-family: var(--font-display);
-  font-size: clamp(3.25rem, 10vw, 5.5rem);
+  font-size: clamp(3rem, 8vw, 4.75rem);
   font-weight: 600;
   line-height: 0.95;
   letter-spacing: -0.03em;
@@ -3447,19 +3855,25 @@
   margin: 1rem 0 0 !important;
 }
 
-/* —— C: price panel as focus —— */
+/* —— C: price panel + copy + media —— */
 .mkt-hero--price-focus {
-  grid-template-columns: 1fr;
-  gap: 1.75rem;
+  align-items: stretch;
   padding-top: 2.5rem;
   padding-bottom: 3rem;
 }
 
 @media (min-width: 900px) {
   .mkt-hero--price-focus {
-    grid-template-columns: minmax(260px, 340px) 1fr;
-    align-items: center;
+    grid-template-columns: 1.05fr 0.95fr;
+    gap: 2.5rem;
   }
+}
+
+.mkt-hero-inner--with-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1.25rem;
 }
 
 .mkt-hero-price-panel {
@@ -3468,11 +3882,12 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  padding: 1.75rem 1.85rem;
+  padding: 1.35rem 1.5rem;
   background: linear-gradient(160deg, var(--color-accent) 0%, var(--color-accent-hover) 100%);
   color: #fff;
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
+  max-width: 22rem;
 }
 
 .mkt-hero-price-panel-label {
@@ -3485,7 +3900,7 @@
 
 .mkt-hero-price-panel-value {
   font-family: var(--font-display);
-  font-size: clamp(2.75rem, 6vw, 3.75rem);
+  font-size: clamp(2.5rem, 5vw, 3.25rem);
   font-weight: 600;
   line-height: 1;
   margin: 0.45rem 0 0.35rem;
@@ -3514,23 +3929,59 @@
   background: rgba(255, 255, 255, 0.1);
 }
 
-/* —— D: banner with oversized price —— */
+/* —— D: banner with oversized price + media —— */
 .mkt-hero-banner--price {
-  padding-top: 3rem;
-  padding-bottom: 3.25rem;
+  padding: 2.5rem 1.5rem 3rem;
+  text-align: left;
+}
+
+.mkt-hero-banner-grid {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+  align-items: stretch;
+}
+
+@media (min-width: 900px) {
+  .mkt-hero-banner-grid {
+    grid-template-columns: 1.05fr 0.95fr;
+    gap: 2.5rem;
+  }
+}
+
+.mkt-hero-banner--price .mkt-hero-banner-inner {
+  max-width: none;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.mkt-hero-banner--price .mkt-hero-banner-price-xl {
+  align-items: flex-start;
+}
+
+.mkt-hero-banner--price .mkt-hero-actions {
+  justify-content: flex-start;
+}
+
+.mkt-hero-banner--price .mkt-hero-media {
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.22);
 }
 
 .mkt-hero-banner-price-xl {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.2rem;
   margin: 0.5rem 0 1.15rem;
 }
 
 .mkt-hero-banner-price-xl-value {
   font-family: var(--font-display);
-  font-size: clamp(3.5rem, 11vw, 5.75rem);
+  font-size: clamp(3rem, 8vw, 4.75rem);
   font-weight: 600;
   line-height: 0.95;
   letter-spacing: -0.03em;
@@ -3550,4 +4001,14 @@
 
 .mkt-hero-banner--price .mkt-hero-phone-btn svg {
   color: inherit;
+}
+
+.mkt-hero-banner--price h1 {
+  text-align: left;
+}
+
+.mkt-hero-banner--price p {
+  margin-left: 0;
+  margin-right: 0;
+  text-align: left;
 }

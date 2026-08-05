@@ -1,10 +1,11 @@
 import { Member } from "../models/Member.js";
+import { addressesLooselyMatch, normalizePostalCode, type AddressParts } from "../utils/address.js";
 import { phoneDigits, phoneFlexibleRegex } from "../utils/phone.js";
 
 type MemberInstance = InstanceType<typeof Member>;
 
 export type AccountMatchHint = {
-  matchedBy: "email" | "phone";
+  matchedBy: "email" | "phone" | "address";
   maskedName: string;
   city: string;
   state: string;
@@ -40,7 +41,10 @@ function formatExistingAddress(m: MemberInstance): string {
   return parts.join(", ");
 }
 
-export function toMatchHint(m: MemberInstance, matchedBy: "email" | "phone"): AccountMatchHint {
+export function toMatchHint(
+  m: MemberInstance,
+  matchedBy: "email" | "phone" | "address"
+): AccountMatchHint {
   return {
     matchedBy,
     maskedName: maskName(m.firstName, m.lastName),
@@ -74,7 +78,7 @@ export async function findMemberByPhone(phone: string | undefined | null): Promi
       { "legacyProfile.phone2": flex },
       { "legacyProfile.phone3": flex },
     ],
-  }).limit(25);
+  }).limit(40);
 
   for (const m of candidates) {
     const lp = m.legacyProfile as { phone2?: string; phone3?: string } | undefined;
@@ -84,16 +88,85 @@ export async function findMemberByPhone(phone: string | undefined | null): Promi
   return null;
 }
 
-/** Prefer email match; fall back to phone. */
+type PropertyRow = {
+  _id?: { toString(): string };
+  label?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  isPrimary?: boolean;
+};
+
+function memberAddresses(m: MemberInstance): AddressParts[] {
+  const list: AddressParts[] = [
+    {
+      addressLine1: m.addressLine1,
+      addressLine2: m.addressLine2,
+      city: m.city,
+      state: m.state,
+      postalCode: m.postalCode,
+    },
+  ];
+  const props = (m.properties || []) as unknown as PropertyRow[];
+  for (const p of props) {
+    list.push({
+      addressLine1: p.addressLine1,
+      addressLine2: p.addressLine2,
+      city: p.city,
+      state: p.state,
+      postalCode: p.postalCode,
+    });
+  }
+  return list;
+}
+
+export async function findMemberByAddress(input: AddressParts): Promise<MemberInstance | null> {
+  const zip5 = normalizePostalCode(input.postalCode);
+  const street = String(input.addressLine1 || "").trim();
+  if (!zip5 || zip5.length < 5 || !street) return null;
+
+  const zipRe = new RegExp(`^${zip5}`);
+  const candidates = await Member.find({
+    $or: [{ postalCode: zipRe }, { "properties.postalCode": zipRe }],
+  }).limit(60);
+
+  for (const m of candidates) {
+    if (memberAddresses(m).some((addr) => addressesLooselyMatch(input, addr))) {
+      return m;
+    }
+  }
+  return null;
+}
+
+/** Prefer email, then phone(s), then address. */
 export async function findExistingAccount(input: {
   email?: string;
   phone?: string;
-}): Promise<{ member: MemberInstance; matchedBy: "email" | "phone" } | null> {
+  phone2?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+}): Promise<{ member: MemberInstance; matchedBy: "email" | "phone" | "address" } | null> {
   const byEmail = await findMemberByEmail(input.email);
   if (byEmail) return { member: byEmail, matchedBy: "email" };
 
-  const byPhone = await findMemberByPhone(input.phone);
-  if (byPhone) return { member: byPhone, matchedBy: "phone" };
+  for (const phone of [input.phone, input.phone2]) {
+    const byPhone = await findMemberByPhone(phone);
+    if (byPhone) return { member: byPhone, matchedBy: "phone" };
+  }
+
+  const byAddress = await findMemberByAddress({
+    addressLine1: input.addressLine1,
+    addressLine2: input.addressLine2,
+    city: input.city,
+    state: input.state,
+    postalCode: input.postalCode,
+  });
+  if (byAddress) return { member: byAddress, matchedBy: "address" };
 
   return null;
 }
@@ -122,17 +195,6 @@ export type PropertyInput = {
   city: string;
   state: string;
   postalCode: string;
-};
-
-type PropertyRow = {
-  _id?: { toString(): string };
-  label?: string;
-  addressLine1?: string;
-  addressLine2?: string;
-  city?: string;
-  state?: string;
-  postalCode?: string;
-  isPrimary?: boolean;
 };
 
 /** Ensure properties[] includes at least the primary top-level address. */

@@ -2,6 +2,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../authContext";
+import { PENDING_PROPERTY_KEY, type PendingProperty } from "../utils/pendingProperty";
 
 type MembershipPlan = "lowVolume" | "senior" | "standard";
 type YesNo = "yes" | "no";
@@ -103,7 +104,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 }
 
 type AccountMatchHint = {
-  matchedBy: "email" | "phone";
+  matchedBy: "email" | "phone" | "address";
   maskedName: string;
   city: string;
   state: string;
@@ -112,6 +113,8 @@ type AccountMatchHint = {
   existingAddress: string;
 };
 
+type MatchModalStep = "match" | "signin" | null;
+
 export default function SignupPage() {
   const nav = useNavigate();
   const { setSession } = useAuth();
@@ -119,7 +122,7 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false);
   const [accountMatch, setAccountMatch] = useState<AccountMatchHint | null>(null);
   const [matchDismissed, setMatchDismissed] = useState(false);
-  const [claimMode, setClaimMode] = useState(false);
+  const [matchModal, setMatchModal] = useState<MatchModalStep>(null);
   const [claimEmail, setClaimEmail] = useState("");
   const [claimPassword, setClaimPassword] = useState("");
   const [claimLabel, setClaimLabel] = useState("Additional property");
@@ -172,37 +175,74 @@ export default function SignupPage() {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
-  async function checkExistingAccount(email = form.email, phone = form.phone) {
-    const key = `${email.trim().toLowerCase()}|${phone.trim()}`;
-    if (!email.trim() && !phone.trim()) return;
-    if (key === lookupKey && (accountMatch || matchDismissed)) return;
+  async function checkExistingAccount(
+    email = form.email,
+    phone = form.phone,
+    phone2 = form.secondaryPhone,
+    address = {
+      addressLine1: form.addressLine1,
+      city: form.city,
+      state: form.state,
+      postalCode: form.postalCode,
+    }
+  ) {
+    const key = [
+      email.trim().toLowerCase(),
+      phone.trim(),
+      phone2.trim(),
+      address.addressLine1.trim().toLowerCase(),
+      address.city.trim().toLowerCase(),
+      address.state.trim().toUpperCase(),
+      address.postalCode.trim(),
+    ].join("|");
+    if (!email.trim() && !phone.trim() && !phone2.trim() && !address.addressLine1.trim()) return;
+    if (key === lookupKey && (accountMatch || matchDismissed || matchModal)) return;
     try {
       const res = await api<{ match: boolean; hint?: AccountMatchHint }>("/api/auth/lookup-account", {
         method: "POST",
-        body: JSON.stringify({ email: email.trim(), phone: phone.trim() }),
+        body: JSON.stringify({
+          email: email.trim(),
+          phone: phone.trim(),
+          phone2: phone2.trim(),
+          addressLine1: address.addressLine1.trim(),
+          city: address.city.trim(),
+          state: address.state.trim(),
+          postalCode: address.postalCode.trim(),
+        }),
       });
       setLookupKey(key);
       if (res.match && res.hint) {
         setAccountMatch(res.hint);
         setMatchDismissed(false);
-        setClaimMode(false);
+        setMatchModal("match");
         if (res.hint.matchedBy === "email" && email.trim()) {
           setClaimEmail(email.trim().toLowerCase());
         }
       } else {
         setAccountMatch(null);
         setMatchDismissed(false);
-        setClaimMode(false);
+        if (matchModal !== "signin") setMatchModal(null);
       }
     } catch {
       /* lookup is best-effort; registration still validates duplicates */
     }
   }
 
-  async function onClaimAddProperty() {
+  function pendingPropertyFromForm(): PendingProperty {
+    return {
+      label: claimLabel.trim() || "Additional property",
+      addressLine1: form.addressLine1.trim(),
+      addressLine2: "",
+      city: form.city.trim(),
+      state: form.state.trim(),
+      postalCode: form.postalCode.trim(),
+    };
+  }
+
+  async function onSignInAddProperty() {
     setErr("");
     if (!form.addressLine1.trim() || !form.city.trim() || !form.state.trim() || !form.postalCode.trim()) {
-      setErr("Enter the new property address in the Home address fields above, then continue.");
+      setErr("Enter the new property address in the Home address fields, then continue.");
       return;
     }
     if (!claimEmail.trim() || !claimPassword) {
@@ -221,27 +261,19 @@ export default function SignupPage() {
           memberNumber?: string;
           role?: string;
         };
-      }>("/api/auth/claim-add-property", {
+      }>("/api/auth/login", {
         method: "POST",
         body: JSON.stringify({
           email: claimEmail.trim().toLowerCase(),
           password: claimPassword,
-          confirmingEmail: form.email.trim(),
-          confirmingPhone: form.phone.trim(),
-          property: {
-            label: claimLabel.trim() || "Additional property",
-            addressLine1: form.addressLine1.trim(),
-            addressLine2: "",
-            city: form.city.trim(),
-            state: form.state.trim(),
-            postalCode: form.postalCode.trim(),
-          },
         }),
       });
+      sessionStorage.setItem(PENDING_PROPERTY_KEY, JSON.stringify(pendingPropertyFromForm()));
       setSession(res.token, res.member);
+      setMatchModal(null);
       nav("/account");
     } catch (ex) {
-      setErr(ex instanceof Error ? ex.message : "Could not add property");
+      setErr(ex instanceof Error ? ex.message : "Could not sign in");
     } finally {
       setClaimLoading(false);
     }
@@ -262,16 +294,17 @@ export default function SignupPage() {
     e.preventDefault();
     setErr("");
 
-    if (claimMode) {
-      setErr("Use “Sign in & add property” below to continue with your existing account.");
+    if (matchModal === "signin" || matchModal === "match") {
+      setErr(
+        matchModal === "signin"
+          ? "Sign in to your existing account in the dialog to add this address, or close it to continue as a new member."
+          : "Please confirm whether the existing account we found is yours before continuing."
+      );
       return;
     }
     if (accountMatch && !matchDismissed) {
-      setErr(
-        accountMatch.matchedBy === "email"
-          ? "An account with this email already exists. Confirm if it is you, or use a different email."
-          : "Please confirm whether the existing account we found is yours before continuing."
-      );
+      setMatchModal("match");
+      setErr("Please confirm whether the existing account we found is yours before continuing.");
       return;
     }
 
@@ -442,17 +475,40 @@ export default function SignupPage() {
                 required
                 placeholder="Address Line 1"
                 value={form.addressLine1}
-                onChange={(e) => set("addressLine1", e.target.value)}
+                onChange={(e) => {
+                  set("addressLine1", e.target.value);
+                  setLookupKey("");
+                }}
+                onBlur={() => void checkExistingAccount()}
               />
             </div>
             <div className="mkt-row3">
               <div className="mkt-field">
                 <label htmlFor="city">City *</label>
-                <input id="city" required placeholder="City" value={form.city} onChange={(e) => set("city", e.target.value)} />
+                <input
+                  id="city"
+                  required
+                  placeholder="City"
+                  value={form.city}
+                  onChange={(e) => {
+                    set("city", e.target.value);
+                    setLookupKey("");
+                  }}
+                  onBlur={() => void checkExistingAccount()}
+                />
               </div>
               <div className="mkt-field">
                 <label htmlFor="state">State *</label>
-                <select id="state" required value={form.state} onChange={(e) => set("state", e.target.value)}>
+                <select
+                  id="state"
+                  required
+                  value={form.state}
+                  onChange={(e) => {
+                    set("state", e.target.value);
+                    setLookupKey("");
+                  }}
+                  onBlur={() => void checkExistingAccount()}
+                >
                   <option value="">State</option>
                   {US_STATES.map((s) => (
                     <option key={s.code} value={s.code}>
@@ -468,7 +524,11 @@ export default function SignupPage() {
                   required
                   placeholder="Zip"
                   value={form.postalCode}
-                  onChange={(e) => set("postalCode", e.target.value)}
+                  onChange={(e) => {
+                    set("postalCode", e.target.value);
+                    setLookupKey("");
+                  }}
+                  onBlur={() => void checkExistingAccount()}
                 />
               </div>
             </div>
@@ -548,11 +608,10 @@ export default function SignupPage() {
               <input
                 id="password"
                 type="password"
-                required={!claimMode}
+                required
                 minLength={8}
                 value={form.password}
                 onChange={(e) => set("password", e.target.value)}
-                disabled={claimMode}
               />
             </div>
 
@@ -591,7 +650,11 @@ export default function SignupPage() {
                   id="secondaryPhone"
                   type="tel"
                   value={form.secondaryPhone}
-                  onChange={(e) => set("secondaryPhone", e.target.value)}
+                  onChange={(e) => {
+                    set("secondaryPhone", e.target.value);
+                    setLookupKey("");
+                  }}
+                  onBlur={() => void checkExistingAccount()}
                 />
               </div>
               <div className="mkt-field">
@@ -608,128 +671,6 @@ export default function SignupPage() {
                 </select>
               </div>
             </div>
-
-            {accountMatch && !matchDismissed && (
-              <div className="mkt-existing-account" role="status">
-                <h3>You may already have an account — is this you?</h3>
-                <p>
-                  We found a member profile for <strong>{accountMatch.maskedName}</strong>
-                  {accountMatch.city || accountMatch.state
-                    ? ` in ${[accountMatch.city, accountMatch.state].filter(Boolean).join(", ")}`
-                    : ""}
-                  {accountMatch.matchedBy === "email" && accountMatch.maskedEmail
-                    ? ` (email ${accountMatch.maskedEmail})`
-                    : ""}
-                  {accountMatch.matchedBy === "phone" && accountMatch.maskedPhone
-                    ? ` (phone ${accountMatch.maskedPhone})`
-                    : ""}
-                  .
-                </p>
-                {accountMatch.existingAddress && (
-                  <p className="mkt-existing-account-address">
-                    Existing address on file: {accountMatch.existingAddress}
-                  </p>
-                )}
-
-                {!claimMode ? (
-                  <div className="mkt-existing-account-actions">
-                    <button
-                      type="button"
-                      className="mkt-btn mkt-btn-primary"
-                      onClick={() => {
-                        setClaimMode(true);
-                        setErr("");
-                        if (accountMatch.matchedBy === "email" && form.email.trim()) {
-                          setClaimEmail(form.email.trim().toLowerCase());
-                        }
-                      }}
-                    >
-                      Yes, this is me — add a property
-                    </button>
-                    <button
-                      type="button"
-                      className="mkt-btn mkt-btn-ghost"
-                      onClick={() => {
-                        if (accountMatch.matchedBy === "email") {
-                          setErr(
-                            "This email is already registered. Sign in to add a property, or use a different email to create a new account."
-                          );
-                          return;
-                        }
-                        setMatchDismissed(true);
-                        setAccountMatch(null);
-                        setClaimMode(false);
-                        setErr("");
-                      }}
-                    >
-                      No, continue as a new member
-                    </button>
-                  </div>
-                ) : (
-                  <div className="mkt-claim-form">
-                    <p>
-                      Sign in to your existing account. The home address you entered above will be added as a new
-                      property on your profile.
-                    </p>
-                    <div className="mkt-field">
-                      <label htmlFor="claimEmail">Account email</label>
-                      <input
-                        id="claimEmail"
-                        type="email"
-                        required
-                        value={claimEmail}
-                        onChange={(e) => setClaimEmail(e.target.value)}
-                        autoComplete="username"
-                      />
-                    </div>
-                    <div className="mkt-field">
-                      <label htmlFor="claimPassword">Account password</label>
-                      <input
-                        id="claimPassword"
-                        type="password"
-                        required
-                        value={claimPassword}
-                        onChange={(e) => setClaimPassword(e.target.value)}
-                        autoComplete="current-password"
-                      />
-                    </div>
-                    <div className="mkt-field">
-                      <label htmlFor="claimLabel">Label for this property (optional)</label>
-                      <input
-                        id="claimLabel"
-                        value={claimLabel}
-                        onChange={(e) => setClaimLabel(e.target.value)}
-                        placeholder="e.g. Lake house, Rental"
-                      />
-                    </div>
-                    <p className="mkt-field-hint">
-                      New property: {[form.addressLine1, form.city, form.state, form.postalCode].filter(Boolean).join(", ") || "—"}
-                    </p>
-                    <div className="mkt-existing-account-actions">
-                      <button
-                        type="button"
-                        className="mkt-btn mkt-btn-primary"
-                        disabled={claimLoading}
-                        onClick={() => void onClaimAddProperty()}
-                      >
-                        {claimLoading ? "Adding…" : "Sign in & add property"}
-                      </button>
-                      <button
-                        type="button"
-                        className="mkt-btn mkt-btn-ghost"
-                        onClick={() => {
-                          setClaimMode(false);
-                          setClaimPassword("");
-                          setErr("");
-                        }}
-                      >
-                        Back
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
           </Section>
 
           <Section title="Interests">
@@ -906,17 +847,157 @@ export default function SignupPage() {
           </Section>
 
           {err && <p className="mkt-error">{err}</p>}
-          {!claimMode && (
-            <button type="submit" className="mkt-btn mkt-btn-primary" disabled={loading} style={{ marginTop: "0.5rem" }}>
-              {loading ? "Processing…" : form.paymentMethod === "card" ? "Pay & Join Now" : "Join Now"}
-            </button>
-          )}
+          <button type="submit" className="mkt-btn mkt-btn-primary" disabled={loading} style={{ marginTop: "0.5rem" }}>
+            {loading ? "Processing…" : form.paymentMethod === "card" ? "Pay & Join Now" : "Join Now"}
+          </button>
         </form>
       </div>
 
       <p className="mkt-lead" style={{ marginTop: "1.5rem", marginBottom: 0 }}>
         Already a member? <Link to="/login">Sign in</Link>
       </p>
+
+      {matchModal && accountMatch && (
+        <div
+          className="mkt-modal-backdrop"
+          role="presentation"
+          onClick={() => {
+            /* require explicit close */
+          }}
+        >
+          <div
+            className="mkt-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="mkt-match-modal-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {matchModal === "match" ? (
+              <>
+                <h2 id="mkt-match-modal-title">You may already have an account</h2>
+                <p>
+                  We found a member profile for <strong>{accountMatch.maskedName}</strong>
+                  {accountMatch.city || accountMatch.state
+                    ? ` in ${[accountMatch.city, accountMatch.state].filter(Boolean).join(", ")}`
+                    : ""}
+                  {accountMatch.matchedBy === "email" && accountMatch.maskedEmail
+                    ? ` (email ${accountMatch.maskedEmail})`
+                    : ""}
+                  {accountMatch.matchedBy === "phone" && accountMatch.maskedPhone
+                    ? ` (phone ${accountMatch.maskedPhone})`
+                    : ""}
+                  {accountMatch.matchedBy === "address" ? " based on this address" : ""}
+                  . Is this you?
+                </p>
+                {accountMatch.existingAddress && (
+                  <p className="mkt-existing-account-address">On file: {accountMatch.existingAddress}</p>
+                )}
+                <div className="mkt-existing-account-actions">
+                  <button
+                    type="button"
+                    className="mkt-btn mkt-btn-primary"
+                    onClick={() => {
+                      setMatchModal("signin");
+                      setErr("");
+                      if (accountMatch.matchedBy === "email" && form.email.trim()) {
+                        setClaimEmail(form.email.trim().toLowerCase());
+                      }
+                    }}
+                  >
+                    Yes
+                  </button>
+                  <button
+                    type="button"
+                    className="mkt-btn mkt-btn-ghost"
+                    onClick={() => {
+                      if (accountMatch.matchedBy === "email") {
+                        setErr(
+                          "This email is already registered. Sign in to add a property, or use a different email to create a new account."
+                        );
+                        setMatchModal(null);
+                        return;
+                      }
+                      setMatchDismissed(true);
+                      setAccountMatch(null);
+                      setMatchModal(null);
+                      setErr("");
+                    }}
+                  >
+                    No, continue as new member
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 id="mkt-match-modal-title">Sign in to add this address</h2>
+                <div className="mkt-modal-confirm">
+                  <p className="mkt-modal-confirm-label">You are adding this address to your membership:</p>
+                  <p className="mkt-modal-confirm-address">
+                    {[form.addressLine1, form.city, form.state, form.postalCode].filter(Boolean).join(", ") || "—"}
+                  </p>
+                </div>
+                <p>
+                  Sign in with your existing account. After you sign in, this address will be ready on your profile —
+                  just hit Save.
+                </p>
+                <div className="mkt-field">
+                  <label htmlFor="claimEmail">Account email</label>
+                  <input
+                    id="claimEmail"
+                    type="email"
+                    required
+                    value={claimEmail}
+                    onChange={(e) => setClaimEmail(e.target.value)}
+                    autoComplete="username"
+                  />
+                </div>
+                <div className="mkt-field">
+                  <label htmlFor="claimPassword">Account password</label>
+                  <input
+                    id="claimPassword"
+                    type="password"
+                    required
+                    value={claimPassword}
+                    onChange={(e) => setClaimPassword(e.target.value)}
+                    autoComplete="current-password"
+                  />
+                </div>
+                <div className="mkt-field">
+                  <label htmlFor="claimLabel">Label for this property (optional)</label>
+                  <input
+                    id="claimLabel"
+                    value={claimLabel}
+                    onChange={(e) => setClaimLabel(e.target.value)}
+                    placeholder="e.g. Lake house, Rental"
+                  />
+                </div>
+                {err && <p className="mkt-error">{err}</p>}
+                <div className="mkt-existing-account-actions">
+                  <button
+                    type="button"
+                    className="mkt-btn mkt-btn-primary"
+                    disabled={claimLoading}
+                    onClick={() => void onSignInAddProperty()}
+                  >
+                    {claimLoading ? "Signing in…" : "Sign in"}
+                  </button>
+                  <button
+                    type="button"
+                    className="mkt-btn mkt-btn-ghost"
+                    onClick={() => {
+                      setMatchModal("match");
+                      setClaimPassword("");
+                      setErr("");
+                    }}
+                  >
+                    Back
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

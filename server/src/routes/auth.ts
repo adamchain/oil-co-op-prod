@@ -17,6 +17,12 @@ const router = Router();
 const lookupSchema = z.object({
   email: z.string().optional().default(""),
   phone: z.string().optional().default(""),
+  phone2: z.string().optional().default(""),
+  addressLine1: z.string().optional().default(""),
+  addressLine2: z.string().optional().default(""),
+  city: z.string().optional().default(""),
+  state: z.string().optional().default(""),
+  postalCode: z.string().optional().default(""),
 });
 
 const propertyBodySchema = z.object({
@@ -36,7 +42,7 @@ const claimSchema = z.object({
   property: propertyBodySchema,
 });
 
-/** Soft-check before / during signup: matching email or phone on an existing member. */
+/** Soft-check before / during signup: matching email, phone, or address on an existing member. */
 router.post("/lookup-account", async (req, res) => {
   const parsed = lookupSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -45,11 +51,26 @@ router.post("/lookup-account", async (req, res) => {
   }
   const email = parsed.data.email.trim();
   const phone = parsed.data.phone.trim();
-  if (!email && !phone) {
+  const phone2 = parsed.data.phone2.trim();
+  const addressLine1 = parsed.data.addressLine1.trim();
+  const addressLine2 = parsed.data.addressLine2.trim();
+  const city = parsed.data.city.trim();
+  const state = parsed.data.state.trim();
+  const postalCode = parsed.data.postalCode.trim();
+  if (!email && !phone && !phone2 && !addressLine1) {
     res.json({ match: false });
     return;
   }
-  const found = await findExistingAccount({ email, phone });
+  const found = await findExistingAccount({
+    email,
+    phone,
+    phone2,
+    addressLine1,
+    addressLine2,
+    city,
+    state,
+    postalCode,
+  });
   if (!found) {
     res.json({ match: false });
     return;
