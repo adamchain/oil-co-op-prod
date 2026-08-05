@@ -10,6 +10,7 @@ import { applyReferralCredit, findReferrerByToken } from "../services/referrals.
 import { confirmPaymentIntent } from "../services/stripeBilling.js";
 import { createProfileAndCharge } from "../services/authorizeNet.js";
 import { logActivity } from "../services/activity.js";
+import { phoneDigits } from "../utils/phone.js";
 
 export const registerMemberSchema = z.object({
   // Email is optional — a blank string is treated as "no email".
@@ -102,7 +103,12 @@ export async function registerMember(
   if (email) {
     const exists = await Member.findOne({ email });
     if (exists) {
-      return { ok: false, status: 409, error: "Email already registered" };
+      return {
+        ok: false,
+        status: 409,
+        error: "Email already registered",
+        extra: { code: "EMAIL_EXISTS" },
+      };
     }
   }
 
@@ -198,6 +204,9 @@ export async function registerMember(
     paymentStatus = "pending";
   }
 
+  const primaryAddressLine2 =
+    body.sameMailingAddress === false ? body.mailingAddressLine1 || body.addressLine2 : body.addressLine2;
+
   const member = await Member.create({
     memberNumber,
     email,
@@ -205,11 +214,25 @@ export async function registerMember(
     firstName: body.firstName,
     lastName: body.lastName,
     phone: body.phone,
+    phoneDigits: phoneDigits(body.phone),
     addressLine1: body.addressLine1,
-    addressLine2: body.sameMailingAddress === false ? body.mailingAddressLine1 || body.addressLine2 : body.addressLine2,
+    addressLine2: primaryAddressLine2,
     city: body.city,
     state: body.state,
     postalCode: body.postalCode,
+    properties: body.addressLine1
+      ? [
+          {
+            label: "Primary",
+            addressLine1: body.addressLine1,
+            addressLine2: body.addressLine2 || "",
+            city: body.city,
+            state: body.state,
+            postalCode: body.postalCode,
+            isPrimary: true,
+          },
+        ]
+      : [],
     paymentMethod: body.paymentMethod,
     autoRenew: body.paymentMethod === "card",
     nextAnnualBillingDate: nextAnnual,

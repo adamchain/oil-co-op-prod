@@ -3,6 +3,8 @@ import { z } from "zod";
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 import { Member } from "../models/Member.js";
 import { logActivity } from "../services/activity.js";
+import { addPropertyToMember, serializeProperties } from "../services/accountLookup.js";
+import { phoneDigits } from "../utils/phone.js";
 
 const router = Router();
 
@@ -26,6 +28,15 @@ const profileSchema = z.object({
   state: z.string().optional(),
   postalCode: z.string().optional(),
   legacyProfile: z.record(z.string(), z.unknown()).optional(),
+});
+
+const propertySchema = z.object({
+  label: z.string().optional().default(""),
+  addressLine1: z.string().min(1),
+  addressLine2: z.string().optional().default(""),
+  city: z.string().min(1),
+  state: z.string().min(1),
+  postalCode: z.string().min(1),
 });
 
 router.patch("/notification-settings", requireAuth, async (req: AuthedRequest, res) => {
@@ -66,12 +77,47 @@ router.patch("/profile", requireAuth, async (req: AuthedRequest, res) => {
   const body = parsed.data;
   if (body.firstName !== undefined) m.firstName = body.firstName;
   if (body.lastName !== undefined) m.lastName = body.lastName;
-  if (body.phone !== undefined) m.phone = body.phone;
+  if (body.phone !== undefined) {
+    m.phone = body.phone;
+    m.phoneDigits = phoneDigits(body.phone);
+  }
   if (body.addressLine1 !== undefined) m.addressLine1 = body.addressLine1;
   if (body.addressLine2 !== undefined) m.addressLine2 = body.addressLine2;
   if (body.city !== undefined) m.city = body.city;
   if (body.state !== undefined) m.state = body.state;
   if (body.postalCode !== undefined) m.postalCode = body.postalCode;
+
+  // Keep the primary property row in sync when the top-level home address changes.
+  if (
+    body.addressLine1 !== undefined ||
+    body.addressLine2 !== undefined ||
+    body.city !== undefined ||
+    body.state !== undefined ||
+    body.postalCode !== undefined
+  ) {
+    if (!Array.isArray(m.properties)) m.properties = [] as typeof m.properties;
+    const primary =
+      m.properties.find((p: { isPrimary?: boolean }) => p.isPrimary) ?? m.properties[0];
+    if (primary) {
+      if (body.addressLine1 !== undefined) primary.addressLine1 = body.addressLine1;
+      if (body.addressLine2 !== undefined) primary.addressLine2 = body.addressLine2;
+      if (body.city !== undefined) primary.city = body.city;
+      if (body.state !== undefined) primary.state = body.state;
+      if (body.postalCode !== undefined) primary.postalCode = body.postalCode;
+      primary.isPrimary = true;
+    } else if (m.addressLine1) {
+      m.properties.push({
+        label: "Primary",
+        addressLine1: m.addressLine1,
+        addressLine2: m.addressLine2 || "",
+        city: m.city || "",
+        state: m.state || "",
+        postalCode: m.postalCode || "",
+        isPrimary: true,
+      });
+    }
+  }
+
   if (body.legacyProfile !== undefined) {
     m.legacyProfile = {
       ...(typeof m.legacyProfile === "object" && m.legacyProfile ? m.legacyProfile : {}),
@@ -91,9 +137,26 @@ router.patch("/profile", requireAuth, async (req: AuthedRequest, res) => {
       city: m.city,
       state: m.state,
       postalCode: m.postalCode,
+      properties: serializeProperties(m),
       legacyProfile: m.legacyProfile || {},
     },
   });
+});
+
+router.post("/properties", requireAuth, async (req: AuthedRequest, res) => {
+  const parsed = propertySchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const m = await Member.findById(req.userId);
+  if (!m) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const properties = await addPropertyToMember(m, parsed.data);
+  await logActivity(m._id, "member_property_added", parsed.data, m._id);
+  res.status(201).json({ properties });
 });
 
 export default router;

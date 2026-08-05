@@ -22,6 +22,19 @@ const noteEntrySchema = new Schema(
   { _id: true }
 );
 
+const propertySchema = new Schema(
+  {
+    label: { type: String, default: "", trim: true },
+    addressLine1: { type: String, default: "", trim: true },
+    addressLine2: { type: String, default: "", trim: true },
+    city: { type: String, default: "", trim: true },
+    state: { type: String, default: "", trim: true },
+    postalCode: { type: String, default: "", trim: true },
+    isPrimary: { type: Boolean, default: false },
+  },
+  { _id: true, timestamps: { createdAt: true, updatedAt: false } }
+);
+
 const memberSchema = new Schema(
   {
     memberNumber: { type: String, unique: true, sparse: true },
@@ -30,11 +43,15 @@ const memberSchema = new Schema(
     firstName: { type: String, required: true, trim: true },
     lastName: { type: String, required: true, trim: true },
     phone: { type: String, default: "", trim: true },
+    /** Normalized 10-digit phone for duplicate lookup. */
+    phoneDigits: { type: String, default: "", index: true },
     addressLine1: { type: String, default: "", trim: true },
     addressLine2: { type: String, default: "", trim: true },
     city: { type: String, default: "", trim: true },
     state: { type: String, default: "", trim: true },
     postalCode: { type: String, default: "", trim: true },
+    /** Additional service/property addresses beyond the primary home address. */
+    properties: { type: [propertySchema], default: [] },
 
     role: { type: String, enum: ["member", "admin"], default: "member" },
     status: {

@@ -3,6 +3,17 @@ import { Link } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../authContext";
 
+type Property = {
+  id: string;
+  label: string;
+  addressLine1: string;
+  addressLine2: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  isPrimary: boolean;
+};
+
 type Me = {
   id: string;
   email: string;
@@ -22,6 +33,7 @@ type Me = {
   city?: string;
   state?: string;
   postalCode?: string;
+  properties?: Property[];
   legacyProfile?: Record<string, unknown>;
 };
 
@@ -31,6 +43,16 @@ export default function AccountPage() {
   const [err, setErr] = useState("");
   const [saving, setSaving] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
+  const [addingProperty, setAddingProperty] = useState(false);
+  const [showAddProperty, setShowAddProperty] = useState(false);
+  const [newProperty, setNewProperty] = useState({
+    label: "Additional property",
+    addressLine1: "",
+    addressLine2: "",
+    city: "",
+    state: "",
+    postalCode: "",
+  });
   const [profile, setProfile] = useState({
     firstName: "",
     lastName: "",
@@ -70,6 +92,22 @@ export default function AccountPage() {
   }, [token]);
 
   const ns = me?.notificationSettings || {};
+  const properties = me?.properties?.length
+    ? me.properties
+    : me?.addressLine1
+      ? [
+          {
+            id: "primary",
+            label: "Primary",
+            addressLine1: me.addressLine1 || "",
+            addressLine2: me.addressLine2 || "",
+            city: me.city || "",
+            state: me.state || "",
+            postalCode: me.postalCode || "",
+            isPrimary: true,
+          },
+        ]
+      : [];
 
   async function updateNs(patch: Record<string, boolean | string>) {
     if (!token) return;
@@ -116,11 +154,51 @@ export default function AccountPage() {
           }),
         }
       );
-      setMe((m) => (m ? { ...m, ...res.member, legacyProfile: { ...(m.legacyProfile || {}), ...(res.member.legacyProfile || {}) } } : m));
+      setMe((m) =>
+        m
+          ? {
+              ...m,
+              ...res.member,
+              properties: res.member.properties ?? m.properties,
+              legacyProfile: { ...(m.legacyProfile || {}), ...(res.member.legacyProfile || {}) },
+            }
+          : m
+      );
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Save failed");
     } finally {
       setProfileSaving(false);
+    }
+  }
+
+  async function addProperty() {
+    if (!token) return;
+    if (!newProperty.addressLine1.trim() || !newProperty.city.trim() || !newProperty.state.trim() || !newProperty.postalCode.trim()) {
+      setErr("Please fill in the property address, city, state, and ZIP.");
+      return;
+    }
+    setAddingProperty(true);
+    setErr("");
+    try {
+      const res = await api<{ properties: Property[] }>("/api/me/properties", {
+        method: "POST",
+        token,
+        body: JSON.stringify(newProperty),
+      });
+      setMe((m) => (m ? { ...m, properties: res.properties } : m));
+      setNewProperty({
+        label: "Additional property",
+        addressLine1: "",
+        addressLine2: "",
+        city: "",
+        state: "",
+        postalCode: "",
+      });
+      setShowAddProperty(false);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not add property");
+    } finally {
+      setAddingProperty(false);
     }
   }
 
@@ -219,7 +297,7 @@ export default function AccountPage() {
         {/* Address */}
         <div style={{ marginBottom: "1.5rem" }}>
           <h3 style={{ fontSize: "0.75rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#78716c", marginBottom: "0.75rem" }}>
-            Address
+            Primary address
           </h3>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
             <div className="mkt-field" style={{ gridColumn: "1 / -1" }}>
@@ -245,6 +323,105 @@ export default function AccountPage() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Additional properties */}
+        <div style={{ marginBottom: "1.5rem" }}>
+          <h3 style={{ fontSize: "0.75rem", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#78716c", marginBottom: "0.75rem" }}>
+            Property addresses
+          </h3>
+          <div className="mkt-property-list">
+            {properties.map((p) => (
+              <div key={p.id || `${p.addressLine1}-${p.postalCode}`} className="mkt-property-item">
+                <strong>
+                  {p.label || (p.isPrimary ? "Primary" : "Property")}
+                  {p.isPrimary ? " · Primary" : ""}
+                </strong>
+                <span>
+                  {[p.addressLine1, p.addressLine2, [p.city, p.state].filter(Boolean).join(", "), p.postalCode]
+                    .filter(Boolean)
+                    .join(", ")}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {!showAddProperty ? (
+            <button type="button" className="mkt-btn mkt-btn-ghost" onClick={() => setShowAddProperty(true)}>
+              Add another property address
+            </button>
+          ) : (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem", marginTop: "0.5rem" }}>
+              <div className="mkt-field" style={{ gridColumn: "1 / -1" }}>
+                <label>Label (optional)</label>
+                <input
+                  className="mkt-input"
+                  value={newProperty.label}
+                  onChange={(e) => setNewProperty((p) => ({ ...p, label: e.target.value }))}
+                  placeholder="e.g. Lake house"
+                />
+              </div>
+              <div className="mkt-field" style={{ gridColumn: "1 / -1" }}>
+                <label>Street address</label>
+                <input
+                  className="mkt-input"
+                  value={newProperty.addressLine1}
+                  onChange={(e) => setNewProperty((p) => ({ ...p, addressLine1: e.target.value }))}
+                />
+              </div>
+              <div className="mkt-field" style={{ gridColumn: "1 / -1" }}>
+                <label>Apt, suite, unit (optional)</label>
+                <input
+                  className="mkt-input"
+                  value={newProperty.addressLine2}
+                  onChange={(e) => setNewProperty((p) => ({ ...p, addressLine2: e.target.value }))}
+                />
+              </div>
+              <div className="mkt-field">
+                <label>City</label>
+                <input
+                  className="mkt-input"
+                  value={newProperty.city}
+                  onChange={(e) => setNewProperty((p) => ({ ...p, city: e.target.value }))}
+                />
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+                <div className="mkt-field">
+                  <label>State</label>
+                  <input
+                    className="mkt-input"
+                    value={newProperty.state}
+                    onChange={(e) => setNewProperty((p) => ({ ...p, state: e.target.value }))}
+                    maxLength={2}
+                    style={{ textTransform: "uppercase" }}
+                  />
+                </div>
+                <div className="mkt-field">
+                  <label>ZIP</label>
+                  <input
+                    className="mkt-input"
+                    value={newProperty.postalCode}
+                    onChange={(e) => setNewProperty((p) => ({ ...p, postalCode: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div style={{ gridColumn: "1 / -1", display: "flex", gap: "0.65rem", flexWrap: "wrap" }}>
+                <button type="button" className="mkt-btn mkt-btn-primary" disabled={addingProperty} onClick={() => void addProperty()}>
+                  {addingProperty ? "Adding…" : "Save property"}
+                </button>
+                <button
+                  type="button"
+                  className="mkt-btn mkt-btn-ghost"
+                  onClick={() => {
+                    setShowAddProperty(false);
+                    setErr("");
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <button className="mkt-submit" type="button" onClick={() => void saveProfile()} disabled={profileSaving} style={{ marginTop: "0.5rem" }}>
