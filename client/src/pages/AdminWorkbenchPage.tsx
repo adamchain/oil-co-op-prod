@@ -415,6 +415,9 @@ export default function AdminWorkbenchPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const memberParam = searchParams.get("member") ?? "";
   const missingMemberFetchAttempt = useRef<string | null>(null);
+  // Set when filters are cleared programmatically to reveal a `?member=` record;
+  // suppresses the one index-reset that would otherwise clobber the selection.
+  const suppressIndexResetRef = useRef(false);
   const [activeTab, setActiveTab] = useState<TabName>("Data Entry");
   const [members, setMembers] = useState<Member[]>([]);
   const [filters, setFilters] = useState<MemberFilter[]>(() => decodeFilters(searchParams.get("filters") || ""));
@@ -1050,6 +1053,10 @@ export default function AdminWorkbenchPage() {
       return;
     }
     if (members.some((m) => m._id === memberParam)) {
+      // The record exists but is filtered out — clear filters to reveal it, and
+      // suppress the index-reset that the filter change triggers so reconciliation
+      // (which re-runs and lands on this member) isn't clobbered back to 0.
+      suppressIndexResetRef.current = true;
       applyFilters([]);
       applyQuickSearch("");
       missingMemberFetchAttempt.current = null;
@@ -1219,6 +1226,10 @@ export default function AdminWorkbenchPage() {
   }, [filters, quickSearch, worksheetSort]);
 
   useEffect(() => {
+    if (suppressIndexResetRef.current) {
+      suppressIndexResetRef.current = false;
+      return;
+    }
     setIndex(0);
   }, [filters, quickSearch]);
 
