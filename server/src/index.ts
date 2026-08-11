@@ -12,6 +12,7 @@ import deliveriesRoutes from "./routes/deliveries.js";
 import paymentsRoutes from "./routes/payments.js";
 import oilPricesRoutes from "./routes/oilPrices.js";
 import communityRoutes from "./routes/community.js";
+import siteContentRoutes from "./routes/siteContent.js";
 import { startScheduledJobs } from "./services/jobs.js";
 
 const app = express();
@@ -42,6 +43,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/me", meRoutes);
 app.use("/api/oil-prices", oilPricesRoutes);
 app.use("/api/community", communityRoutes);
+app.use("/api/site-content", siteContentRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/admin/deliveries", deliveriesRoutes);
 app.use("/api/payments", paymentsRoutes);

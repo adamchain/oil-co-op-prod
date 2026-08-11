@@ -13,10 +13,12 @@ import { Referral } from "../models/Referral.js";
 import { PaymentToken } from "../models/PaymentToken.js";
 import { EmailTemplate, EMAIL_TEMPLATE_KEYS } from "../models/EmailTemplate.js";
 import { EmailBranding } from "../models/EmailBranding.js";
+import { SiteContent } from "../models/SiteContent.js";
 import { OilPrice } from "../models/OilPrice.js";
 import { CommunityPartner } from "../models/CommunityPartner.js";
 import { CommunityEvent } from "../models/CommunityEvent.js";
 import { getEmailBranding } from "../services/emailBranding.js";
+import { getSiteContentValues } from "../services/siteContentStore.js";
 import { logActivity } from "../services/activity.js";
 import { registerMember, registerMemberSchema } from "../services/memberRegistration.js";
 import { setMemberReferrer } from "../services/referrals.js";
@@ -200,6 +202,39 @@ router.put("/email-branding", async (req: AuthedRequest, res) => {
 
   const branding = await getEmailBranding();
   res.json({ branding });
+});
+
+// --- Editable marketing-site copy (key -> text overrides) ---
+router.get("/site-content", async (_req, res) => {
+  const values = await getSiteContentValues();
+  res.json({ values });
+});
+
+const updateSiteContentSchema = z.object({
+  values: z.record(z.string(), z.string().max(20000)),
+});
+
+router.put("/site-content", async (req: AuthedRequest, res) => {
+  const parsed = updateSiteContentSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  await SiteContent.findOneAndUpdate(
+    { singleton: "site-content" },
+    { $set: { values: parsed.data.values } },
+    { new: true, upsert: true, setDefaultsOnInsert: true }
+  );
+
+  await logActivity(
+    new mongoose.Types.ObjectId(req.userId!),
+    "admin_site_content_updated",
+    { adminId: req.userId, keys: Object.keys(parsed.data.values).length },
+    new mongoose.Types.ObjectId(req.userId!)
+  );
+
+  const values = await getSiteContentValues();
+  res.json({ values });
 });
 
 const sendTestTemplateSchema = z.object({

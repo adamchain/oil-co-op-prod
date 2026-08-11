@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { AuthProvider, useAuth } from "./authContext";
+import { SiteContentProvider } from "./public-site/content/SiteContentContext";
 import MarketingLayout from "./layouts/MarketingLayout";
 import AdminLayout from "./layouts/AdminLayout";
 import PublicHomePage from "./public-site/PublicHomePage";
@@ -32,6 +33,7 @@ import AdminDeliveryImportPage from "./pages/AdminDeliveryImportPage";
 import AdminDeliverySearchPage from "./pages/AdminDeliverySearchPage";
 import AdminAddCustomerPage from "./pages/AdminAddCustomerPage";
 import AdminCallbacksPage from "./pages/AdminCallbacksPage";
+import AdminSiteContentPage from "./pages/AdminSiteContentPage";
 
 function RequireAuth({ admin }: { admin?: boolean }) {
   const { token, member } = useAuth();
@@ -43,6 +45,7 @@ function RequireAuth({ admin }: { admin?: boolean }) {
 export default function App() {
   return (
     <AuthProvider>
+      <SiteContentProvider>
       <Routes>
         <Route element={<MarketingLayout />}>
           <Route path="/" element={<PublicHomePage />} />
@@ -73,6 +76,7 @@ export default function App() {
             <Route path="oil-companies" element={<AdminOilCompaniesPage />} />
             <Route path="oil-prices" element={<AdminOilPricesPage />} />
             <Route path="community" element={<AdminCommunityPage />} />
+            <Route path="site-content" element={<AdminSiteContentPage />} />
             <Route path="add-customer" element={<AdminAddCustomerPage />} />
             <Route path="members" element={<AdminMembersPage />} />
             <Route path="members/:id" element={<AdminMemberPage />} />
@@ -90,6 +94,7 @@ export default function App() {
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </SiteContentProvider>
     </AuthProvider>
   );
 }

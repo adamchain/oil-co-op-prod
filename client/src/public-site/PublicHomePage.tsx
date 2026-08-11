@@ -9,6 +9,7 @@ import {
   WhyChooseSection,
   ImageSlot,
 } from "./homeSections";
+import { useSiteText } from "./content/SiteContentContext";
 
 /**
  * Citizen's Oil Co-op public marketing homepage.
@@ -43,15 +44,17 @@ function PhoneIcon({ size = 16 }: { size?: number }) {
 }
 
 function HeroPhoneLink({ className = "mkt-hero-phone" }: { className?: string }) {
+  const t = useSiteText();
   return (
     <a href="tel:8605616011" className={className}>
       <PhoneIcon />
-      860-561-6011
+      {t("home.heroPhone")}
     </a>
   );
 }
 
 function CheckLine() {
+  const t = useSiteText();
   return (
     <p className="mkt-hero-check">
       <span className="mkt-check-badge" aria-hidden>
@@ -59,13 +62,14 @@ function CheckLine() {
           <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       </span>
-      Over 5,000 families across CT, RI, NY &amp; MA are already saving.
+      {t("home.heroCheckLine")}
     </p>
   );
 }
 
 /** Option B — large price stacked above the headline + media */
 function HeroPriceAbove({ price }: { price: CurrentOilPrice | null }) {
+  const t = useSiteText();
   return (
     <section className="mkt-hero mkt-hero--price-above">
       <div className="mkt-hero-bg" aria-hidden />
@@ -73,28 +77,26 @@ function HeroPriceAbove({ price }: { price: CurrentOilPrice | null }) {
         <div className="mkt-hero-price-hero" role="group" aria-label="Average heating oil price">
           <span className="mkt-hero-price-hero-value">
             {price ? formatPrice(price.coopPrice) : "—"}
-            <span className="mkt-hero-price-hero-unit">/gal</span>
+            <span className="mkt-hero-price-hero-unit">{t("home.heroPriceUnit")}</span>
           </span>
           {price && (
             <span className="mkt-hero-price-hero-week">
-              Average heating oil price week of {formatWeekOf(price.weekOf)}
+              {t("home.heroPriceWeekPrefix")}
+              {formatWeekOf(price.weekOf)}
             </span>
           )}
         </div>
-        <h1>Stop overpaying for heating oil &amp; propane.</h1>
-        <p>
-          Group-negotiated rates from local, full-service companies — with someone in your corner if something goes
-          wrong.
-        </p>
+        <h1>{t("home.heroHeadline")}</h1>
+        <p>{t("home.heroLead")}</p>
         <div className="mkt-hero-actions">
           <Link to="/signup" className="mkt-btn mkt-btn-primary mkt-btn-lg">
-            Join Now
+            {t("home.heroJoinCta")}
           </Link>
           <HeroPhoneLink className="mkt-btn mkt-btn-ghost mkt-btn-lg mkt-hero-phone-btn" />
         </div>
         <p className="mkt-hero-price-hero-link-wrap">
           <Link to="/heating-prices" className="mkt-hero-price-link">
-            See full pricing →
+            {t("home.heroPricingLink")}
           </Link>
         </p>
         <CheckLine />

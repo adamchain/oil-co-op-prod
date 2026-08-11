@@ -47,6 +47,9 @@ export default function AdminLayout() {
           <NavLink to="/admin/community" className={linkClass} onClick={() => setSidebarOpen(false)}>
             Community
           </NavLink>
+          <NavLink to="/admin/site-content" className={linkClass} onClick={() => setSidebarOpen(false)}>
+            Site Content
+          </NavLink>
         </nav>
         <div className="admin-sidebar-bottom">
           <NavLink

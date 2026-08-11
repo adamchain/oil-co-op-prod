@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import type { ReactNode } from "react";
+import { useSiteText } from "./content/SiteContentContext";
+import type { ContentGroup } from "./content/types";
 
 type BenefitCard = {
   id: string;
-  title: string;
-  summary: string;
+  titleKey: string;
+  summaryKey: string;
   detail: ReactNode;
   icon: ReactNode;
 };
@@ -21,21 +23,20 @@ function IconWrap({ children }: { children: ReactNode }) {
 const SAVE_MONEY: BenefitCard[] = [
   {
     id: "heating-oil",
-    title: "Discounted Heating Oil",
-    summary: "Full-service heating oil at negotiated Co-op rates from trusted local companies.",
+    titleKey: "services.heatingOilTitle",
+    summaryKey: "services.heatingOilSummary",
     detail: (
       <>
         <p>
-          All Co-op heating oil suppliers are <strong>full-service</strong>. Members typically see pricing roughly{" "}
-          <strong>40–50¢ below</strong> average state posted prices, with competitive service contracts and access to
-          budget billing programs (often arranged before September 1).
+          <UseText k="services.heatingOilDetail1" />
         </p>
         <p>
-          You become a customer of the company to which you are assigned — the Co-op is here to help if you have service
-          or pricing questions.
+          <UseText k="services.heatingOilDetail2" />
         </p>
         <p>
-          <Link to="/heating-prices">See weekly heating prices →</Link>
+          <Link to="/heating-prices">
+            <UseText k="services.heatingOilLink" />
+          </Link>
         </p>
       </>
     ),
@@ -53,21 +54,20 @@ const SAVE_MONEY: BenefitCard[] = [
   },
   {
     id: "propane",
-    title: "Discounted Propane",
-    summary: "Competitive propane pricing — often with perks like free tank rental for members.",
+    titleKey: "services.propaneTitle",
+    summaryKey: "services.propaneSummary",
     detail: (
       <>
         <p>
-          Discounted propane pricing; many members receive added benefits such as <strong>free tank rental</strong>. The
-          Co-op forwards your information to a participating supplier, who contacts you, performs a safety check, and
-          coordinates tank changes as needed.
+          <UseText k="services.propaneDetail1" />
         </p>
         <p>
-          Existing Co-op members can often <strong>add propane without a second membership fee</strong>. Many oil
-          suppliers also deliver propane for stacked savings.
+          <UseText k="services.propaneDetail2" />
         </p>
         <p>
-          <Link to="/faq#propane">Propane tank FAQ →</Link>
+          <Link to="/faq#propane">
+            <UseText k="services.propaneLink" />
+          </Link>
         </p>
       </>
     ),
@@ -83,11 +83,13 @@ const SAVE_MONEY: BenefitCard[] = [
   },
   {
     id: "electricity",
-    title: "Electricity Supply Options",
-    summary: "Compare Co-op electricity rates and shop the broader market.",
+    titleKey: "services.electricityTitle",
+    summaryKey: "services.electricitySummary",
     detail: (
       <>
-        <p>Click here to see current rates available from our participating electricity supplier.</p>
+        <p>
+          <UseText k="services.electricityDetail1" />
+        </p>
         <p>
           <a
             href="https://get.thinkenergy.com/oilcoop"
@@ -95,10 +97,12 @@ const SAVE_MONEY: BenefitCard[] = [
             target="_blank"
             rel="noopener noreferrer"
           >
-            View Co-op electricity rates
+            <UseText k="services.electricityBtn1" />
           </a>
         </p>
-        <p>We want our members to get the best rate. Click here to see electricity rates outside of the Co-op.</p>
+        <p>
+          <UseText k="services.electricityDetail2" />
+        </p>
         <p>
           <a
             href="https://www.energizect.com/"
@@ -106,7 +110,7 @@ const SAVE_MONEY: BenefitCard[] = [
             target="_blank"
             rel="noopener noreferrer"
           >
-            Compare rates on Energize CT
+            <UseText k="services.electricityBtn2" />
           </a>
         </p>
       </>
@@ -123,13 +127,12 @@ const SAVE_MONEY: BenefitCard[] = [
   },
   {
     id: "insurance",
-    title: "Home and Auto Insurance",
-    summary: "Discounted auto and homeowners rates through Bearingstar Insurance.",
+    titleKey: "services.insuranceTitle",
+    summaryKey: "services.insuranceSummary",
     detail: (
       <>
         <p>
-          We have partnered with Bearingstar Insurance to offer members discounted rates on auto and homeowner&apos;s
-          insurance.
+          <UseText k="services.insuranceDetail1" />
         </p>
         <p>
           <a
@@ -138,7 +141,7 @@ const SAVE_MONEY: BenefitCard[] = [
               "Hello,\n\nI would like to request a free home and auto insurance quote through the Co-op's Bearingstar partnership.\n\nName:\nPhone:\nEmail:\nTown:\n\nThank you!"
             )}`}
           >
-            Click here to request a free quote!
+            <UseText k="services.insuranceBtn" />
           </a>
         </p>
       </>
@@ -157,13 +160,12 @@ const SAVE_MONEY: BenefitCard[] = [
 const GO_GREEN: BenefitCard[] = [
   {
     id: "solar",
-    title: "Solar Consultations",
-    summary: "Members who enroll through the Co-op can earn $500 when solar installation is complete.",
+    titleKey: "services.solarTitle",
+    summaryKey: "services.solarSummary",
     detail: (
       <>
         <p>
-          Members who enroll through the Co-op receive a <strong>$500</strong> check upon completion of the solar panel
-          installation.
+          <UseText k="services.solarDetail1" />
         </p>
         <p>
           <a
@@ -172,7 +174,7 @@ const GO_GREEN: BenefitCard[] = [
               "Hello,\n\nI would like to request a free solar consultation through the Co-op.\n\nName:\nPhone:\nEmail:\nTown:\n\nThank you!"
             )}`}
           >
-            Click here to request a free consultation.
+            <UseText k="services.solarBtn" />
           </a>
         </p>
       </>
@@ -190,15 +192,16 @@ const GO_GREEN: BenefitCard[] = [
   },
   {
     id: "bioheat",
-    title: "Bioheat® (Cleaner Heating Oil)",
-    summary: "B20 bioheat blends biodiesel with heating oil — cleaner burn in existing equipment.",
+    titleKey: "services.bioheatTitle",
+    summaryKey: "services.bioheatSummary",
     detail: (
       <>
         <p>
-          <strong>B20</strong> is 80% low-sulfur No. 2 oil and 20% biodiesel — usable in existing oil equipment.
-          Biodiesel in the blend is sourced to meet ASTM standards.
+          <UseText k="services.bioheatDetail1" />
         </p>
-        <p>Available in many Connecticut towns.</p>
+        <p>
+          <UseText k="services.bioheatDetail2" />
+        </p>
       </>
     ),
     icon: (
@@ -212,13 +215,12 @@ const GO_GREEN: BenefitCard[] = [
   },
   {
     id: "compost",
-    title: "Composting Discounts",
-    summary: "Member discounts on organics and composting programs, including Blue Earth Compost.",
+    titleKey: "services.compostTitle",
+    summaryKey: "services.compostSummary",
     detail: (
       <>
         <p>
-          The Co-op highlights additional member programs — including organics and compost offers — as seasonal
-          benefits. Ask the office what&apos;s currently available in your area.
+          <UseText k="services.compostDetail1" />
         </p>
       </>
     ),
@@ -234,18 +236,15 @@ const GO_GREEN: BenefitCard[] = [
   },
   {
     id: "audits",
-    title: "Home Energy Audits",
-    summary: "Discounted home energy audits through New England Smart Energy (NESE).",
+    titleKey: "services.auditsTitle",
+    summaryKey: "services.auditsSummary",
     detail: (
       <>
         <p>
-          Partner <strong>New England Smart Energy (NESE)</strong> offers audits across Connecticut with a modest
-          copay (often around <strong>$50</strong>), including in-home measures and access to rebates on follow-up
-          improvements.
+          <UseText k="services.auditsDetail1" />
         </p>
         <p>
-          Audits are an invaluable way to reduce heat loss for your home and to access rebates on follow-up
-          improvements.
+          <UseText k="services.auditsDetail2" />
         </p>
         <p>
           <a
@@ -254,7 +253,7 @@ const GO_GREEN: BenefitCard[] = [
               "Hello,\n\nI would like to schedule a home energy audit through the Co-op.\n\nName:\nPhone:\nEmail:\nTown:\n\nThank you!"
             )}`}
           >
-            Click here to schedule an audit.
+            <UseText k="services.auditsBtn" />
           </a>
         </p>
       </>
@@ -274,13 +273,12 @@ const GO_GREEN: BenefitCard[] = [
 const WHY_MEMBER: BenefitCard[] = [
   {
     id: "advocacy",
-    title: "Consumer Advocacy",
-    summary: "Someone in your corner if you have a service, pricing, or billing question with your supplier.",
+    titleKey: "services.advocacyTitle",
+    summaryKey: "services.advocacySummary",
     detail: (
       <>
         <p>
-          Our large membership lets Citizen&apos;s Oil Co-op negotiate better contracts — and advocate for your needs
-          with participating companies. If you have a problem, we&apos;re here to help.
+          <UseText k="services.advocacyDetail1" />
         </p>
       </>
     ),
@@ -295,13 +293,12 @@ const WHY_MEMBER: BenefitCard[] = [
   },
   {
     id: "senior-discounts",
-    title: "Discounts for Seniors, Veterans & First Responders",
-    summary: "Reduced annual dues for seniors, with additional savings options for those who serve.",
+    titleKey: "services.seniorTitle",
+    summaryKey: "services.seniorSummary",
     detail: (
       <>
         <p>
-          Membership is <strong>$35 per year</strong>, or <strong>$25 for seniors</strong>, plus a one-time $10
-          application fee for new accounts. Ask the office about current offers for veterans and first responders.
+          <UseText k="services.seniorDetail1" />
         </p>
       </>
     ),
@@ -317,16 +314,20 @@ const WHY_MEMBER: BenefitCard[] = [
   },
   {
     id: "partners",
-    title: "Local Partner Network",
-    summary: "Trusted full-service heating companies across CT, RI, and select towns in NY and MA.",
+    titleKey: "services.partnersTitle",
+    summaryKey: "services.partnersSummary",
     detail: (
       <>
         <p>
-          We recommend the best participating company based on your location, pricing, and service preferences.
+          <UseText k="services.partnersDetail1" />
         </p>
-        <p>They&apos;ll call you and set up your account at Co-op pricing.</p>
         <p>
-          <Link to="/#towns">See coverage area →</Link>
+          <UseText k="services.partnersDetail2" />
+        </p>
+        <p>
+          <Link to="/#towns">
+            <UseText k="services.partnersLink" />
+          </Link>
         </p>
       </>
     ),
@@ -343,6 +344,262 @@ const WHY_MEMBER: BenefitCard[] = [
   },
 ];
 
+/** Renders an editable string via the site content registry. */
+function UseText({ k }: { k: string }) {
+  const t = useSiteText();
+  return <>{t(k)}</>;
+}
+
+export const SERVICES_CONTENT: ContentGroup = {
+  page: "services",
+  title: "Services",
+  fields: [
+    { key: "services.heroTitle", label: "Hero title", value: "Everything your membership includes." },
+    {
+      key: "services.heroBlurb",
+      label: "Hero blurb",
+      value: "More than discounted fuel. Your membership comes with valuable benefits all year long.",
+      multiline: true,
+    },
+
+    { key: "services.referralIntro", label: "Referral intro", value: "Already a member?", },
+    {
+      key: "services.referralCopy",
+      label: "Referral copy",
+      value: "Don't forget about our referral program. Have your neighbor sign up and we'll waive your membership next year!",
+      multiline: true,
+    },
+    {
+      key: "services.referralToggle",
+      label: "Referral toggle",
+      value: "Click here if you would like us to reach out to someone you know.",
+      multiline: true,
+    },
+    { key: "services.referralSubmit", label: "Referral submit button", value: "Send referral" },
+
+    { key: "services.saveMoneyTitle", label: "Save money title", value: "Save money" },
+    {
+      key: "services.saveMoneyBlurb",
+      label: "Save money blurb",
+      value: "Lower your home energy costs with exclusive member benefits.",
+      multiline: true,
+    },
+    { key: "services.goGreenTitle", label: "Go green title", value: "Go green" },
+    {
+      key: "services.goGreenBlurb",
+      label: "Go green blurb",
+      value: "Smart energy solutions that help your wallet and the environment.",
+      multiline: true,
+    },
+    { key: "services.whyMemberTitle", label: "Why member title", value: "Why become a member?" },
+    {
+      key: "services.whyMemberBlurb",
+      label: "Why member blurb",
+      value: "We do the work so you can save with confidence.",
+      multiline: true,
+    },
+
+    { key: "services.cardShowLess", label: "Card: show less", value: "Show less" },
+    { key: "services.cardLearnMore", label: "Card: learn more", value: "Learn more" },
+
+    { key: "services.heatingOilTitle", label: "Heating oil title", value: "Discounted Heating Oil" },
+    {
+      key: "services.heatingOilSummary",
+      label: "Heating oil summary",
+      value: "Full-service heating oil at negotiated Co-op rates from trusted local companies.",
+      multiline: true,
+    },
+    {
+      key: "services.heatingOilDetail1",
+      label: "Heating oil detail 1",
+      value: "All Co-op heating oil suppliers are full-service. Members typically see pricing roughly 40–50¢ below average state posted prices, with competitive service contracts and access to budget billing programs (often arranged before September 1).",
+      multiline: true,
+    },
+    {
+      key: "services.heatingOilDetail2",
+      label: "Heating oil detail 2",
+      value: "You become a customer of the company to which you are assigned — the Co-op is here to help if you have service or pricing questions.",
+      multiline: true,
+    },
+    { key: "services.heatingOilLink", label: "Heating oil link", value: "See weekly heating prices →" },
+
+    { key: "services.propaneTitle", label: "Propane title", value: "Discounted Propane" },
+    {
+      key: "services.propaneSummary",
+      label: "Propane summary",
+      value: "Competitive propane pricing — often with perks like free tank rental for members.",
+      multiline: true,
+    },
+    {
+      key: "services.propaneDetail1",
+      label: "Propane detail 1",
+      value: "Discounted propane pricing; many members receive added benefits such as free tank rental. The Co-op forwards your information to a participating supplier, who contacts you, performs a safety check, and coordinates tank changes as needed.",
+      multiline: true,
+    },
+    {
+      key: "services.propaneDetail2",
+      label: "Propane detail 2",
+      value: "Existing Co-op members can often add propane without a second membership fee. Many oil suppliers also deliver propane for stacked savings.",
+      multiline: true,
+    },
+    { key: "services.propaneLink", label: "Propane link", value: "Propane tank FAQ →" },
+
+    { key: "services.electricityTitle", label: "Electricity title", value: "Electricity Supply Options" },
+    {
+      key: "services.electricitySummary",
+      label: "Electricity summary",
+      value: "Compare Co-op electricity rates and shop the broader market.",
+      multiline: true,
+    },
+    {
+      key: "services.electricityDetail1",
+      label: "Electricity detail 1",
+      value: "Click here to see current rates available from our participating electricity supplier.",
+      multiline: true,
+    },
+    { key: "services.electricityBtn1", label: "Electricity button 1", value: "View Co-op electricity rates" },
+    {
+      key: "services.electricityDetail2",
+      label: "Electricity detail 2",
+      value: "We want our members to get the best rate. Click here to see electricity rates outside of the Co-op.",
+      multiline: true,
+    },
+    { key: "services.electricityBtn2", label: "Electricity button 2", value: "Compare rates on Energize CT" },
+
+    { key: "services.insuranceTitle", label: "Insurance title", value: "Home and Auto Insurance" },
+    {
+      key: "services.insuranceSummary",
+      label: "Insurance summary",
+      value: "Discounted auto and homeowners rates through Bearingstar Insurance.",
+      multiline: true,
+    },
+    {
+      key: "services.insuranceDetail1",
+      label: "Insurance detail 1",
+      value: "We have partnered with Bearingstar Insurance to offer members discounted rates on auto and homeowner's insurance.",
+      multiline: true,
+    },
+    { key: "services.insuranceBtn", label: "Insurance button", value: "Click here to request a free quote!" },
+
+    { key: "services.solarTitle", label: "Solar title", value: "Solar Consultations" },
+    {
+      key: "services.solarSummary",
+      label: "Solar summary",
+      value: "Members who enroll through the Co-op can earn $500 when solar installation is complete.",
+      multiline: true,
+    },
+    {
+      key: "services.solarDetail1",
+      label: "Solar detail 1",
+      value: "Members who enroll through the Co-op receive a $500 check upon completion of the solar panel installation.",
+      multiline: true,
+    },
+    { key: "services.solarBtn", label: "Solar button", value: "Click here to request a free consultation." },
+
+    { key: "services.bioheatTitle", label: "Bioheat title", value: "Bioheat® (Cleaner Heating Oil)" },
+    {
+      key: "services.bioheatSummary",
+      label: "Bioheat summary",
+      value: "B20 bioheat blends biodiesel with heating oil — cleaner burn in existing equipment.",
+      multiline: true,
+    },
+    {
+      key: "services.bioheatDetail1",
+      label: "Bioheat detail 1",
+      value: "B20 is 80% low-sulfur No. 2 oil and 20% biodiesel — usable in existing oil equipment. Biodiesel in the blend is sourced to meet ASTM standards.",
+      multiline: true,
+    },
+    { key: "services.bioheatDetail2", label: "Bioheat detail 2", value: "Available in many Connecticut towns." },
+
+    { key: "services.compostTitle", label: "Compost title", value: "Composting Discounts" },
+    {
+      key: "services.compostSummary",
+      label: "Compost summary",
+      value: "Member discounts on organics and composting programs, including Blue Earth Compost.",
+      multiline: true,
+    },
+    {
+      key: "services.compostDetail1",
+      label: "Compost detail 1",
+      value: "The Co-op highlights additional member programs — including organics and compost offers — as seasonal benefits. Ask the office what's currently available in your area.",
+      multiline: true,
+    },
+
+    { key: "services.auditsTitle", label: "Audits title", value: "Home Energy Audits" },
+    {
+      key: "services.auditsSummary",
+      label: "Audits summary",
+      value: "Discounted home energy audits through New England Smart Energy (NESE).",
+      multiline: true,
+    },
+    {
+      key: "services.auditsDetail1",
+      label: "Audits detail 1",
+      value: "Partner New England Smart Energy (NESE) offers audits across Connecticut with a modest copay (often around $50), including in-home measures and access to rebates on follow-up improvements.",
+      multiline: true,
+    },
+    {
+      key: "services.auditsDetail2",
+      label: "Audits detail 2",
+      value: "Audits are an invaluable way to reduce heat loss for your home and to access rebates on follow-up improvements.",
+      multiline: true,
+    },
+    { key: "services.auditsBtn", label: "Audits button", value: "Click here to schedule an audit." },
+
+    { key: "services.advocacyTitle", label: "Advocacy title", value: "Consumer Advocacy" },
+    {
+      key: "services.advocacySummary",
+      label: "Advocacy summary",
+      value: "Someone in your corner if you have a service, pricing, or billing question with your supplier.",
+      multiline: true,
+    },
+    {
+      key: "services.advocacyDetail1",
+      label: "Advocacy detail 1",
+      value: "Our large membership lets Citizen's Oil Co-op negotiate better contracts — and advocate for your needs with participating companies. If you have a problem, we're here to help.",
+      multiline: true,
+    },
+
+    { key: "services.seniorTitle", label: "Senior title", value: "Discounts for Seniors, Veterans & First Responders" },
+    {
+      key: "services.seniorSummary",
+      label: "Senior summary",
+      value: "Reduced annual dues for seniors, with additional savings options for those who serve.",
+      multiline: true,
+    },
+    {
+      key: "services.seniorDetail1",
+      label: "Senior detail 1",
+      value: "Membership is $35 per year, or $25 for seniors, plus a one-time $10 application fee for new accounts. Ask the office about current offers for veterans and first responders.",
+      multiline: true,
+    },
+
+    { key: "services.partnersTitle", label: "Partners title", value: "Local Partner Network" },
+    {
+      key: "services.partnersSummary",
+      label: "Partners summary",
+      value: "Trusted full-service heating companies across CT, RI, and select towns in NY and MA.",
+      multiline: true,
+    },
+    {
+      key: "services.partnersDetail1",
+      label: "Partners detail 1",
+      value: "We recommend the best participating company based on your location, pricing, and service preferences.",
+      multiline: true,
+    },
+    { key: "services.partnersDetail2", label: "Partners detail 2", value: "They'll call you and set up your account at Co-op pricing." },
+    { key: "services.partnersLink", label: "Partners link", value: "See coverage area →" },
+
+    {
+      key: "services.ctaText",
+      label: "CTA text",
+      value: "Join over 5,000 Connecticut homeowners and start saving today.",
+      multiline: true,
+    },
+    { key: "services.ctaButton", label: "CTA button", value: "Join Now" },
+  ],
+};
+
 function BenefitCardItem({
   card,
   open,
@@ -352,6 +609,7 @@ function BenefitCardItem({
   open: boolean;
   onToggle: () => void;
 }) {
+  const t = useSiteText();
   return (
     <button
       type="button"
@@ -360,10 +618,11 @@ function BenefitCardItem({
       onClick={onToggle}
     >
       {card.icon}
-      <span className="mkt-svc-card-title">{card.title}</span>
-      <span className="mkt-svc-card-summary">{card.summary}</span>
+      <span className="mkt-svc-card-title">{t(card.titleKey)}</span>
+      <span className="mkt-svc-card-summary">{t(card.summaryKey)}</span>
       <span className="mkt-svc-card-more">
-        {open ? "Show less" : "Learn more"} <span aria-hidden>{open ? "↑" : "→"}</span>
+        {open ? t("services.cardShowLess") : t("services.cardLearnMore")}{" "}
+        <span aria-hidden>{open ? "↑" : "→"}</span>
       </span>
     </button>
   );
@@ -384,6 +643,7 @@ function CategoryBlock({
   blurb: string;
   cards: BenefitCard[];
 }) {
+  const t = useSiteText();
   const [openId, setOpenId] = useState<string | null>(null);
   const openCard = cards.find((c) => c.id === openId) ?? null;
 
@@ -409,8 +669,8 @@ function CategoryBlock({
             ))}
           </div>
           {openCard && (
-            <div className="mkt-svc-detail-panel mkt-prose" role="region" aria-label={`${openCard.title} details`}>
-              <h3>{openCard.title}</h3>
+            <div className="mkt-svc-detail-panel mkt-prose" role="region" aria-label={`${t(openCard.titleKey)} details`}>
+              <h3>{t(openCard.titleKey)}</h3>
               {openCard.detail}
             </div>
           )}
@@ -421,6 +681,7 @@ function CategoryBlock({
 }
 
 function ReferralCallout() {
+  const t = useSiteText();
   const [open, setOpen] = useState(false);
   const [referrerName, setReferrerName] = useState("");
   const [referrerEmail, setReferrerEmail] = useState("");
@@ -432,8 +693,7 @@ function ReferralCallout() {
     <section className="mkt-svc-referral" id="refer-neighbor" aria-label="Referral program">
       <div className="mkt-container mkt-svc-referral-inner">
         <p className="mkt-svc-referral-copy">
-          <strong>Already a member?</strong> Don&apos;t forget about our referral program. Have your neighbor sign up
-          and we&apos;ll waive your membership next year!{" "}
+          <strong>{t("services.referralIntro")}</strong> {t("services.referralCopy")}{" "}
           <button
             type="button"
             className="mkt-svc-referral-toggle"
@@ -441,7 +701,7 @@ function ReferralCallout() {
             aria-controls="svc-referral-form"
             onClick={() => setOpen((prev) => !prev)}
           >
-            Click here if you would like us to reach out to someone you know.
+            {t("services.referralToggle")}
           </button>
         </p>
         {open && (
@@ -494,7 +754,7 @@ function ReferralCallout() {
               onChange={(e) => setFriendPhone(e.target.value)}
             />
             <button type="submit" className="mkt-btn mkt-btn-primary">
-              Send referral
+              {t("services.referralSubmit")}
             </button>
           </form>
         )}
@@ -505,14 +765,15 @@ function ReferralCallout() {
 
 /** Services / member benefits page — Save Money, Go Green, Why become a member. */
 export default function ServicesPage() {
+  const t = useSiteText();
   return (
     <div className="mkt-services-page">
       <section className="mkt-svc-hero">
         <img src="/site/family.jpg" alt="" className="mkt-svc-hero-img" />
         <div className="mkt-svc-hero-scrim" aria-hidden />
         <div className="mkt-container mkt-svc-hero-copy">
-          <h1>Everything your membership includes.</h1>
-          <p>More than discounted fuel. Your membership comes with valuable benefits all year long.</p>
+          <h1>{t("services.heroTitle")}</h1>
+          <p>{t("services.heroBlurb")}</p>
         </div>
       </section>
 
@@ -521,8 +782,8 @@ export default function ServicesPage() {
       <CategoryBlock
         id="save-money"
         tone="green"
-        title="Save money"
-        blurb="Lower your home energy costs with exclusive member benefits."
+        title={t("services.saveMoneyTitle")}
+        blurb={t("services.saveMoneyBlurb")}
         icon={
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <circle cx="12" cy="12" r="9" />
@@ -535,8 +796,8 @@ export default function ServicesPage() {
       <CategoryBlock
         id="go-green"
         tone="green"
-        title="Go green"
-        blurb="Smart energy solutions that help your wallet and the environment."
+        title={t("services.goGreenTitle")}
+        blurb={t("services.goGreenBlurb")}
         icon={
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M5 19c8-2 12-8 14-14-6 2-11 6-14 14z" />
@@ -549,8 +810,8 @@ export default function ServicesPage() {
       <CategoryBlock
         id="why-member"
         tone="navy"
-        title="Why become a member?"
-        blurb="We do the work so you can save with confidence."
+        title={t("services.whyMemberTitle")}
+        blurb={t("services.whyMemberBlurb")}
         icon={
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <circle cx="9" cy="9" r="3" />
@@ -564,9 +825,9 @@ export default function ServicesPage() {
 
       <section className="mkt-svc-cta">
         <div className="mkt-container mkt-svc-cta-inner">
-          <p>Join over 5,000 Connecticut homeowners and start saving today.</p>
+          <p>{t("services.ctaText")}</p>
           <Link to="/signup" className="mkt-btn mkt-btn-primary mkt-btn-lg">
-            Join Now
+            {t("services.ctaButton")}
           </Link>
         </div>
       </section>
