@@ -2284,8 +2284,10 @@
 
 /* Why thousands choose: keep all features on a single row across */
 .mkt-why-grid {
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 1.25rem 0.6rem;
+  justify-content: center;
+  text-align: center;
 }
 
 .mkt-why-icon {
