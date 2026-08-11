@@ -459,7 +459,10 @@ export default function AccountPage() {
           <section className="mkt-profile-card" id="profile-address">
             <div className="mkt-profile-card-head">
               <h2>Addresses</h2>
-              <p>Primary mailing address and any additional properties on your membership.</p>
+              <p>
+                Primary address and any additional properties on your membership. Extra properties share your
+                membership — you renew once per year on the primary address.
+              </p>
             </div>
 
             <h3 className="mkt-profile-subhead">Primary address</h3>

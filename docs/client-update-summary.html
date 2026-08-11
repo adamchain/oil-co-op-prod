@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Citizen's Oil Co-op — Website Update Summary</title>
+  <style>
+    @page {
+      size: letter;
+      margin: 0.75in;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+      font-size: 11pt;
+      line-height: 1.45;
+      color: #000;
+      background: #fff;
+      margin: 0;
+    }
+    h1 {
+      font-size: 18pt;
+      font-weight: 700;
+      margin: 0 0 0.25rem;
+      letter-spacing: -0.01em;
+    }
+    h2 {
+      font-size: 13pt;
+      font-weight: 700;
+      margin: 1.4rem 0 0.5rem;
+      padding-bottom: 0.25rem;
+      border-bottom: 1px solid #000;
+    }
+    h3 {
+      font-size: 11pt;
+      font-weight: 700;
+      margin: 0.9rem 0 0.35rem;
+    }
+    p { margin: 0 0 0.55rem; }
+    .meta {
+      font-size: 10pt;
+      color: #333;
+      margin-bottom: 1.1rem;
+    }
+    .meta div { margin: 0.1rem 0; }
+    ul {
+      margin: 0 0 0.65rem;
+      padding-left: 1.15rem;
+    }
+    li { margin: 0.25rem 0; }
+    .note {
+      font-size: 10pt;
+      border: 1px solid #000;
+      padding: 0.55rem 0.7rem;
+      margin: 0.85rem 0 0;
+    }
+    .footer {
+      margin-top: 1.75rem;
+      padding-top: 0.55rem;
+      border-top: 1px solid #000;
+      font-size: 9.5pt;
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+  <h1>Citizen's Oil Co-op</h1>
+  <p style="margin:0 0 0.85rem; font-size:12pt;"><strong>Website Update Summary</strong></p>
+
+  <div class="meta">
+    <div>Prepared for: Adrian Hutson, Meredith Wilson, Rosie Stanko</div>
+    <div>Prepared by: Adam Chain</div>
+    <div>Date: August 11, 2026</div>
+    <div>Based on: Multiple properties screenshots (Aug 5) and Home / Services page edits (Aug 6)</div>
+  </div>
+
+  <p>
+    This summary lists the updates now implemented on the site. It is organized to match the
+    feedback and screenshots you sent.
+  </p>
+
+  <h2>1. Multiple Properties</h2>
+  <p>
+    Implemented the Approach-style model from the Ken Walker screenshots: one paid primary
+    property, with additional properties as free / lifetime memberships linked to that primary.
+  </p>
+
+  <h3>What staff can do</h3>
+  <ul>
+    <li><strong>Add Property</strong> button in the admin workbench creates a linked property record under the current membership.</li>
+    <li>New property records are marked <strong>Lifetime / free</strong> automatically.</li>
+    <li>Payment notes are set automatically (for example, “Primary property / 76 Pawnee Road” and “2nd property”, “3rd property”, “4th property”).</li>
+    <li>Linked-property chips appear under Member Identity so staff can jump between a member’s properties.</li>
+    <li>Primary vs additional property badges display on the record.</li>
+    <li>Delete on a linked property is labeled <strong>Delete Property</strong>.</li>
+  </ul>
+
+  <h3>Billing behavior</h3>
+  <ul>
+    <li>Annual dues bill on the <strong>primary</strong> property only.</li>
+    <li>Additional / linked properties are waived each year (free membership linked to the primary).</li>
+    <li>The Lifetime checkbox in the workbench stays in sync with June billing.</li>
+  </ul>
+
+  <h3>Member-facing note</h3>
+  <ul>
+    <li>Account page copy now states that additional properties share the membership and renew once per year on the primary address.</li>
+  </ul>
+
+  <h2>2. Home Page</h2>
+  <p>Implemented the Option B hero and the polishing edits from your screenshots.</p>
+
+  <h3>Hero</h3>
+  <ul>
+    <li>Shipped <strong>Option B</strong> only (large price above the headline). Layout gallery removed.</li>
+    <li>Removed the “This week’s Co-op price” label above the price.</li>
+    <li>Small text under the price now reads: <strong>Average heating oil price week of [date]</strong>.</li>
+    <li>Date continues to come from the weekly oil-price update in admin.</li>
+    <li>Truck / house hero image reduced slightly in size.</li>
+  </ul>
+
+  <h3>Three steps</h3>
+  <ul>
+    <li>“Saving starts in three simple steps” banner green matched to the Join Now / logo accent green.</li>
+    <li>Each step box keeps only the bold title text (body copy removed as requested).</li>
+    <li>Step titles:
+      <ul>
+        <li>1 — Join Citizen’s Oil Co-op</li>
+        <li>2 — We connect you with a participating company</li>
+        <li>3 — They call you to set up service under Co-op pricing</li>
+      </ul>
+    </li>
+    <li>Step title font increased and centered so the three boxes fill space evenly.</li>
+  </ul>
+
+  <h3>Savings and “Why choose”</h3>
+  <ul>
+    <li>Eyebrow text changed from “Real savings, real results” to <strong>Saving More. Together.</strong></li>
+    <li>Trimmed redundant savings copy under the $450–$600 figure.</li>
+    <li>Removed the <strong>24/7 emergency</strong> icon and text (so the Co-op is not misrepresented).</li>
+    <li>Local business line now reads: <strong>Participating companies near you!</strong></li>
+    <li>Family photo left in place for a later final pass, as noted.</li>
+  </ul>
+
+  <h2>3. Services Page</h2>
+
+  <h3>Discounted Heating Oil</h3>
+  <ul>
+    <li>Last sentence now reads: “You become a customer of the company to which you are assigned — the Co-op is here to help if you have service or pricing questions.”</li>
+  </ul>
+
+  <h3>Electricity Supply Options</h3>
+  <ul>
+    <li>Title kept.</li>
+    <li>Copy: “Click here to see current rates available from our participating electricity supplier.”</li>
+    <li>Button / link to: https://get.thinkenergy.com/oilcoop</li>
+    <li>Additional line: “We want our members to get the best rate. Click here to see electricity rates outside of the Co-op.”</li>
+    <li>Button / link to: https://www.energizect.com/</li>
+  </ul>
+
+  <h3>Home and Auto Insurance</h3>
+  <ul>
+    <li>Title kept (wording: Home and Auto Insurance).</li>
+    <li>Copy: “We have partnered with Bearingstar Insurance to offer members discounted rates on auto and homeowner’s insurance.”</li>
+    <li>Button: “Click here to request a free quote!” — opens an email to the office so you are notified of the request.</li>
+  </ul>
+
+  <h3>Solar Consultations</h3>
+  <ul>
+    <li>Title kept.</li>
+    <li>Copy: “Members who enroll through the Co-op receive a $500 check upon completion of the solar panel installation.”</li>
+    <li>Button: “Click here to request a free consultation.” — notifies the office by email.</li>
+  </ul>
+
+  <h3>Bioheat</h3>
+  <ul>
+    <li>Kept the title and opening description.</li>
+    <li>Section now ends at: “Available in many Connecticut towns.”</li>
+    <li>Removed the “where it isn’t / rallying interest…” sentence.</li>
+  </ul>
+
+  <h3>Home Energy Audits</h3>
+  <ul>
+    <li>Kept the title and first sentence about NESE / copay.</li>
+    <li>Second sentence now: “Audits are an invaluable way to reduce heat loss for your home and to access rebates on follow-up improvements.”</li>
+    <li>Button: “Click here to schedule an audit.” — notifies the office by email.</li>
+  </ul>
+
+  <h3>Local Partner Network</h3>
+  <ul>
+    <li>“We recommend the best participating company based on your location, pricing, and service preferences.”</li>
+    <li>“They’ll call you and set up your account at Co-op pricing.”</li>
+  </ul>
+
+  <h2>4. Still open / later</h2>
+  <ul>
+    <li>Replacement photo for the savings-section family image (not selected yet).</li>
+    <li>Any additional minor touch-ups from Rosie / Adrian’s full site review.</li>
+  </ul>
+
+  <div class="note">
+    <strong>How to review:</strong> Please check the live Home page, Services page, and admin workbench
+    (Add Property + linked property navigation / Payment History notes). Reply with any final wording
+    tweaks and we will lock these pages for launch.
+  </div>
+
+  <div class="footer">
+    Citizen’s Oil Co-op · oilco-op.com · 860-561-6011<br />
+    Internal change summary for client review — August 11, 2026
+  </div>
+</body>
+</html>

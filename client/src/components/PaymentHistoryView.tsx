@@ -658,9 +658,15 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
                   rows={2}
                   value={legacyValue("paymentNotes")}
                   onChange={(e) => setLegacy("paymentNotes", e.target.value)}
+                  placeholder='e.g. "Primary property / 76 Pawnee Road" or "4th property"'
                 />
               </label>
             </div>
+            {legacyBool("waiveFeeLifetime") && (
+              <p className="admin-meta" style={{ margin: "0.25rem 0 0" }}>
+                Lifetime / free membership — annual dues are waived on this record (additional properties stay linked to the primary paid membership).
+              </p>
+            )}
           </div>
 
           <div className="admin-wb-panel admin-pay-compact">

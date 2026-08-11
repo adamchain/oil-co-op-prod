@@ -31,8 +31,8 @@ const SAVE_MONEY: BenefitCard[] = [
           budget billing programs (often arranged before September 1).
         </p>
         <p>
-          You&apos;re billed by your company with time to pay — and the Co-op can help advocate if you have service or
-          pricing questions.
+          You become a customer of the company to which you are assigned — the Co-op is here to help if you have service
+          or pricing questions.
         </p>
         <p>
           <Link to="/heating-prices">See weekly heating prices →</Link>
@@ -84,16 +84,30 @@ const SAVE_MONEY: BenefitCard[] = [
   {
     id: "electricity",
     title: "Electricity Supply Options",
-    summary: "Member electricity supply rate options when a live program is available.",
+    summary: "Compare Co-op electricity rates and shop the broader market.",
     detail: (
       <>
+        <p>Click here to see current rates available from our participating electricity supplier.</p>
         <p>
-          The Co-op has previously offered electricity programs for members. As of recent updates, there may not be a
-          live electric supply offer while a new supplier relationship is pursued.
+          <a
+            href="https://get.thinkenergy.com/oilcoop"
+            className="mkt-btn mkt-btn-primary"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            View Co-op electricity rates
+          </a>
         </p>
+        <p>We want our members to get the best rate. Click here to see electricity rates outside of the Co-op.</p>
         <p>
-          Call <a href="tel:8605616011">860-561-6011</a> or email{" "}
-          <a href="mailto:hutson@oilco-op.com">hutson@oilco-op.com</a> for the latest.
+          <a
+            href="https://www.energizect.com/"
+            className="mkt-btn mkt-btn-ghost"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Compare rates on Energize CT
+          </a>
         </p>
       </>
     ),
@@ -109,15 +123,24 @@ const SAVE_MONEY: BenefitCard[] = [
   },
   {
     id: "insurance",
-    title: "Home & Auto Insurance",
-    summary: "Free quotes and member pricing on home and auto coverage through Bearingstar.",
+    title: "Home and Auto Insurance",
+    summary: "Discounted auto and homeowners rates through Bearingstar Insurance.",
     detail: (
       <>
         <p>
-          Partner <strong>Bearingstar Insurance</strong> offers member pricing on auto and homeowners coverage.
-          Testimonials cite hundreds of dollars in annual savings vs. prior carriers.
+          We have partnered with Bearingstar Insurance to offer members discounted rates on auto and homeowner&apos;s
+          insurance.
         </p>
-        <p>Ask the office for a free home and auto insurance quote as part of your membership benefits.</p>
+        <p>
+          <a
+            className="mkt-btn mkt-btn-primary"
+            href={`mailto:hutson@oilco-op.com?subject=${encodeURIComponent("Home and Auto Insurance Quote Request")}&body=${encodeURIComponent(
+              "Hello,\n\nI would like to request a free home and auto insurance quote through the Co-op's Bearingstar partnership.\n\nName:\nPhone:\nEmail:\nTown:\n\nThank you!"
+            )}`}
+          >
+            Click here to request a free quote!
+          </a>
+        </p>
       </>
     ),
     icon: (
@@ -135,16 +158,22 @@ const GO_GREEN: BenefitCard[] = [
   {
     id: "solar",
     title: "Solar Consultations",
-    summary: "Free solar consultation through Trinity Solar — see if rooftop power fits your home.",
+    summary: "Members who enroll through the Co-op can earn $500 when solar installation is complete.",
     detail: (
       <>
         <p>
-          Solar can reduce purchased electricity with a fixed energy rate. Federal (and sometimes state) incentives may
-          apply — ask for current programs.
+          Members who enroll through the Co-op receive a <strong>$500</strong> check upon completion of the solar panel
+          installation.
         </p>
         <p>
-          A Co-op representative can review your home and usage. Members who enroll through the Co-op have at times
-          qualified for a <strong>$500</strong> incentive upon project completion and activation (verify current offer).
+          <a
+            className="mkt-btn mkt-btn-primary"
+            href={`mailto:hutson@oilco-op.com?subject=${encodeURIComponent("Solar Consultation Request")}&body=${encodeURIComponent(
+              "Hello,\n\nI would like to request a free solar consultation through the Co-op.\n\nName:\nPhone:\nEmail:\nTown:\n\nThank you!"
+            )}`}
+          >
+            Click here to request a free consultation.
+          </a>
         </p>
       </>
     ),
@@ -169,10 +198,7 @@ const GO_GREEN: BenefitCard[] = [
           <strong>B20</strong> is 80% low-sulfur No. 2 oil and 20% biodiesel — usable in existing oil equipment.
           Biodiesel in the blend is sourced to meet ASTM standards.
         </p>
-        <p>
-          Available in many Connecticut towns; where it isn&apos;t, rallying interest (e.g. ~10 neighbors) can help the
-          Co-op open a route.
-        </p>
+        <p>Available in many Connecticut towns.</p>
       </>
     ),
     icon: (
@@ -217,7 +243,20 @@ const GO_GREEN: BenefitCard[] = [
           copay (often around <strong>$50</strong>), including in-home measures and access to rebates on follow-up
           improvements.
         </p>
-        <p>Pairing audits with cleaner fuels like bioheat can cut both bills and carbon footprint.</p>
+        <p>
+          Audits are an invaluable way to reduce heat loss for your home and to access rebates on follow-up
+          improvements.
+        </p>
+        <p>
+          <a
+            className="mkt-btn mkt-btn-primary"
+            href={`mailto:hutson@oilco-op.com?subject=${encodeURIComponent("Home Energy Audit Request")}&body=${encodeURIComponent(
+              "Hello,\n\nI would like to schedule a home energy audit through the Co-op.\n\nName:\nPhone:\nEmail:\nTown:\n\nThank you!"
+            )}`}
+          >
+            Click here to schedule an audit.
+          </a>
+        </p>
       </>
     ),
     icon: (
@@ -283,9 +322,9 @@ const WHY_MEMBER: BenefitCard[] = [
     detail: (
       <>
         <p>
-          We recommend the participating company that&apos;s the best fit based on your location, pricing, service
-          options, and preferences — then they set up your account at Co-op pricing.
+          We recommend the best participating company based on your location, pricing, and service preferences.
         </p>
+        <p>They&apos;ll call you and set up your account at Co-op pricing.</p>
         <p>
           <Link to="/#towns">See coverage area →</Link>
         </p>

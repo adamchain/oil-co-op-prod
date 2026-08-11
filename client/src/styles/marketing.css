@@ -1517,7 +1517,7 @@
 }
 
 .mkt-img-slot--hero {
-  min-height: 340px;
+  min-height: 280px;
   height: 100%;
 }
 
@@ -1551,6 +1551,19 @@
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   overflow: hidden;
+}
+
+.mkt-hero-media--compact {
+  min-height: 260px;
+  max-height: 420px;
+  align-self: center;
+}
+
+@media (min-width: 900px) {
+  .mkt-hero-media--compact {
+    min-height: 300px;
+    max-height: 380px;
+  }
 }
 
 .mkt-hero-check {
@@ -1657,13 +1670,28 @@
 
 .mkt-steps-list .mkt-step {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   text-align: center;
   border: 1px solid var(--color-border);
+  min-height: 11.5rem;
+  padding: 1.75rem 1.35rem;
 }
 
 .mkt-steps-list .mkt-step .mkt-step-num {
   margin-left: auto;
   margin-right: auto;
+  margin-bottom: 0.85rem;
+}
+
+.mkt-steps-list .mkt-step h3 {
+  margin: 0;
+  font-size: clamp(1.15rem, 2.2vw, 1.4rem);
+  font-weight: 700;
+  line-height: 1.35;
+  max-width: 16ch;
 }
 
 /* —— Real savings —— */
@@ -2108,7 +2136,7 @@
 }
 
 .mkt-steps-banner {
-  background: linear-gradient(150deg, var(--color-forest) 0%, var(--color-forest-2) 100%);
+  background: var(--color-accent);
   color: #fff;
   text-align: center;
   padding: 0.7rem 1.25rem;
@@ -2660,6 +2688,12 @@
 
 .mkt-svc-detail-panel p:last-child {
   margin-bottom: 0;
+}
+
+.mkt-svc-detail-panel .mkt-btn {
+  display: inline-flex;
+  margin-top: 0.15rem;
+  text-decoration: none;
 }
 
 @keyframes mkt-svc-panel-in {

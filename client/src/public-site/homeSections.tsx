@@ -40,17 +40,14 @@ export function StepsSection() {
           <li className="mkt-step">
             <span className="mkt-step-num">1</span>
             <h3>Join Citizen&apos;s Oil Co-op</h3>
-            <p>Apply online or call the office. Pay the application fee and annual membership.</p>
           </li>
           <li className="mkt-step">
             <span className="mkt-step-num">2</span>
             <h3>We connect you with a participating company</h3>
-            <p>We match you with a full-service supplier that serves your town under Co-op pricing.</p>
           </li>
           <li className="mkt-step">
             <span className="mkt-step-num">3</span>
-            <h3>They call you to set up service</h3>
-            <p>Your supplier sets up the account, delivery, and billing — at the discounted Co-op rate.</p>
+            <h3>They call you to set up service under Co-op pricing</h3>
           </li>
         </ul>
         <div className="mkt-hero-actions" style={{ justifyContent: "center", marginTop: "1.5rem" }}>
@@ -566,13 +563,12 @@ export function SavingsSection() {
         <div className="mkt-savings-grid">
           <div className="mkt-savings-lead">
             <p className="mkt-eyebrow" style={{ textAlign: "left" }}>
-              Real savings, real results
+              Saving More. Together.
             </p>
             <h2>The average member saves</h2>
             <span className="mkt-savings-figure">$450–$600</span>
             <p>
-              per heating season, based on <strong>900 gallons</strong> — Co-op pricing runs consistently below the
-              state average, with no fixed-price lock-in.
+              per heating season, based on <strong>900 gallons</strong>.
             </p>
             <Link to="/signup" className="mkt-btn mkt-btn-primary">
               Join Now
@@ -629,7 +625,7 @@ export function WhyChooseSection() {
     },
     {
       title: "Full-service",
-      body: "Automatic delivery, expert service & 24/7 support.",
+      body: "Automatic delivery and expert service from local companies.",
       icon: (
         <svg width="26" height="26" viewBox="0 0 24 24" {...stroke}>
           <path d="M2 7h11v8H2zM13 10h4l3 3v2h-7z" strokeLinejoin="round" />
@@ -649,15 +645,6 @@ export function WhyChooseSection() {
       ),
     },
     {
-      title: "24/7 emergency",
-      body: "You're never alone — help is always a call away.",
-      icon: (
-        <svg width="26" height="26" viewBox="0 0 24 24" {...stroke}>
-          <path d="M5 4h3l1.5 4-2 1.5a11 11 0 0 0 5 5l1.5-2 4 1.5V19a2 2 0 0 1-2.2 2A16 16 0 0 1 4 6.2 2 2 0 0 1 6 4" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      ),
-    },
-    {
       title: "Service contracts",
       body: "Protection for your heating system.",
       icon: (
@@ -669,7 +656,7 @@ export function WhyChooseSection() {
     },
     {
       title: "Local business",
-      body: "A community company, here for our neighbors.",
+      body: "Participating companies near you!",
       icon: (
         <svg width="26" height="26" viewBox="0 0 24 24" {...stroke}>
           <path d="M12 21c5-3.5 7.5-7 7.5-10.5A7.5 7.5 0 0 0 12 3a7.5 7.5 0 0 0-7.5 7.5C4.5 14 7 17.5 12 21z" strokeLinejoin="round" />

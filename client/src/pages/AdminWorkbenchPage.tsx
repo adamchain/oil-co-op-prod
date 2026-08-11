@@ -62,8 +62,24 @@ type Member = {
   notesHistory?: NoteEntry[];
   createdAt?: string;
   oilCompanyId?: { _id: string; name: string } | null;
+  /** When set, this record is an additional (free/lifetime) property under a primary membership. */
+  primaryMemberId?: string | null;
   legacyProfile?: Record<string, unknown>;
   referralCount?: number;
+};
+
+type PropertyGroupItem = {
+  _id: string;
+  memberNumber: string;
+  firstName: string;
+  lastName: string;
+  addressLine1: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  isPrimary: boolean;
+  lifetime: boolean;
+  paymentNotes: string;
 };
 
 type OilCompany = { _id: string; name: string; contactEmail?: string; contactPhone?: string; notes?: string; active?: boolean };
@@ -255,6 +271,12 @@ function memberFromApiPatch(prev: Member, raw: Record<string, unknown>, oilCos: 
     notes: (raw.notes as string | undefined) ?? prev.notes,
     notesHistory: (raw.notesHistory as NoteEntry[] | undefined) ?? prev.notesHistory,
     createdAt: (raw.createdAt as string | undefined) ?? prev.createdAt,
+    primaryMemberId:
+      raw.primaryMemberId === undefined
+        ? prev.primaryMemberId
+        : raw.primaryMemberId
+          ? String(raw.primaryMemberId)
+          : null,
     legacyProfile: (raw.legacyProfile as Record<string, unknown> | undefined) ?? prev.legacyProfile,
   };
   const oid = raw.oilCompanyId;
@@ -468,6 +490,8 @@ export default function AdminWorkbenchPage() {
   // When set (from a Payment Find), bulk email targets these members instead of the current filter.
   const [bulkAudienceIds, setBulkAudienceIds] = useState<string[] | null>(null);
   const [deliveryHistoryOpen, setDeliveryHistoryOpen] = useState(false);
+  const [propertyGroup, setPropertyGroup] = useState<PropertyGroupItem[]>([]);
+  const [addingProperty, setAddingProperty] = useState(false);
 
   const [collapsedPanels, setCollapsedPanels] = useState<Set<string>>(loadCollapsedPanels);
 
@@ -1117,6 +1141,9 @@ export default function AdminWorkbenchPage() {
     api<{ merge: Record<string, unknown> }>(`/api/admin/members/${current._id}/email-merge-data`, { token })
       .then((r) => setEmailMergeData(r.merge || null))
       .catch(() => setEmailMergeData(null));
+    api<{ properties: PropertyGroupItem[] }>(`/api/admin/members/${current._id}/property-group`, { token })
+      .then((r) => setPropertyGroup(r.properties || []))
+      .catch(() => setPropertyGroup([]));
   }, [current?._id, token]);
 
   const stats = useMemo(() => {
@@ -1514,9 +1541,49 @@ export default function AdminWorkbenchPage() {
     await loadMembers();
   };
 
+  /**
+   * Additional property under this membership: free/lifetime, linked to the primary
+   * paid record — one annual renewal on the primary even with multiple properties.
+   */
+  const addProperty = async () => {
+    if (!token || !current) return;
+    const name = `${current.firstName} ${current.lastName}`.trim();
+    if (
+      !confirm(
+        `Add another property for ${name || "this member"}?\n\n` +
+          "The new record will be a free/lifetime membership linked to the primary property. " +
+          "Annual dues stay on the primary only."
+      )
+    ) {
+      return;
+    }
+    setAddingProperty(true);
+    setActionMessage("");
+    try {
+      const res = await api<{ member: Member }>(`/api/admin/members/${current._id}/properties`, {
+        method: "POST",
+        token,
+      });
+      await loadMembers();
+      if (res.member?._id) selectMemberById(String(res.member._id));
+      setActionMessage("Additional property added — enter the street address and oil/propane details, then Save.");
+      flashSaveToast("Property added", true);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Could not add property";
+      setActionMessage(msg);
+      flashSaveToast(msg, false);
+    } finally {
+      setAddingProperty(false);
+    }
+  };
+
   const deleteCurrent = async () => {
     if (!token || !current) return;
-    if (!confirm(`Delete ${current.firstName} ${current.lastName}?`)) return;
+    const isLinkedProperty = Boolean(current.primaryMemberId) || propertyGroup.some((p) => p._id === current._id && !p.isPrimary);
+    const label = isLinkedProperty
+      ? `Delete this property record for ${current.firstName} ${current.lastName}?`
+      : `Delete ${current.firstName} ${current.lastName}?`;
+    if (!confirm(label)) return;
     await api(`/api/admin/members/${current._id}`, { method: "DELETE", token });
     await loadMembers();
   };
@@ -1961,7 +2028,18 @@ export default function AdminWorkbenchPage() {
       <div className="admin-wb-actions">
         <button className="admin-wb-btn admin-wb-btn-primary" type="button" onClick={() => void addMember(false)}>Add Member</button>
         <button className="admin-wb-btn admin-wb-btn-secondary" type="button" onClick={() => void addMember(true)}>Add Prospect</button>
-        <button className="admin-wb-btn admin-wb-btn-danger" type="button" onClick={() => void deleteCurrent()}>Delete</button>
+        <button
+          className="admin-wb-btn admin-wb-btn-secondary"
+          type="button"
+          disabled={!current || addingProperty}
+          onClick={() => void addProperty()}
+          title="Create a free/lifetime property record linked to this membership (one annual fee on the primary)"
+        >
+          {addingProperty ? "Adding…" : "Add Property"}
+        </button>
+        <button className="admin-wb-btn admin-wb-btn-danger" type="button" onClick={() => void deleteCurrent()}>
+          {current?.primaryMemberId ? "Delete Property" : "Delete"}
+        </button>
         <button className="admin-wb-btn admin-wb-btn-success" type="button" onClick={() => void saveCurrent()}>Save Changes</button>
       </div>
       {actionMessage && <div className="admin-meta" style={{ padding: "0.35rem 0.9rem" }}>{actionMessage}</div>}
@@ -1979,11 +2057,43 @@ export default function AdminWorkbenchPage() {
               {panelHeader("memberIdentity", "Member Identity")}
               {!collapsedPanels.has("memberIdentity") && (<>
               <div className="admin-status-pill-row" style={{ margin: "0 0 0.5rem" }}>
+                {current.primaryMemberId ? (
+                  <span className="admin-pill ok">Additional property (free)</span>
+                ) : propertyGroup.length > 1 ? (
+                  <span className="admin-pill ok">Primary property</span>
+                ) : null}
                 {isLifetime && <span className="admin-pill ok">Lifetime Member</span>}
                 {isWaived && <span className="admin-pill">Waived</span>}
                 {isSenior && <span className="admin-pill">Senior</span>}
                 {isLowVolume && <span className="admin-pill">Low Volume</span>}
               </div>
+              {propertyGroup.length > 1 && (
+                <div className="admin-wb-property-group" style={{ margin: "0 0 0.65rem" }}>
+                  <div className="admin-meta" style={{ marginBottom: "0.35rem" }}>
+                    Linked properties · one annual renewal on the primary
+                  </div>
+                  <div className="admin-wb-property-links">
+                    {propertyGroup.map((p) => {
+                      const active = p._id === current._id;
+                      const addr = [p.addressLine1, p.city].filter(Boolean).join(", ") || "(address not set)";
+                      return (
+                        <button
+                          key={p._id}
+                          type="button"
+                          className={`admin-wb-property-link${active ? " active" : ""}`}
+                          onClick={() => selectMemberById(p._id)}
+                          title={p.paymentNotes || undefined}
+                        >
+                          <span className="admin-wb-property-link-label">
+                            {p.isPrimary ? "Primary" : "Free"} · {displayMemberId(p.memberNumber)}
+                          </span>
+                          <span className="admin-wb-property-link-addr">{addr}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               <div className="admin-form-grid-4">
                 <div
                   className="admin-form-span-4"

@@ -632,8 +632,80 @@ router.patch("/members/:id", async (req: AuthedRequest, res) => {
       ...body.legacyProfile,
     };
     member.markModified("legacyProfile");
+    // Keep top-level billing flag in sync with the workbench Lifetime checkbox.
+    if ("waiveFeeLifetime" in body.legacyProfile) {
+      member.lifetimeAnnualFeeWaived = Boolean(
+        (member.legacyProfile as { waiveFeeLifetime?: boolean }).waiveFeeLifetime
+      );
+    }
+  }
+  // Linked additional properties always stay on free/lifetime membership.
+  if (member.primaryMemberId) {
+    member.lifetimeAnnualFeeWaived = true;
+    const lp =
+      typeof member.legacyProfile === "object" && member.legacyProfile
+        ? (member.legacyProfile as Record<string, unknown>)
+        : {};
+    if (!lp.waiveFeeLifetime) {
+      member.legacyProfile = { ...lp, waiveFeeLifetime: true };
+      member.markModified("legacyProfile");
+    }
   }
   await member.save();
+
+  // Mirror linked property addresses onto the primary member's properties[] for the portal.
+  if (
+    member.primaryMemberId &&
+    (body.addressLine1 !== undefined ||
+      body.addressLine2 !== undefined ||
+      body.city !== undefined ||
+      body.state !== undefined ||
+      body.postalCode !== undefined) &&
+    String(member.addressLine1 || "").trim()
+  ) {
+    const primary = await Member.findById(member.primaryMemberId);
+    if (primary) {
+      if (!Array.isArray(primary.properties)) {
+        primary.properties = [] as typeof primary.properties;
+      }
+      const props = primary.properties as Array<{
+        _id?: { equals?(id: mongoose.Types.ObjectId): boolean; toString(): string };
+        label?: string;
+        addressLine1?: string;
+        addressLine2?: string;
+        city?: string;
+        state?: string;
+        postalCode?: string;
+        isPrimary?: boolean;
+        linkedMemberId?: mongoose.Types.ObjectId;
+      }>;
+      const existing = props.find(
+        (p) => p.linkedMemberId && String(p.linkedMemberId) === String(member._id)
+      );
+      if (existing) {
+        existing.label = existing.label || "Additional property";
+        existing.addressLine1 = member.addressLine1 || "";
+        existing.addressLine2 = member.addressLine2 || "";
+        existing.city = member.city || "";
+        existing.state = member.state || "";
+        existing.postalCode = member.postalCode || "";
+        existing.isPrimary = false;
+      } else {
+        props.push({
+          label: "Additional property",
+          addressLine1: member.addressLine1 || "",
+          addressLine2: member.addressLine2 || "",
+          city: member.city || "",
+          state: member.state || "",
+          postalCode: member.postalCode || "",
+          isPrimary: false,
+          linkedMemberId: member._id,
+        });
+      }
+      primary.markModified("properties");
+      await primary.save();
+    }
+  }
 
   await logActivity(
     member._id,
@@ -645,6 +717,224 @@ router.patch("/members/:id", async (req: AuthedRequest, res) => {
   // Note: assigning an oil company no longer sends an automatic email to the member.
 
   res.json({ member });
+});
+
+function ordinalPropertyLabel(n: number): string {
+  const abs = Math.abs(n);
+  const mod100 = abs % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${n}th property`;
+  switch (abs % 10) {
+    case 1:
+      return `${n}st property`;
+    case 2:
+      return `${n}nd property`;
+    case 3:
+      return `${n}rd property`;
+    default:
+      return `${n}th property`;
+  }
+}
+
+function formatPrimaryPaymentNote(m: {
+  addressLine1?: string | null;
+  city?: string | null;
+  state?: string | null;
+  postalCode?: string | null;
+}): string {
+  const street = String(m.addressLine1 || "").trim();
+  if (street) return `Primary property / ${street}`;
+  const cityLine = [m.city, m.state, m.postalCode].filter((p) => String(p || "").trim()).join(", ");
+  return cityLine ? `Primary property / ${cityLine}` : "Primary property";
+}
+
+/**
+ * Create an additional property record linked to this member's primary membership.
+ * Matches legacy Approach: one paid primary + free/lifetime linked properties.
+ */
+router.post("/members/:id/properties", async (req: AuthedRequest, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+
+  const source = await Member.findById(req.params.id);
+  if (!source || source.role !== "member") {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+
+  const primaryId = source.primaryMemberId || source._id;
+  const primary = source.primaryMemberId
+    ? await Member.findById(source.primaryMemberId)
+    : source;
+  if (!primary || primary.role !== "member") {
+    res.status(404).json({ error: "Primary member not found" });
+    return;
+  }
+
+  const linkedCount = await Member.countDocuments({
+    role: "member",
+    primaryMemberId: primaryId,
+  });
+  // Property # = primary (1) + existing linked + this new one
+  const propertyNumber = linkedCount + 2;
+  const paymentNotes = ordinalPropertyLabel(propertyNumber);
+
+  const primaryLp =
+    typeof primary.legacyProfile === "object" && primary.legacyProfile
+      ? (primary.legacyProfile as Record<string, unknown>)
+      : {};
+  let primaryDirty = false;
+  const existingPrimaryNotes = String(primaryLp.paymentNotes ?? "").trim();
+  if (!existingPrimaryNotes) {
+    primary.legacyProfile = {
+      ...primaryLp,
+      paymentNotes: formatPrimaryPaymentNote(primary),
+    };
+    primary.markModified("legacyProfile");
+    primaryDirty = true;
+  }
+
+  // Keep the primary address on properties[] for the member portal.
+  if (!Array.isArray(primary.properties)) {
+    primary.properties = [] as typeof primary.properties;
+  }
+  const hasPrimaryRow = (primary.properties as Array<{ isPrimary?: boolean }>).some((p) => p.isPrimary);
+  if (!hasPrimaryRow && primary.addressLine1) {
+    primary.properties.unshift({
+      label: "Primary",
+      addressLine1: primary.addressLine1 || "",
+      addressLine2: primary.addressLine2 || "",
+      city: primary.city || "",
+      state: primary.state || "",
+      postalCode: primary.postalCode || "",
+      isPrimary: true,
+    });
+    primaryDirty = true;
+  }
+  if (primaryDirty) await primary.save();
+
+  const passwordHash = await bcrypt.hash(`Temp-${Date.now()}`, 10);
+  const member = await Member.create({
+    memberNumber: await nextMemberNumber(),
+    // Email stays on the primary — unique index; contact staff via primary record.
+    email: undefined,
+    passwordHash,
+    firstName: primary.firstName,
+    lastName: primary.lastName,
+    phone: primary.phone || "",
+    phoneDigits: primary.phoneDigits || "",
+    addressLine1: "",
+    addressLine2: "",
+    city: primary.city || "",
+    state: primary.state || "",
+    postalCode: "",
+    role: "member",
+    status: "active",
+    signedUpVia: "admin",
+    notes: "",
+    paymentMethod: "check",
+    autoRenew: false,
+    primaryMemberId: primaryId,
+    lifetimeAnnualFeeWaived: true,
+    nextAnnualBillingDate: primary.nextAnnualBillingDate || nextJuneFirstAfterSignup(new Date()),
+    legacyProfile: {
+      midName1: primaryLp.midName1 || "",
+      suffix1: primaryLp.suffix1 || "",
+      phone2: primaryLp.phone2 || "",
+      phone3: primaryLp.phone3 || "",
+      phoneType1: primaryLp.phoneType1 || "",
+      phoneType2: primaryLp.phoneType2 || "",
+      phoneType3: primaryLp.phoneType3 || "",
+      waiveFeeLifetime: true,
+      paymentNotes,
+      registrationPaymentStatus: "waived",
+      workbenchMemberStatus: "ACTIVE",
+      linkedFromMemberNumber: primary.memberNumber || "",
+    },
+  });
+
+  await logActivity(
+    member._id,
+    "admin_property_added",
+    { primaryMemberId: String(primaryId), propertyNumber, adminId: req.userId },
+    new mongoose.Types.ObjectId(req.userId!)
+  );
+
+  res.status(201).json({ member, primaryMemberId: String(primaryId) });
+});
+
+/** List primary + linked property records for navigation in the workbench. */
+router.get("/members/:id/property-group", async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  type PropertyGroupRow = {
+    _id: mongoose.Types.ObjectId;
+    role?: string;
+    memberNumber?: string | null;
+    firstName?: string | null;
+    lastName?: string | null;
+    addressLine1?: string | null;
+    city?: string | null;
+    state?: string | null;
+    postalCode?: string | null;
+    primaryMemberId?: mongoose.Types.ObjectId | null;
+    legacyProfile?: unknown;
+    lifetimeAnnualFeeWaived?: boolean | null;
+  };
+
+  const member = (await Member.findById(req.params.id).lean()) as PropertyGroupRow | null;
+  if (!member || member.role !== "member") {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const primaryId = member.primaryMemberId || member._id;
+  const [primaryRaw, linkedRaw] = await Promise.all([
+    Member.findById(primaryId)
+      .select(
+        "memberNumber firstName lastName addressLine1 city state postalCode primaryMemberId legacyProfile lifetimeAnnualFeeWaived"
+      )
+      .lean(),
+    Member.find({ role: "member", primaryMemberId: primaryId })
+      .select(
+        "memberNumber firstName lastName addressLine1 city state postalCode primaryMemberId legacyProfile lifetimeAnnualFeeWaived"
+      )
+      .sort({ createdAt: 1 })
+      .lean(),
+  ]);
+  const primary = primaryRaw as PropertyGroupRow | null;
+  const linked = linkedRaw as PropertyGroupRow[];
+  if (!primary) {
+    res.status(404).json({ error: "Primary member not found" });
+    return;
+  }
+
+  const serialize = (m: PropertyGroupRow) => {
+    const lp =
+      typeof m.legacyProfile === "object" && m.legacyProfile
+        ? (m.legacyProfile as Record<string, unknown>)
+        : {};
+    return {
+      _id: String(m._id),
+      memberNumber: m.memberNumber || "",
+      firstName: m.firstName || "",
+      lastName: m.lastName || "",
+      addressLine1: m.addressLine1 || "",
+      city: m.city || "",
+      state: m.state || "",
+      postalCode: m.postalCode || "",
+      isPrimary: !m.primaryMemberId,
+      lifetime: Boolean(m.lifetimeAnnualFeeWaived || lp.waiveFeeLifetime),
+      paymentNotes: String(lp.paymentNotes ?? ""),
+    };
+  };
+
+  res.json({
+    primaryMemberId: String(primaryId),
+    properties: [serialize(primary), ...linked.map(serialize)],
+  });
 });
 
 const createMemberSchema = z.object({

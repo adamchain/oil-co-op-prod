@@ -1182,6 +1182,51 @@
   background: #15803d;
 }
 
+.admin-wb-property-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.admin-wb-property-link {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  max-width: 220px;
+  padding: 0.35rem 0.55rem;
+  border: 1px solid var(--wb-border);
+  border-radius: var(--wb-radius-sm);
+  background: #fafaf9;
+  color: var(--wb-text);
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+
+.admin-wb-property-link:hover {
+  border-color: var(--wb-accent);
+  background: #fff7ed;
+}
+
+.admin-wb-property-link.active {
+  border-color: var(--wb-accent);
+  background: #fff7ed;
+  box-shadow: inset 0 0 0 1px var(--wb-accent);
+}
+
+.admin-wb-property-link-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--wb-accent);
+}
+
+.admin-wb-property-link-addr {
+  font-size: 0.72rem;
+  line-height: 1.25;
+  color: var(--wb-text);
+}
+
 .admin-wb-body {
   flex: 1;
   min-height: 0;

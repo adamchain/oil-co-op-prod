@@ -36,21 +36,35 @@ async function runJuneFirstAnnualBilling() {
       continue;
     }
 
-    if (m.lifetimeAnnualFeeWaived) {
+    const lp = (m.legacyProfile || {}) as { waiveFeeLifetime?: boolean };
+    // Linked additional properties + lifetime (referrals or free multi-property membership).
+    const isLinkedProperty = Boolean(m.primaryMemberId);
+    const isLifetimeWaived = Boolean(m.lifetimeAnnualFeeWaived || lp.waiveFeeLifetime || isLinkedProperty);
+    if (isLifetimeWaived) {
+      const reason = isLinkedProperty
+        ? "additional_property"
+        : m.lifetimeAnnualFeeWaived || lp.waiveFeeLifetime
+          ? "lifetime"
+          : "lifetime";
       await BillingEvent.create({
         memberId: m._id,
         kind: "annual",
         amountCents: 0,
         status: "waived",
-        description: "Lifetime waiver (5+ referrals)",
+        description: isLinkedProperty
+          ? "Additional property — linked to primary membership (free)"
+          : "Lifetime waiver",
         billingYear: year,
       });
       m.nextAnnualBillingDate = followingJuneFirst(j1);
       m.reminderSent30d = false;
       m.reminderSent7d = false;
       m.reminderSent1d = false;
+      if (isLinkedProperty || lp.waiveFeeLifetime) {
+        m.lifetimeAnnualFeeWaived = true;
+      }
       await m.save();
-      await logActivity(m._id, "annual_billing_waived", { reason: "lifetime" });
+      await logActivity(m._id, "annual_billing_waived", { reason });
       continue;
     }
 

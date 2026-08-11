@@ -31,6 +31,8 @@ const propertySchema = new Schema(
     state: { type: String, default: "", trim: true },
     postalCode: { type: String, default: "", trim: true },
     isPrimary: { type: Boolean, default: false },
+    /** When this address row mirrors an additional property member record. */
+    linkedMemberId: { type: Schema.Types.ObjectId, ref: "Member", default: null },
   },
   { _id: true, timestamps: { createdAt: true, updatedAt: false } }
 );
@@ -65,6 +67,17 @@ const memberSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "OilCompany",
       default: null,
+    },
+
+    /**
+     * When set, this record is an additional property linked to a primary membership.
+     * Additional properties use free/lifetime membership; annual dues bill only on the primary.
+     */
+    primaryMemberId: {
+      type: Schema.Types.ObjectId,
+      ref: "Member",
+      default: null,
+      index: true,
     },
 
     referredByMemberId: {
