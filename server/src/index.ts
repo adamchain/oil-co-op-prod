@@ -15,6 +15,18 @@ import communityRoutes from "./routes/community.js";
 import siteContentRoutes from "./routes/siteContent.js";
 import { startScheduledJobs } from "./services/jobs.js";
 
+// Express 4 does NOT forward errors thrown inside async route handlers to the
+// error middleware; the rejection is unhandled and, on modern Node, terminates
+// the process. That means one bad request could take the whole API down (502
+// for every user). Log and keep running instead so a single failing request
+// degrades to a hung/timed-out response rather than a full outage.
+process.on("unhandledRejection", (reason) => {
+  console.error("Unhandled promise rejection:", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught exception:", err);
+});
+
 const app = express();
 
 const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), "../..");

@@ -220,16 +220,26 @@ router.put("/site-content", async (req: AuthedRequest, res) => {
     res.status(400).json({ error: parsed.error.flatten() });
     return;
   }
-  await SiteContent.findOneAndUpdate(
-    { singleton: "site-content" },
-    { $set: { values: parsed.data.values } },
-    { new: true, upsert: true, setDefaultsOnInsert: true }
-  );
+  // Persist as an array of { key, value } pairs. The keys are dot-namespaced
+  // (e.g. "services.heroTitle") and MongoDB forbids "." in field names, so they
+  // must be stored as string values, not as document field names / Map keys.
+  const entries = Object.entries(parsed.data.values).map(([key, value]) => ({ key, value }));
+  try {
+    await SiteContent.findOneAndUpdate(
+      { singleton: "site-content" },
+      { $set: { entries } },
+      { new: true, upsert: true, setDefaultsOnInsert: true }
+    );
+  } catch (err) {
+    console.error("Failed to save site content", err);
+    res.status(500).json({ error: "Failed to save site content" });
+    return;
+  }
 
   await logActivity(
     new mongoose.Types.ObjectId(req.userId!),
     "admin_site_content_updated",
-    { adminId: req.userId, keys: Object.keys(parsed.data.values).length },
+    { adminId: req.userId, keys: entries.length },
     new mongoose.Types.ObjectId(req.userId!)
   );
 
