@@ -33,7 +33,11 @@ app.use(
     credentials: true,
   })
 );
-app.use(express.json());
+// Raise the body limit above Express's 100 KB default: the Site Content editor
+// and rich email templates can POST large payloads (hundreds of fields, long
+// HTML). Over the limit, express.json() destroys the request stream mid-upload,
+// which the browser surfaces as an opaque "Failed to fetch" rather than a 413.
+app.use(express.json({ limit: "10mb" }));
 
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true });
