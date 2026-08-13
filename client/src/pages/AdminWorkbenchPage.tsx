@@ -902,8 +902,10 @@ export default function AdminWorkbenchPage() {
   }
 
   useEffect(() => {
-    setFilters(decodeFilters(searchParams.get("filters") || ""));
-    setQuickSearch(searchParams.get("q") || "");
+    const nextFiltersEnc = searchParams.get("filters") || "";
+    const nextQ = searchParams.get("q") || "";
+    setFilters((prev) => (encodeFilters(prev) === nextFiltersEnc ? prev : decodeFilters(nextFiltersEnc)));
+    setQuickSearch((prev) => (prev === nextQ ? prev : nextQ));
   }, [searchParams]);
 
   function applyFilters(next: MemberFilter[]) {
@@ -929,11 +931,13 @@ export default function AdminWorkbenchPage() {
   }
 
   function selectMemberById(id: string) {
+    const filteredIdx = filteredMembers.findIndex((m) => m._id === id);
+    if (filteredIdx >= 0) setIndex(filteredIdx);
     setSearchParams((prev) => {
       const np = new URLSearchParams(prev);
       np.set("member", id);
       return np;
-    });
+    }, { replace: true });
   }
 
   useEffect(() => {
