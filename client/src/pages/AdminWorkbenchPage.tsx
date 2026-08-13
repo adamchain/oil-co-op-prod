@@ -2067,43 +2067,13 @@ export default function AdminWorkbenchPage() {
             <div className={`admin-wb-panel${collapsedPanels.has("memberIdentity") ? " collapsed" : ""}`}>
               {panelHeader("memberIdentity", "Member Identity")}
               {!collapsedPanels.has("memberIdentity") && (<>
+              {(isLifetime || isWaived || isSenior || isLowVolume) && (
               <div className="admin-status-pill-row" style={{ margin: "0 0 0.5rem" }}>
-                {current.primaryMemberId ? (
-                  <span className="admin-pill ok">Additional property (free)</span>
-                ) : propertyGroup.length > 1 ? (
-                  <span className="admin-pill ok">Primary property</span>
-                ) : null}
                 {isLifetime && <span className="admin-pill ok">Lifetime Member</span>}
                 {isWaived && <span className="admin-pill">Waived</span>}
                 {isSenior && <span className="admin-pill">Senior</span>}
                 {isLowVolume && <span className="admin-pill">Low Volume</span>}
               </div>
-              {propertyGroup.length > 1 && (
-                <div className="admin-wb-property-group" style={{ margin: "0 0 0.65rem" }}>
-                  <div className="admin-meta" style={{ marginBottom: "0.35rem" }}>
-                    Linked properties · one annual renewal on the primary
-                  </div>
-                  <div className="admin-wb-property-links">
-                    {propertyGroup.map((p) => {
-                      const active = p._id === current._id;
-                      const addr = [p.addressLine1, p.city].filter(Boolean).join(", ") || "(address not set)";
-                      return (
-                        <button
-                          key={p._id}
-                          type="button"
-                          className={`admin-wb-property-link${active ? " active" : ""}`}
-                          onClick={() => selectMemberById(p._id)}
-                          title={p.paymentNotes || undefined}
-                        >
-                          <span className="admin-wb-property-link-label">
-                            {p.isPrimary ? "Primary" : "Free"} · {displayMemberId(p.memberNumber)}
-                          </span>
-                          <span className="admin-wb-property-link-addr">{addr}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
               )}
               <div className="admin-form-grid-4">
                 <div
@@ -2623,6 +2593,52 @@ export default function AdminWorkbenchPage() {
               >
                 DELIVERY HISTORY
               </button>
+              </>)}
+            </div>
+
+            <div className={`admin-wb-panel${collapsedPanels.has("linkedProperties") ? " collapsed" : ""}`}>
+              {panelHeader("linkedProperties", "Linked Properties")}
+              {!collapsedPanels.has("linkedProperties") && (<>
+              {(current.primaryMemberId || propertyGroup.length > 1) && (
+                <>
+                <div className="admin-status-pill-row" style={{ margin: "0 0 0.45rem" }}>
+                  {current.primaryMemberId ? (
+                    <span className="admin-pill ok">Additional property (free)</span>
+                  ) : (
+                    <span className="admin-pill ok">Primary property</span>
+                  )}
+                </div>
+                <div className="admin-meta" style={{ marginBottom: "0.35rem" }}>
+                  One annual renewal on the primary membership
+                </div>
+                </>
+              )}
+              {propertyGroup.length > 0 ? (
+                <div className="admin-wb-property-group">
+                  <div className="admin-wb-property-links">
+                    {propertyGroup.map((p) => {
+                      const active = p._id === current._id;
+                      const addr = [p.addressLine1, p.city].filter(Boolean).join(", ") || "(address not set)";
+                      return (
+                        <button
+                          key={p._id}
+                          type="button"
+                          className={`admin-wb-property-link${active ? " active" : ""}`}
+                          onClick={() => selectMemberById(p._id)}
+                          title={p.paymentNotes || undefined}
+                        >
+                          <span className="admin-wb-property-link-label">
+                            {p.isPrimary ? "Primary" : "Free"} · {displayMemberId(p.memberNumber)}
+                          </span>
+                          <span className="admin-wb-property-link-addr">{addr}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="admin-meta">No linked properties on this record.</div>
+              )}
               </>)}
             </div>
 
