@@ -19,6 +19,12 @@ import { CommunityPartner } from "../models/CommunityPartner.js";
 import { CommunityEvent } from "../models/CommunityEvent.js";
 import { getEmailBranding } from "../services/emailBranding.js";
 import { getSiteContentValues } from "../services/siteContentStore.js";
+import {
+  isEditableImagePath,
+  listSiteImageStatus,
+  resetSiteImage,
+  saveSiteImage,
+} from "../services/siteImageStore.js";
 import { logActivity } from "../services/activity.js";
 import { registerMember, registerMemberSchema } from "../services/memberRegistration.js";
 import { setMemberReferrer } from "../services/referrals.js";
@@ -245,6 +251,91 @@ router.put("/site-content", async (req: AuthedRequest, res) => {
 
   const values = await getSiteContentValues();
   res.json({ values });
+});
+
+// --- Editable marketing-site images (replace the fixed photos & logo) ---
+router.get("/site-images", async (_req, res) => {
+  res.json({ images: listSiteImageStatus() });
+});
+
+// Replacement bytes arrive as a base64 data URL so the whole thing rides in the
+// same JSON pipeline as the rest of the admin API (no multipart handling).
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const dataUrlPattern = /^data:(image\/(?:png|jpe?g|webp|gif|svg\+xml));base64,([A-Za-z0-9+/=]+)$/;
+
+const updateSiteImageSchema = z.object({
+  path: z.string(),
+  dataUrl: z.string(),
+});
+
+router.put("/site-images", async (req: AuthedRequest, res) => {
+  const parsed = updateSiteImageSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const { path, dataUrl } = parsed.data;
+  if (!isEditableImagePath(path)) {
+    res.status(400).json({ error: "Unknown image slot." });
+    return;
+  }
+  const match = dataUrlPattern.exec(dataUrl);
+  if (!match) {
+    res.status(400).json({ error: "Upload a PNG, JPG, WEBP, GIF, or SVG image." });
+    return;
+  }
+  const contentType = match[1];
+  const data = Buffer.from(match[2], "base64");
+  if (data.length === 0) {
+    res.status(400).json({ error: "That image appears to be empty." });
+    return;
+  }
+  if (data.length > MAX_IMAGE_BYTES) {
+    res.status(400).json({ error: "Image is too large — keep it under 8 MB." });
+    return;
+  }
+  try {
+    await saveSiteImage(path, contentType, data);
+  } catch (err) {
+    console.error("Failed to save site image", err);
+    res.status(500).json({ error: "Failed to save image." });
+    return;
+  }
+
+  await logActivity(
+    new mongoose.Types.ObjectId(req.userId!),
+    "admin_site_image_updated",
+    { adminId: req.userId, path },
+    new mongoose.Types.ObjectId(req.userId!)
+  );
+
+  res.json({ images: listSiteImageStatus() });
+});
+
+const resetSiteImageSchema = z.object({ path: z.string() });
+
+router.post("/site-images/reset", async (req: AuthedRequest, res) => {
+  const parsed = resetSiteImageSchema.safeParse(req.body);
+  if (!parsed.success || !isEditableImagePath(parsed.data.path)) {
+    res.status(400).json({ error: "Unknown image slot." });
+    return;
+  }
+  try {
+    await resetSiteImage(parsed.data.path);
+  } catch (err) {
+    console.error("Failed to reset site image", err);
+    res.status(500).json({ error: "Failed to reset image." });
+    return;
+  }
+
+  await logActivity(
+    new mongoose.Types.ObjectId(req.userId!),
+    "admin_site_image_reset",
+    { adminId: req.userId, path: parsed.data.path },
+    new mongoose.Types.ObjectId(req.userId!)
+  );
+
+  res.json({ images: listSiteImageStatus() });
 });
 
 const sendTestTemplateSchema = z.object({
@@ -871,8 +962,8 @@ router.post("/members/:id/properties", async (req: AuthedRequest, res) => {
     phoneDigits: primary.phoneDigits || "",
     addressLine1: "",
     addressLine2: "",
-    city: primary.city || "",
-    state: primary.state || "",
+    city: "",
+    state: "",
     postalCode: "",
     role: "member",
     status: "active",

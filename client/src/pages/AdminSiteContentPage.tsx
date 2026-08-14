@@ -3,6 +3,7 @@ import { api } from "../api";
 import { useAuth } from "../authContext";
 import { SITE_CONTENT_GROUPS } from "../public-site/content/registry";
 import { CONTENT_DEFAULTS } from "../public-site/content/SiteContentContext";
+import SiteImagesEditor from "./SiteImagesEditor";
 
 /**
  * Admin → Site Content. Lets staff edit every string on the public marketing
@@ -17,6 +18,7 @@ export default function AdminSiteContentPage() {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState("");
   const [query, setQuery] = useState("");
+  const [tab, setTab] = useState<"text" | "images">("text");
 
   useEffect(() => {
     let active = true;
@@ -91,10 +93,31 @@ export default function AdminSiteContentPage() {
     <div className="admin-site-content-page">
       <h1 style={{ margin: "0 0 0.35rem", fontSize: "1.35rem" }}>Site Content</h1>
       <p style={{ margin: "0 0 1rem", color: "#64748b", fontSize: "0.92rem", maxWidth: "44rem" }}>
-        Edit the text shown on the public marketing pages. Only the wording is editable here — layout and images are
-        unchanged. Blank a field and use Reset to restore the original text. Saved changes go live immediately.
+        Edit the text and images shown on the public marketing pages. Use <strong>Text</strong> to reword any copy, or{" "}
+        <strong>Images</strong> to replace the photos and logo. Saved changes go live immediately.
       </p>
 
+      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1rem" }}>
+        <button
+          type="button"
+          className={`admin-btn ${tab === "text" ? "admin-btn-primary" : "admin-btn-ghost"}`}
+          onClick={() => setTab("text")}
+        >
+          Text
+        </button>
+        <button
+          type="button"
+          className={`admin-btn ${tab === "images" ? "admin-btn-primary" : "admin-btn-ghost"}`}
+          onClick={() => setTab("images")}
+        >
+          Images
+        </button>
+      </div>
+
+      {tab === "images" ? (
+        <SiteImagesEditor />
+      ) : (
+      <>
       <div
         style={{
           position: "sticky",
@@ -172,6 +195,8 @@ export default function AdminSiteContentPage() {
             </div>
           </section>
         ))
+      )}
+      </>
       )}
     </div>
   );

@@ -13,6 +13,11 @@ import paymentsRoutes from "./routes/payments.js";
 import oilPricesRoutes from "./routes/oilPrices.js";
 import communityRoutes from "./routes/community.js";
 import siteContentRoutes from "./routes/siteContent.js";
+import {
+  EDITABLE_IMAGE_PATHS,
+  getSiteImageOverride,
+  loadSiteImageCache,
+} from "./services/siteImageStore.js";
 import { startScheduledJobs } from "./services/jobs.js";
 
 // Express 4 does NOT forward errors thrown inside async route handlers to the
@@ -32,6 +37,22 @@ const app = express();
 const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), "../..");
 const publicAssets = path.join(repoRoot, "public");
 const clientDist = path.join(repoRoot, "client/dist");
+
+// Admin-uploaded image replacements win over the on-disk build assets. This
+// runs BEFORE express.static and only for the known editable image paths, so
+// every other asset request skips straight to the static handlers. When there
+// is no override, we fall through and the original file is served as usual.
+app.get(EDITABLE_IMAGE_PATHS, (req, res, next) => {
+  const override = getSiteImageOverride(req.path);
+  if (!override) {
+    next();
+    return;
+  }
+  res.set("Content-Type", override.contentType);
+  res.set("Cache-Control", "no-cache");
+  res.send(override.data);
+});
+
 if (fs.existsSync(publicAssets)) {
   app.use(express.static(publicAssets));
 }
@@ -47,9 +68,11 @@ app.use(
 );
 // Raise the body limit above Express's 100 KB default: the Site Content editor
 // and rich email templates can POST large payloads (hundreds of fields, long
-// HTML). Over the limit, express.json() destroys the request stream mid-upload,
-// which the browser surfaces as an opaque "Failed to fetch" rather than a 413.
-app.use(express.json({ limit: "10mb" }));
+// HTML), and the Site Content image editor POSTs replacement photos as base64
+// data URLs. Over the limit, express.json() destroys the request stream
+// mid-upload, which the browser surfaces as an opaque "Failed to fetch" rather
+// than a 413.
+app.use(express.json({ limit: "15mb" }));
 
 app.get("/api/health", (_req, res) => {
   res.json({ ok: true });
@@ -84,4 +107,6 @@ app.listen(config.port, "0.0.0.0", () => {
 });
 
 await connectDb();
+// Warm the admin image-override cache so replacements survive restarts.
+await loadSiteImageCache().catch((err) => console.error("Failed to load site image overrides", err));
 startScheduledJobs();
