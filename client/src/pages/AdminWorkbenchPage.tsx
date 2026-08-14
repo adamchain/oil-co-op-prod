@@ -120,6 +120,31 @@ export const displayMemberId = (raw?: string | null): string => {
   return m ? m[1] : s;
 };
 
+function savedToastMessage(f: WorkbenchFormState, isLinkedProperty: boolean): string {
+  const street = (f.addressLine1 || "").trim();
+  if (isLinkedProperty && street) {
+    return `Address saved: ${street}${f.city ? `, ${f.city}` : ""}`;
+  }
+  if (isLinkedProperty) return "Property saved";
+  return "Saved";
+}
+
+function propertyOrdinalLabel(n: number): string {
+  const abs = Math.abs(n);
+  const mod100 = abs % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
+  switch (abs % 10) {
+    case 1:
+      return `${n}st`;
+    case 2:
+      return `${n}nd`;
+    case 3:
+      return `${n}rd`;
+    default:
+      return `${n}th`;
+  }
+}
+
 /** Member ID shown in the referral panel — matches the top-left ID field. */
 const referralPersonId = (p?: ReferralPerson | null): string =>
   displayMemberId(p?.memberNumber || p?.legacyProfile?.legacyId || "");
@@ -495,6 +520,8 @@ export default function AdminWorkbenchPage() {
   const [deliveryHistoryOpen, setDeliveryHistoryOpen] = useState(false);
   const [propertyGroup, setPropertyGroup] = useState<PropertyGroupItem[]>([]);
   const [addingProperty, setAddingProperty] = useState(false);
+  const pendingAddressFocusRef = useRef(false);
+  const address1Ref = useRef<HTMLInputElement>(null);
 
   const [collapsedPanels, setCollapsedPanels] = useState<Set<string>>(loadCollapsedPanels);
 
@@ -770,7 +797,6 @@ export default function AdminWorkbenchPage() {
       const path = `/api/admin/members?all=1`;
       const { members: rows } = await api<{ members: Member[] }>(path, { token });
       setMembers(rows);
-      setIndex(0);
     } finally {
       setLoading(false);
     }
@@ -1137,6 +1163,10 @@ export default function AdminWorkbenchPage() {
     formRef.current = nextForm;
     setForm(nextForm);
     setSaveTick((t) => t + 1);
+    if (pendingAddressFocusRef.current) {
+      pendingAddressFocusRef.current = false;
+      window.setTimeout(() => address1Ref.current?.focus(), 80);
+    }
     api<{ billing: BillingEvent[]; communications: Comm[]; referral: Referral | null; referralsMade?: ReferralMade[]; merge?: Record<string, unknown> }>(
       `/api/admin/members/${current._id}`,
       { token }
@@ -1409,13 +1439,13 @@ export default function AdminWorkbenchPage() {
     if (kind === "next") setIndex((i) => Math.min(filteredMembers.length - 1, i + 1));
   };
 
-  const flashSaveToast = useCallback((message: string, ok: boolean) => {
+  const flashSaveToast = useCallback((message: string, ok: boolean, ms = 3800) => {
     if (saveToastTimerRef.current) clearTimeout(saveToastTimerRef.current);
     setSaveToast({ message, ok });
     saveToastTimerRef.current = setTimeout(() => {
       setSaveToast(null);
       saveToastTimerRef.current = null;
-    }, 3200);
+    }, ms);
   }, []);
 
   const persistWorkbench = useCallback(
@@ -1433,6 +1463,19 @@ export default function AdminWorkbenchPage() {
         });
         setMembers((prev) =>
           prev.map((m) => (m._id === memberId ? memberFromApiPatch(m, raw, oilCompanies) : m))
+        );
+        setPropertyGroup((prev) =>
+          prev.map((p) =>
+            p._id === memberId
+              ? {
+                  ...p,
+                  addressLine1: f.addressLine1,
+                  city: f.city,
+                  state: f.state,
+                  postalCode: f.postalCode,
+                }
+              : p
+          )
         );
         baselineSerializedRef.current = serializeWorkbenchForm({
           ...f,
@@ -1453,7 +1496,7 @@ export default function AdminWorkbenchPage() {
   const saveCurrent = async () => {
     if (!token || !current) return;
     const ok = await persistWorkbench(form, current._id);
-    if (ok) flashSaveToast("Saved", true);
+    if (ok) flashSaveToast(savedToastMessage(form, Boolean(current.primaryMemberId)), true, 5000);
     else flashSaveToast("Save failed", false);
   };
 
@@ -1487,7 +1530,7 @@ export default function AdminWorkbenchPage() {
         if (serializeWorkbenchForm(f) === baselineSerializedRef.current) return;
         if (saveInFlightRef.current) return;
         const ok = await persistWorkbench(f, memberId);
-        if (ok) flashSaveToast("Saved", true);
+        if (ok) flashSaveToast(savedToastMessage(f, Boolean(current.primaryMemberId)), true, 5000);
         else flashSaveToast("Save failed", false);
       })();
     }, WORKBENCH_AUTOSAVE_MS);
@@ -1539,6 +1582,7 @@ export default function AdminWorkbenchPage() {
   const isLifetime = legacyBool("waiveFeeLifetime");
   const isWaived = legacyBool("waiveFeeSenior") || String(legacyValue("registrationPaymentStatus")).toLowerCase() === "waived";
   const isLowVolume = legacyBool("lowVolume");
+  const currentPropertyNumber = propertyGroup.findIndex((p) => p._id === current?._id) + 1;
 
   const addMember = async (prospect: boolean) => {
     if (!token) return;
@@ -1554,6 +1598,7 @@ export default function AdminWorkbenchPage() {
       }),
     });
     await loadMembers();
+    setIndex(0);
   };
 
   /**
@@ -1579,10 +1624,41 @@ export default function AdminWorkbenchPage() {
         method: "POST",
         token,
       });
-      await loadMembers();
-      if (res.member?._id) selectMemberById(String(res.member._id));
-      setActionMessage("Additional property added — enter the street address and oil/propane details, then Save.");
-      flashSaveToast("Property added", true);
+      const created = res.member;
+      const id = created?._id ? String(created._id) : "";
+      if (created && id) {
+        const row: Member = {
+          ...created,
+          _id: id,
+          primaryMemberId: created.primaryMemberId ? String(created.primaryMemberId) : current.primaryMemberId || current._id,
+          oilCompanyId: null,
+        };
+        setMembers((prev) => (prev.some((m) => m._id === id) ? prev : [row, ...prev]));
+        setPropertyGroup((prev) =>
+          prev.some((p) => p._id === id)
+            ? prev
+            : [
+                ...prev,
+                {
+                  _id: id,
+                  memberNumber: row.memberNumber || "",
+                  firstName: row.firstName,
+                  lastName: row.lastName,
+                  addressLine1: "",
+                  city: "",
+                  state: "",
+                  postalCode: "",
+                  isPrimary: false,
+                  lifetime: true,
+                  paymentNotes: "",
+                },
+              ]
+        );
+        pendingAddressFocusRef.current = true;
+        selectMemberById(id);
+      }
+      setActionMessage("New property opened — enter the street address below, then save.");
+      flashSaveToast("New property added — enter the address, then save", true, 5000);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Could not add property";
       setActionMessage(msg);
@@ -2055,7 +2131,17 @@ export default function AdminWorkbenchPage() {
         <button className="admin-wb-btn admin-wb-btn-danger" type="button" onClick={() => void deleteCurrent()}>
           {current?.primaryMemberId ? "Delete Property" : "Delete"}
         </button>
-        <button className="admin-wb-btn admin-wb-btn-success" type="button" onClick={() => void saveCurrent()}>Save Changes</button>
+        <button
+          className={`admin-wb-btn admin-wb-btn-success${formIsDirty ? " dirty" : ""}`}
+          type="button"
+          disabled={isSaving}
+          onClick={() => void saveCurrent()}
+        >
+          {isSaving ? "Saving…" : formIsDirty ? "Save Changes" : "Saved"}
+        </button>
+        {formIsDirty && (
+          <span className="admin-wb-save-hint">Unsaved — click Save Changes or wait for autosave</span>
+        )}
       </div>
       {actionMessage && <div className="admin-meta" style={{ padding: "0.35rem 0.9rem" }}>{actionMessage}</div>}
       {saveToast && (
@@ -2161,11 +2247,28 @@ export default function AdminWorkbenchPage() {
                   className="admin-form-span-4"
                   style={{ display: "flex", flexWrap: "wrap", alignItems: "end", gap: "0.35rem 0.7rem" }}
                 >
-                  <label style={{ flex: "0 0 auto", width: "220px", whiteSpace: "nowrap" }}>Address 1<input className="admin-input" value={form.addressLine1} onChange={(e) => setForm((f) => ({ ...f, addressLine1: e.target.value }))} /></label>
+                  <label style={{ flex: "0 0 auto", width: "220px", whiteSpace: "nowrap" }}>
+                    Address 1
+                    <input
+                      ref={address1Ref}
+                      className="admin-input"
+                      value={form.addressLine1}
+                      onChange={(e) => setForm((f) => ({ ...f, addressLine1: e.target.value }))}
+                    />
+                  </label>
                   <label style={{ flex: "0 0 auto", width: "60px", whiteSpace: "nowrap" }}>Apt<input className="admin-input" value={legacyValue("aptNo1")} onChange={(e) => setLegacy("aptNo1", e.target.value)} /></label>
                   <label style={{ flex: "0 0 auto", width: "140px", whiteSpace: "nowrap" }}>City<input className="admin-input" value={form.city} onChange={(e) => setForm((f) => ({ ...f, city: e.target.value }))} /></label>
                   <label style={{ flex: "0 0 auto", width: "50px", whiteSpace: "nowrap" }}>State<input className="admin-input" maxLength={2} value={form.state} onChange={(e) => setForm((f) => ({ ...f, state: e.target.value.toUpperCase().slice(0, 2) }))} /></label>
                   <label style={{ flex: "0 0 auto", width: "80px", whiteSpace: "nowrap" }}>Zip<input className="admin-input" maxLength={10} value={form.postalCode} onChange={(e) => setForm((f) => ({ ...f, postalCode: e.target.value }))} /></label>
+                  {current.primaryMemberId && (
+                    <div className={`admin-wb-address-save-status${formIsDirty ? " pending" : form.addressLine1.trim() ? " saved" : " needed"}`}>
+                      {formIsDirty
+                        ? "Address not saved yet"
+                        : form.addressLine1.trim()
+                          ? `Address saved: ${form.addressLine1}${form.city ? `, ${form.city}` : ""}`
+                          : "Enter this property’s street address, then save"}
+                    </div>
+                  )}
                 </div>
                 <div
                   className="admin-form-span-4"
@@ -2607,7 +2710,11 @@ export default function AdminWorkbenchPage() {
                 <>
                 <div className="admin-status-pill-row" style={{ margin: "0 0 0.45rem" }}>
                   {current.primaryMemberId ? (
-                    <span className="admin-pill ok">Additional property (free)</span>
+                    <span className="admin-pill ok">
+                      {currentPropertyNumber > 1
+                        ? `${propertyOrdinalLabel(currentPropertyNumber)} property (free)`
+                        : "Additional property (free)"}
+                    </span>
                   ) : (
                     <span className="admin-pill ok">Primary property</span>
                   )}
@@ -2620,19 +2727,20 @@ export default function AdminWorkbenchPage() {
               {propertyGroup.length > 0 ? (
                 <div className="admin-wb-property-group">
                   <div className="admin-wb-property-links">
-                    {propertyGroup.map((p) => {
+                    {propertyGroup.map((p, i) => {
                       const active = p._id === current._id;
-                      const addr = [p.addressLine1, p.city].filter(Boolean).join(", ") || "(address not set)";
+                      const addr = [p.addressLine1, p.city].filter(Boolean).join(", ") || "Enter address…";
+                      const label = p.isPrimary ? "Primary" : `${propertyOrdinalLabel(i + 1)} · free`;
                       return (
                         <button
                           key={p._id}
                           type="button"
-                          className={`admin-wb-property-link${active ? " active" : ""}`}
+                          className={`admin-wb-property-link${active ? " active" : ""}${p.addressLine1 ? "" : " needs-address"}`}
                           onClick={() => selectMemberById(p._id)}
                           title={p.paymentNotes || undefined}
                         >
                           <span className="admin-wb-property-link-label">
-                            {p.isPrimary ? "Primary" : "Free"} · {displayMemberId(p.memberNumber)}
+                            {label} · {displayMemberId(p.memberNumber)}
                           </span>
                           <span className="admin-wb-property-link-addr">{addr}</span>
                         </button>
@@ -2643,6 +2751,15 @@ export default function AdminWorkbenchPage() {
               ) : (
                 <div className="admin-meta">No linked properties on this record.</div>
               )}
+              <button
+                type="button"
+                className="admin-wb-btn admin-wb-btn-secondary"
+                style={{ marginTop: "0.45rem", fontSize: "0.68rem" }}
+                disabled={!current || addingProperty}
+                onClick={() => void addProperty()}
+              >
+                {addingProperty ? "Adding…" : "Add another property"}
+              </button>
               </>)}
             </div>
 

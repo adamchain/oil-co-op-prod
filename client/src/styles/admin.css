@@ -1125,6 +1125,7 @@
   background: var(--wb-surface);
   border-bottom: 1px solid var(--wb-border);
   flex-wrap: wrap;
+  align-items: center;
 }
 
 .admin-wb-btn {
@@ -1178,8 +1179,60 @@
   border-color: #16a34a;
 }
 
-.admin-wb-btn-success:hover {
+.admin-wb-btn-success:hover:not(:disabled) {
   background: #15803d;
+}
+
+.admin-wb-btn-success.dirty {
+  background: #ea580c;
+  border-color: #c2410c;
+  box-shadow: 0 0 0 2px rgba(234, 88, 12, 0.28);
+}
+
+.admin-wb-btn-success.dirty:hover:not(:disabled) {
+  background: #c2410c;
+}
+
+.admin-wb-btn-success:disabled {
+  opacity: 0.75;
+  cursor: wait;
+}
+
+.admin-wb-save-hint {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #c2410c;
+  white-space: nowrap;
+}
+
+.admin-wb-address-save-status {
+  flex: 1 1 180px;
+  min-width: 160px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1.3;
+  padding: 0.28rem 0.4rem 0.32rem;
+  border-radius: var(--wb-radius-sm);
+}
+
+.admin-wb-address-save-status.needed {
+  color: #9a3412;
+  background: #ffedd5;
+}
+
+.admin-wb-address-save-status.pending {
+  color: #9a3412;
+  background: #ffedd5;
+}
+
+.admin-wb-address-save-status.saved {
+  color: #166534;
+  background: #dcfce7;
+}
+
+.admin-wb-property-link.needs-address {
+  border-style: dashed;
+  background: #fff7ed;
 }
 
 .admin-wb-property-links {
