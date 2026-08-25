@@ -209,27 +209,7 @@ function escHtml(v: unknown): string {
     .replace(/'/g, "&#39;");
 }
 
-function parseDeliveryRows(raw: unknown): DeliveryHistoryRow[] {
-  if (!Array.isArray(raw)) return [];
-  return raw
-    .map((row) => {
-      if (!row || typeof row !== "object") return null;
-      const rec = row as Record<string, unknown>;
-      const dateDelivered = String(rec.dateDelivered || "");
-      const deliveryYear = Number(rec.deliveryYear);
-      const fuelType = String(rec.fuelType || "OIL").toUpperCase();
-      const gallons = Number(rec.gallons);
-      if (!dateDelivered || !Number.isFinite(deliveryYear) || !Number.isFinite(gallons)) return null;
-      if (fuelType !== "OIL" && fuelType !== "PROPANE") return null;
-      return { dateDelivered, deliveryYear, fuelType, gallons };
-    })
-    .filter((v): v is DeliveryHistoryRow => Boolean(v))
-    .sort((a, b) => {
-      const ta = new Date(a.dateDelivered).getTime();
-      const tb = new Date(b.dateDelivered).getTime();
-      return tb - ta;
-    });
-}
+
 
 export type WorkbenchFormState = {
   firstName: string;
@@ -518,6 +498,7 @@ export default function AdminWorkbenchPage() {
   // When set (from a Payment Find), bulk email targets these members instead of the current filter.
   const [bulkAudienceIds, setBulkAudienceIds] = useState<string[] | null>(null);
   const [deliveryHistoryOpen, setDeliveryHistoryOpen] = useState(false);
+  const [lazyDeliveryRows, setLazyDeliveryRows] = useState<DeliveryHistoryRow[] | null>(null);
   const [propertyGroup, setPropertyGroup] = useState<PropertyGroupItem[]>([]);
   const [addingProperty, setAddingProperty] = useState(false);
   const [showAddProperty, setShowAddProperty] = useState(false);
@@ -797,7 +778,7 @@ export default function AdminWorkbenchPage() {
     if (!token) return;
     setLoading(true);
     try {
-      const path = `/api/admin/members?all=1`;
+      const path = `/api/admin/members?all=1&slim=1`;
       const { members: rows } = await api<{ members: Member[] }>(path, { token });
       setMembers(rows);
     } finally {
@@ -1126,10 +1107,20 @@ export default function AdminWorkbenchPage() {
   }, []);
 
   const current = filteredMembers[index] || null;
-  const deliveryRows = useMemo(
-    () => parseDeliveryRows((form.legacyProfile || {})["deliveryHistoryRows"]),
-    [form.legacyProfile]
-  );
+
+  // Lazy-load delivery rows when the modal opens (member list is slim and omits them).
+  useEffect(() => {
+    if (!deliveryHistoryOpen || !current || !token) return;
+    setLazyDeliveryRows(null);
+    api<{ rows: DeliveryHistoryRow[] }>(`/api/admin/deliveries/members/${current._id}`, { token })
+      .then((r) => setLazyDeliveryRows(r.rows || []))
+      .catch(() => setLazyDeliveryRows([]));
+  }, [deliveryHistoryOpen, current?._id]);
+
+  // Reset lazy rows when the member changes so a stale member's rows don't flash.
+  useEffect(() => {
+    setLazyDeliveryRows(null);
+  }, [current?._id]);
 
   useEffect(() => {
     if (!token || !current) {
@@ -1509,6 +1500,7 @@ export default function AdminWorkbenchPage() {
    * doesn't think the form is dirty just because rows changed on the server.
    */
   const applyDeliveryRows = useCallback((rows: DeliveryHistoryRow[]) => {
+    setLazyDeliveryRows(rows);
     setForm((prev) => {
       const lp = { ...(prev.legacyProfile || {}) } as Record<string, unknown>;
       lp.deliveryHistoryRows = rows;
@@ -3826,7 +3818,7 @@ export default function AdminWorkbenchPage() {
         open={deliveryHistoryOpen}
         onClose={() => setDeliveryHistoryOpen(false)}
         member={deliveryModalMember}
-        deliveries={deliveryRows}
+        deliveries={lazyDeliveryRows ?? []}
         searchableMembers={members}
         oilCompanyOptions={oilCompanies}
         propaneCompanyOptions={propaneCompanies}

@@ -950,7 +950,7 @@ router.post("/import/:importBatchId/undo", async (req: AuthedRequest, res) => {
  */
 router.get("/search", async (req, res) => {
   const q = req.query as Record<string, string | undefined>;
-  const limit = Math.max(1, Math.min(2000, Number(q.limit) || 500));
+  const limit = Math.max(1, Math.min(5000, Number(q.limit) || 500));
   const fuel = q.fuel ? String(q.fuel).toUpperCase() : "";
   const fuelType = fuel === "OIL" || fuel === "PROPANE" ? fuel : null;
 

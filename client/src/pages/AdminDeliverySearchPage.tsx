@@ -89,7 +89,7 @@ export default function AdminDeliverySearchPage() {
     if (filters.maxGallons) p.set("maxGallons", filters.maxGallons);
     if (filters.companyName) p.set("companyName", filters.companyName);
     if (filters.account) p.set("account", filters.account);
-    p.set("limit", "1000");
+    p.set("limit", "5000");
     return p.toString();
   }, [filters]);
 

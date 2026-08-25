@@ -501,11 +501,26 @@ router.get("/members", async (req, res) => {
     ];
   }
   const requestAll = String(req.query.all || "") === "1";
+  const slim = String(req.query.slim || "") === "1";
   let members = await Member.find(filter)
     .sort({ createdAt: -1 })
-    .limit(qTrimmed || flag || requestAll ? 5000 : 200)
+    .limit(qTrimmed || flag || requestAll ? 20000 : 200)
     .populate("oilCompanyId", "name")
     .lean();
+
+  // Strip large embedded arrays that aren't needed for the member list / workbench
+  // browse view — they're fetched lazily per-member when actually needed.
+  if (slim) {
+    for (const m of members) {
+      const lp = (m as any).legacyProfile;
+      if (lp && typeof lp === "object") {
+        delete lp.deliveryHistoryRows;
+        delete lp.paymentsHistory;
+        delete lp.programHistory;
+      }
+      delete (m as any).notesHistory;
+    }
+  }
 
   if (tokens.length === 1) {
     const qLower = qTrimmed.toLowerCase();
