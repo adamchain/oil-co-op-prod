@@ -37,3 +37,22 @@ const YES_VALUES = new Set(["y", "yes", "true", "1", "x", "senior", "checked"]);
 export function parseLegacyYes(raw: string | undefined | null): boolean {
   return YES_VALUES.has(String(raw ?? "").trim().toLowerCase());
 }
+
+/**
+ * Format an Approach phone. PHONE_* is usually already 10 digits; ACODE_*
+ * repeats the area code and must not be prepended in that case.
+ */
+export function formatApproachPhone(acode: string | undefined, num: string | undefined): string {
+  const numDigits = `${num ?? ""}`.replace(/\D/g, "");
+  const acodeDigits = `${acode ?? ""}`.replace(/\D/g, "");
+  const digits =
+    numDigits.length === 10 || (numDigits.length === 11 && numDigits[0] === "1")
+      ? numDigits
+      : numDigits.length === 7 && acodeDigits.length === 3
+        ? `${acodeDigits}${numDigits}`
+        : `${acodeDigits}${numDigits}`;
+  if (digits.length === 10) return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  if (digits.length === 11 && digits[0] === "1") return `+1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+  if (digits.length === 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  return digits;
+}

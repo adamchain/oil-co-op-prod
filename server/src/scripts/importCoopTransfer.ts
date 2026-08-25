@@ -28,7 +28,7 @@ import { Member } from "../models/Member.js";
 import { OilCompany } from "../models/OilCompany.js";
 import { normalizeRows, sortRowsDesc, type DeliveryRow } from "../utils/deliveryRows.js";
 import { nextJuneFirstAfterSignup } from "../utils/juneBilling.js";
-import { parseLegacyDate, parseLegacyYes, pickField } from "../utils/legacyImport.js";
+import { formatApproachPhone, parseLegacyDate, parseLegacyYes, pickField } from "../utils/legacyImport.js";
 
 // ---------------------------------------------------------------------------
 // CSV parser (handles quoted fields + embedded newlines)
@@ -67,14 +67,6 @@ function toObj(headers: string[], row: string[]): Record<string, string> {
 // ---------------------------------------------------------------------------
 // Normalisation helpers
 // ---------------------------------------------------------------------------
-function buildPhone(acode: string | undefined, num: string | undefined): string {
-  const digits = `${acode ?? ""}${num ?? ""}`.replace(/\D/g, "");
-  if (digits.length === 10) return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
-  if (digits.length === 11 && digits[0] === "1") return `+1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
-  if (digits.length === 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
-  return digits;
-}
-
 function syntheticEmail(id: string, first: string, last: string): string {
   const slug = `${first}.${last}`.toLowerCase().replace(/[^a-z0-9.]/g, "").slice(0, 40) || "member";
   return `ct-${id}-${slug}@import.oilcoop.local`;
@@ -377,9 +369,9 @@ async function main() {
     const firstName = r.F_NAME_1 || "Unknown";
     const lastName  = r.L_NAME_1 || id;
     const email = (r.E_MAIL || "").toLowerCase().trim() || syntheticEmail(id, firstName, lastName);
-    const phone = r.PHONE_1 ? buildPhone(r.ACODE_1, r.PHONE_1) : (r.PHONE_2 ? buildPhone(r.ACODE_2, r.PHONE_2) : "");
-    const phone2 = r.PHONE_2 ? buildPhone(r.ACODE_2, r.PHONE_2) : "";
-    const phone3 = pickField(r, "PHONE_3", "PHONE3") ? buildPhone(pickField(r, "ACODE_3", "ACODE3"), pickField(r, "PHONE_3", "PHONE3")) : "";
+    const phone = r.PHONE_1 ? formatApproachPhone(r.ACODE_1, r.PHONE_1) : (r.PHONE_2 ? formatApproachPhone(r.ACODE_2, r.PHONE_2) : "");
+    const phone2 = r.PHONE_2 ? formatApproachPhone(r.ACODE_2, r.PHONE_2) : "";
+    const phone3 = pickField(r, "PHONE_3", "PHONE3") ? formatApproachPhone(pickField(r, "ACODE_3", "ACODE3"), pickField(r, "PHONE_3", "PHONE3")) : "";
     const newMemberDt = parseLegacyDate(pickField(r, "NEW_MEMBER", "NEW_MEM_DT", "NEW_MEM_DA", "DATE_ADD"));
     const originalStartDate = parseLegacyDate(pickField(r, "ORIG_START", "ORIGINAL_S", "ORIG_DATE", "DATE_START", "START_DATE", "FIRST_DATE", "ORIGINAL_START"));
     const seniorMember = parseLegacyYes(pickField(r, "SENIOR", "SENIOR_MEM", "SENIOR_M"));
@@ -462,8 +454,12 @@ async function main() {
       originalStartDate,
       phone2,
       phone3,
-      typePhone2: pickField(r, "TYPE_PH2", "TYPE_PHO2", "TYPE_PHONE2") || "",
-      typePhone3: pickField(r, "TYPE_PH3", "TYPE_PHO3", "TYPE_PHONE3") || "",
+      typePhone1: pickField(r, "TYPE_OF_PH", "TYPE_PH1", "TYPE_PHO1") || "",
+      typePhone2: pickField(r, "TYPE_OF_P2", "TYPE_PH2", "TYPE_PHO2", "TYPE_PHONE2") || "",
+      typePhone3: pickField(r, "TYPE_OF_P3", "TYPE_PH3", "TYPE_PHO3", "TYPE_PHONE3") || "",
+      p1Ext: pickField(r, "PHONE1_EXT", "P1_EXT").replace(/\D/g, "").slice(0, 3),
+      p2Ext: pickField(r, "PHONE2_EXT", "P2_EXT").replace(/\D/g, "").slice(0, 3),
+      p3Ext: pickField(r, "P3_EXT", "PHONE3_EXT").replace(/\D/g, "").slice(0, 3),
       dateUpdat: r.DATE_UPDAT || "",
       droppedDate: r.DROPPED_DA || "",
       delinquent: r.DELINQUENT || "",

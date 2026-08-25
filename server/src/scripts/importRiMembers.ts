@@ -21,7 +21,7 @@ import { connectDb } from "../db.js";
 import { Member } from "../models/Member.js";
 import { OilCompany } from "../models/OilCompany.js";
 import { nextJuneFirstAfterSignup } from "../utils/juneBilling.js";
-import { parseLegacyDate, parseLegacyYes, pickField } from "../utils/legacyImport.js";
+import { formatApproachPhone, parseLegacyDate, parseLegacyYes, pickField } from "../utils/legacyImport.js";
 
 /** Tiny CSV parser that handles quoted fields and embedded newlines. */
 function parseCsv(text: string): string[][] {
@@ -136,17 +136,10 @@ async function main() {
     const lastName = r.L_NAME_1 || legacyId;
     const email =
       (r.E_MAIL || "").toLowerCase().trim() || syntheticEmail(legacyId, firstName, lastName);
-    const buildPhone = (acode: string | undefined, num: string | undefined) => {
-      const digits = `${acode || ""}${num || ""}`.replace(/\D/g, "");
-      if (digits.length === 10) return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
-      if (digits.length === 11 && digits.startsWith("1")) return `+1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
-      if (digits.length === 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
-      return digits;
-    };
-    const phone = r.PHONE_1 ? buildPhone(r.ACODE_1, r.PHONE_1) : r.PHONE_2 ? buildPhone(r.ACODE_2, r.PHONE_2) : "";
-    const phone2 = r.PHONE_2 ? buildPhone(r.ACODE_2, r.PHONE_2) : "";
+    const phone = r.PHONE_1 ? formatApproachPhone(r.ACODE_1, r.PHONE_1) : r.PHONE_2 ? formatApproachPhone(r.ACODE_2, r.PHONE_2) : "";
+    const phone2 = r.PHONE_2 ? formatApproachPhone(r.ACODE_2, r.PHONE_2) : "";
     const phone3 = pickField(r, "PHONE_3", "PHONE3")
-      ? buildPhone(pickField(r, "ACODE_3", "ACODE3"), pickField(r, "PHONE_3", "PHONE3"))
+      ? formatApproachPhone(pickField(r, "ACODE_3", "ACODE3"), pickField(r, "PHONE_3", "PHONE3"))
       : "";
     const newMemberDt = parseLegacyDate(pickField(r, "NEW_MEMBER", "NEW_MEM_DT", "NEW_MEM_DA", "DATE_ADD"));
     const originalStartDate = parseLegacyDate(
@@ -171,8 +164,12 @@ async function main() {
       plus4: r.PLUS_4 || "",
       phone2,
       phone3,
-      typePhone2: pickField(r, "TYPE_PH2", "TYPE_PHO2", "TYPE_PHONE2") || "",
-      typePhone3: pickField(r, "TYPE_PH3", "TYPE_PHO3", "TYPE_PHONE3") || "",
+      typePhone1: pickField(r, "TYPE_OF_PH", "TYPE_PH1", "TYPE_PHO1") || "",
+      typePhone2: pickField(r, "TYPE_OF_P2", "TYPE_PH2", "TYPE_PHO2", "TYPE_PHONE2") || "",
+      typePhone3: pickField(r, "TYPE_OF_P3", "TYPE_PH3", "TYPE_PHO3", "TYPE_PHONE3") || "",
+      p1Ext: pickField(r, "PHONE1_EXT", "P1_EXT").replace(/\D/g, "").slice(0, 3),
+      p2Ext: pickField(r, "PHONE2_EXT", "P2_EXT").replace(/\D/g, "").slice(0, 3),
+      p3Ext: pickField(r, "P3_EXT", "PHONE3_EXT").replace(/\D/g, "").slice(0, 3),
       seniorFlag: pickField(r, "SENIOR", "SENIOR_MEM", "SENIOR_M"),
       seniorMember,
       dateAdd: r.DATE_ADD || "",
