@@ -778,8 +778,13 @@ export default function AdminWorkbenchPage() {
     if (!token) return;
     setLoading(true);
     try {
-      const path = `/api/admin/members?all=1&slim=1`;
-      const { members: rows } = await api<{ members: Member[] }>(path, { token });
+      const q = quickSearch.trim();
+      const params = new URLSearchParams({ slim: "1" });
+      if (q) params.set("q", q);
+      const { members: rows } = await api<{ members: Member[] }>(
+        `/api/admin/members?${params}`,
+        { token }
+      );
       setMembers(rows);
     } finally {
       setLoading(false);
@@ -969,10 +974,16 @@ export default function AdminWorkbenchPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
+  // Debounced server-side member fetch. Empty query → 200 most recent (instant).
+  // Non-empty → server search with 350 ms debounce so we don't fire on every keystroke.
   useEffect(() => {
-    void loadMembers();
+    if (!token) return;
+    const q = quickSearch.trim();
+    const delay = q ? 350 : 0;
+    const timer = setTimeout(() => { void loadMembers(); }, delay);
+    return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [quickSearch, token]);
 
   useEffect(() => {
     missingMemberFetchAttempt.current = null;
