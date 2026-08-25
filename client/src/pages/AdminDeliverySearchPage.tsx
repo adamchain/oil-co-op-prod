@@ -107,11 +107,8 @@ export default function AdminDeliverySearchPage() {
     }
   }
 
-  useEffect(() => {
-    if (!token) return;
-    void runSearch();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  // Don't auto-search on mount — user must click Search to avoid a slow
+  // full-scan of all members with no filters applied.
 
   useEffect(() => {
     if (!token) return;
