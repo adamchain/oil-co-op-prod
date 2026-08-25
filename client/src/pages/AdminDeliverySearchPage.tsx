@@ -71,7 +71,6 @@ export default function AdminDeliverySearchPage() {
     companyName: "",
     account: "",
   });
-  const [view, setView] = useState<"rows" | "byMember">("rows");
   const [data, setData] = useState<SearchResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -93,12 +92,13 @@ export default function AdminDeliverySearchPage() {
     return p.toString();
   }, [filters]);
 
-  async function runSearch() {
+  async function runSearch(limit = 5000) {
     if (!token) return;
     setBusy(true);
     setErr(null);
     try {
-      const r = await api<SearchResponse>(`/api/admin/deliveries/search?${queryString}`, { token });
+      const qs = limit === 5000 ? queryString : queryString.replace("limit=5000", `limit=${limit}`);
+      const r = await api<SearchResponse>(`/api/admin/deliveries/search?${qs}`, { token });
       setData(r);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Search failed");
@@ -107,8 +107,11 @@ export default function AdminDeliverySearchPage() {
     }
   }
 
-  // Don't auto-search on mount — user must click Search to avoid a slow
-  // full-scan of all members with no filters applied.
+  useEffect(() => {
+    if (!token) return;
+    void runSearch(100);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
   useEffect(() => {
     if (!token) return;
@@ -301,101 +304,46 @@ export default function AdminDeliverySearchPage() {
 
       {data && (
         <div className="admin-card">
-          <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem", alignItems: "center" }}>
-            <div />
-            <div style={{ display: "flex", gap: "0.25rem" }}>
-              <button
-                type="button"
-                className={`admin-btn${view === "rows" ? " admin-btn-primary" : ""}`}
-                onClick={() => setView("rows")}
-              >
-                Rows
-              </button>
-              <button
-                type="button"
-                className={`admin-btn${view === "byMember" ? " admin-btn-primary" : ""}`}
-                onClick={() => setView("byMember")}
-              >
-                By member
-              </button>
-            </div>
+          <div className="admin-table-wrap" style={{ maxHeight: "60vh", overflowY: "auto" }}>
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Fuel</th>
+                  <th>Gallons</th>
+                  <th>Member</th>
+                  <th>Member #</th>
+                  <th>Company</th>
+                  <th>Account</th>
+                  <th>Source</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.hits.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} style={{ color: "var(--admin-muted)", fontStyle: "italic" }}>
+                      No deliveries match these filters.
+                    </td>
+                  </tr>
+                ) : (
+                  data.hits.map((h) => (
+                    <tr key={`${h.memberId}-${h.rowId}`}>
+                      <td>{h.dateDelivered}</td>
+                      <td>{h.fuelType}</td>
+                      <td>{h.gallons.toFixed(1)}</td>
+                      <td>
+                        <Link to={`/admin/workbench?member=${h.memberId}`}>{h.name || "(unnamed)"}</Link>
+                      </td>
+                      <td>{h.memberNumber || "—"}</td>
+                      <td>{h.fuelType === "OIL" ? h.oilCompanyName || "—" : h.propaneCompanyName || "—"}</td>
+                      <td>{h.fuelType === "OIL" ? h.oilId || "—" : h.propaneId || "—"}</td>
+                      <td>{h.source}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
-
-          {view === "rows" ? (
-            <div className="admin-table-wrap" style={{ marginTop: "0.75rem", maxHeight: "60vh", overflowY: "auto" }}>
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Fuel</th>
-                    <th>Gallons</th>
-                    <th>Member</th>
-                    <th>Member #</th>
-                    <th>Company</th>
-                    <th>Account</th>
-                    <th>Source</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.hits.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} style={{ color: "var(--admin-muted)", fontStyle: "italic" }}>
-                        No deliveries match these filters.
-                      </td>
-                    </tr>
-                  ) : (
-                    data.hits.map((h) => (
-                      <tr key={`${h.memberId}-${h.rowId}`}>
-                        <td>{h.dateDelivered}</td>
-                        <td>{h.fuelType}</td>
-                        <td>{h.gallons.toFixed(1)}</td>
-                        <td>
-                          <Link to={`/admin/workbench?member=${h.memberId}`}>{h.name || "(unnamed)"}</Link>
-                        </td>
-                        <td>{h.memberNumber || "—"}</td>
-                        <td>{h.fuelType === "OIL" ? h.oilCompanyName || "—" : h.propaneCompanyName || "—"}</td>
-                        <td>{h.fuelType === "OIL" ? h.oilId || "—" : h.propaneId || "—"}</td>
-                        <td>{h.source}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="admin-table-wrap" style={{ marginTop: "0.75rem", maxHeight: "60vh", overflowY: "auto" }}>
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>Member</th>
-                    <th>Member #</th>
-                    <th>Deliveries</th>
-                    <th>Total gallons</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.byMember.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} style={{ color: "var(--admin-muted)", fontStyle: "italic" }}>
-                        No members match these filters.
-                      </td>
-                    </tr>
-                  ) : (
-                    data.byMember.map((m) => (
-                      <tr key={m.memberId}>
-                        <td>
-                          <Link to={`/admin/workbench?member=${m.memberId}`}>{m.name}</Link>
-                        </td>
-                        <td>{m.memberNumber || "—"}</td>
-                        <td>{m.rows}</td>
-                        <td>{m.gallons.toFixed(1)}</td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
         </div>
       )}
     </>

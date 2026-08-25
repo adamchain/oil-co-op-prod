@@ -593,7 +593,7 @@ router.get("/members/:id", async (req, res) => {
     res.status(404).json({ error: "Not found" });
     return;
   }
-  const [billing, activity, communications, referral, referralsMade] = await Promise.all([
+  const [billingEvents, activity, communications, referral, referralsMade] = await Promise.all([
     BillingEvent.find({ memberId: member._id }).sort({ createdAt: -1 }).limit(50).lean(),
     ActivityLog.find({ memberId: member._id }).sort({ createdAt: -1 }).limit(100).lean(),
     CommunicationLog.find({ memberId: member._id }).sort({ createdAt: -1 }).limit(50).lean(),
@@ -603,6 +603,25 @@ router.get("/members/:id", async (req, res) => {
       .populate("newMemberId", "firstName lastName email memberNumber legacyProfile.legacyId")
       .lean(),
   ]);
+
+  const legacyPayments = ((member.legacyProfile as any)?.paymentsHistory || []).map(
+    (p: any, i: number) => ({
+      _id: `legacy-${i}`,
+      kind: p.entryType === "new" ? "registration" : "annual",
+      status: p.feeWaived ? "waived" : "paid",
+      amountCents: p.amountCents || 0,
+      billingYear: p.billingYear,
+      createdAt: p.date || new Date().toISOString(),
+      manualEntry: true,
+      paymentMethod: p.paymentMethod || "",
+      checkNumber: p.checkNumber || "",
+      entryType: p.entryType || "renew",
+      paidDate: p.date || null,
+      legacy: true,
+    })
+  );
+
+  const billing = [...billingEvents, ...legacyPayments];
   res.json({ member, billing, activity, communications, referral, referralsMade });
 });
 

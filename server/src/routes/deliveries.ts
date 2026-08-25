@@ -58,9 +58,19 @@ function writeRows(member: any, rows: DeliveryRow[]) {
 
 /** GET /api/admin/deliveries/members/:id  → list */
 router.get("/members/:id", async (req, res) => {
-  const member = await loadMemberOrFail(req.params.id, res);
-  if (!member) return;
-  const rows = sortRowsDesc(readRows(member));
+  const id = req.params.id;
+  if (!mongoose.isValidObjectId(id)) {
+    res.status(400).json({ error: "Invalid member id" });
+    return;
+  }
+  const member = await Member.findById(id)
+    .select("role legacyProfile.deliveryHistoryRows")
+    .lean();
+  if (!member || (member as any).role !== "member") {
+    res.status(404).json({ error: "Member not found" });
+    return;
+  }
+  const rows = sortRowsDesc(normalizeRows((member as any).legacyProfile?.deliveryHistoryRows));
   res.json({ rows });
 });
 
@@ -980,7 +990,7 @@ router.get("/search", async (req, res) => {
   }
 
   const members = await Member.find(memberFilter)
-    .select("_id memberNumber firstName lastName oilCompanyId legacyProfile")
+    .select("-legacyProfile.paymentsHistory -legacyProfile.programHistory")
     .populate("oilCompanyId", "name")
     .lean();
 

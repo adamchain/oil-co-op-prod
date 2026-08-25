@@ -15,6 +15,7 @@ type BillingEvent = {
   checkNumber?: string;
   entryType?: string;
   paidDate?: string | null;
+  legacy?: boolean;
 };
 
 export type NewPaymentLine = {
@@ -394,13 +395,15 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
                         <td>{b.checkNumber || "—"}</td>
                         {onDeletePayment && (
                           <td>
-                            <button
-                              type="button"
-                              className="admin-btn admin-btn-danger admin-btn-xs"
-                              onClick={() => void deleteLine(b)}
-                            >
-                              Del
-                            </button>
+                            {!b.legacy && (
+                              <button
+                                type="button"
+                                className="admin-btn admin-btn-danger admin-btn-xs"
+                                onClick={() => void deleteLine(b)}
+                              >
+                                Del
+                              </button>
+                            )}
                           </td>
                         )}
                       </tr>
