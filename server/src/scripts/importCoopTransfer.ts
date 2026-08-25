@@ -283,7 +283,7 @@ async function main() {
   const seenName = new Map<string, mongoose.Types.ObjectId>(); // name (lower) → _id
 
   // Pre-load existing OilCompany records by name
-  const existingCos = await OilCompany.find({}).lean() as Array<{ _id: mongoose.Types.ObjectId; name: string }>;
+  const existingCos = await OilCompany.find({}).lean() as unknown as Array<{ _id: mongoose.Types.ObjectId; name: string }>;
   for (const ec of existingCos) seenName.set(ec.name.trim().toLowerCase(), ec._id);
 
   let cosCreated = 0, cosMatched = 0;
