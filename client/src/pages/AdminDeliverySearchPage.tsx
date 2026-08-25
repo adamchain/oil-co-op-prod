@@ -305,20 +305,7 @@ export default function AdminDeliverySearchPage() {
       {data && (
         <div className="admin-card">
           <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem", alignItems: "center" }}>
-            <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
-              <span style={{ fontSize: "0.85rem" }}>
-                <strong>{data.summary.totalRows}</strong> deliveries
-              </span>
-              <span style={{ fontSize: "0.85rem" }}>
-                <strong>{data.summary.totalMembers}</strong> members
-              </span>
-              <span style={{ fontSize: "0.85rem" }}>
-                <strong>{data.summary.totalGallons.toFixed(1)}</strong> gallons total
-              </span>
-              {data.summary.truncated && (
-                <span style={{ color: "#b45309", fontSize: "0.8rem" }}>(truncated; refine filters)</span>
-              )}
-            </div>
+            <div />
             <div style={{ display: "flex", gap: "0.25rem" }}>
               <button
                 type="button"
