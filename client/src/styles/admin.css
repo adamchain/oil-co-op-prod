@@ -2833,6 +2833,193 @@ button.admin-wb-panel-title.admin-wb-panel-toggle:hover {
 }
 
 /* ---------------------------------------------------------------------------
+   Add Property modal — focused form launched from the workbench
+--------------------------------------------------------------------------- */
+.admin-addprop-overlay {
+  animation: admin-addprop-fade 0.16s ease-out;
+}
+
+.admin-modal-panel.admin-addprop-panel {
+  max-width: min(480px, 100%);
+  padding: 1.4rem 1.5rem 1.25rem;
+  border-radius: 18px;
+  animation: admin-addprop-pop 0.18s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+@keyframes admin-addprop-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes admin-addprop-pop {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.admin-addprop-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.admin-addprop-head h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.admin-addprop-head p {
+  margin: 0.2rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: var(--admin-muted, #64748b);
+}
+
+.admin-addprop-close {
+  flex-shrink: 0;
+  width: 1.9rem;
+  height: 1.9rem;
+  padding: 0;
+  border-radius: 9px;
+  font-size: 0.95rem;
+  line-height: 1;
+  color: var(--admin-muted, #64748b);
+}
+
+.admin-addprop-owner {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  background: linear-gradient(180deg, #f8fafc, #f1f5f9);
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.7rem 0.8rem;
+  margin-bottom: 1.05rem;
+}
+
+.admin-addprop-avatar {
+  flex-shrink: 0;
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #0a0a0a;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.admin-addprop-owner-body {
+  min-width: 0;
+  display: grid;
+  gap: 0.1rem;
+}
+
+.admin-addprop-owner-top {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.admin-addprop-owner-name {
+  font-weight: 600;
+  font-size: 0.92rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-addprop-chip {
+  flex-shrink: 0;
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  color: #0e763c;
+  background: #dcfce7;
+  border-radius: 999px;
+  padding: 0.12rem 0.45rem;
+}
+
+.admin-addprop-owner-contact {
+  font-size: 0.8rem;
+  color: #475569;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.admin-addprop-fields {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.admin-addprop-field {
+  display: grid;
+  gap: 0.28rem;
+}
+
+.admin-addprop-field > span {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.035em;
+  color: #64748b;
+}
+
+.admin-addprop-field .admin-optional {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: #94a3b8;
+}
+
+.admin-addprop-field .admin-input {
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.admin-addprop-field .admin-input:focus {
+  border-color: var(--admin-accent, #c2410c);
+  box-shadow: 0 0 0 3px rgba(194, 65, 12, 0.12);
+}
+
+.admin-addprop-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 0.6rem;
+}
+
+.admin-addprop-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid #eef2f7;
+}
+
+.admin-addprop-actions .admin-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+@media (max-width: 520px) {
+  .admin-addprop-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* ---------------------------------------------------------------------------
    Friendly email composer (RichEmailEditor) — used by Email Templates + Mailings
 --------------------------------------------------------------------------- */
 .email-composer {

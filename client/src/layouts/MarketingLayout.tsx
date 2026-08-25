@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, Outlet, useLocation } from "react-router-dom";
+import { siteImageUrl } from "../api";
 import { useAuth } from "../authContext";
 import { useSiteText } from "../public-site/content/SiteContentContext";
 import type { ContentGroup } from "../public-site/content/types";
@@ -74,7 +75,7 @@ export default function MarketingLayout() {
   const [referrerEmail, setReferrerEmail] = useState("");
   const [friendName, setFriendName] = useState("");
   const [friendEmail, setFriendEmail] = useState("");
-  const logoSrc = "/coop-logo.png";
+  const logoSrc = siteImageUrl("/coop-logo.png");
 
   const close = () => setNavOpen(false);
   useEffect(() => {
@@ -115,13 +116,9 @@ export default function MarketingLayout() {
             <Link to="/services" className={navActive("/services")} onClick={close}>
               {t("layout.navServices")}
             </Link>
-            <a
-              href="/#savings"
-              className={activeHash === "#savings" ? "active" : ""}
-              onClick={() => setHash("#savings")}
-            >
+            <Link to="/heating-prices" className={navActive("/heating-prices")} onClick={close}>
               {t("layout.navSavings")}
-            </a>
+            </Link>
             <Link to="/faq" className={navActive("/faq")} onClick={close}>
               {t("layout.navFaq")}
             </Link>

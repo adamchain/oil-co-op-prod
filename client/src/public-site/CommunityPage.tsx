@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api } from "../api";
+import { api, siteImageUrl } from "../api";
 import { useSiteText } from "./content/SiteContentContext";
 import type { ContentGroup } from "./content/types";
 
@@ -165,7 +165,7 @@ export default function CommunityPage() {
   return (
     <div className="mkt-community-page">
       <section className="mkt-comm-hero">
-        <img src="/site/house.jpg" alt="" className="mkt-comm-hero-img" />
+        <img src={siteImageUrl("/site/house.jpg")} alt="" className="mkt-comm-hero-img" />
         <div className="mkt-comm-hero-scrim" aria-hidden />
         <div className="mkt-container mkt-comm-hero-copy">
           <h1>{t("community.heroTitle")}</h1>

@@ -520,6 +520,9 @@ export default function AdminWorkbenchPage() {
   const [deliveryHistoryOpen, setDeliveryHistoryOpen] = useState(false);
   const [propertyGroup, setPropertyGroup] = useState<PropertyGroupItem[]>([]);
   const [addingProperty, setAddingProperty] = useState(false);
+  const [showAddProperty, setShowAddProperty] = useState(false);
+  const emptyPropAddress = { addressLine1: "", addressLine2: "", city: "", state: "", postalCode: "" };
+  const [newPropAddress, setNewPropAddress] = useState(emptyPropAddress);
   const pendingAddressFocusRef = useRef(false);
   const address1Ref = useRef<HTMLInputElement>(null);
 
@@ -1605,24 +1608,34 @@ export default function AdminWorkbenchPage() {
    * Additional property under this membership: free/lifetime, linked to the primary
    * paid record — one annual renewal on the primary even with multiple properties.
    */
-  const addProperty = async () => {
+  // Open the Add Property form (owner shown read-only + a fresh address).
+  const openAddProperty = () => {
+    if (!current) return;
+    setNewPropAddress(emptyPropAddress);
+    setActionMessage("");
+    setShowAddProperty(true);
+  };
+
+  /**
+   * The membership owner whose contact details a new property carries over.
+   * For a linked property that's the primary record (which holds the email);
+   * for a primary record it's the record itself.
+   */
+  const addPropertyOwner = useMemo(() => {
+    if (!current) return null;
+    const owner = current.primaryMemberId ? members.find((m) => m._id === current.primaryMemberId) : current;
+    return owner ?? current;
+  }, [current, members]);
+
+  const submitAddProperty = async (address: typeof emptyPropAddress) => {
     if (!token || !current) return;
-    const name = `${current.firstName} ${current.lastName}`.trim();
-    if (
-      !confirm(
-        `Add another property for ${name || "this member"}?\n\n` +
-          "The new record will be a free/lifetime membership linked to the primary property. " +
-          "Annual dues stay on the primary only."
-      )
-    ) {
-      return;
-    }
     setAddingProperty(true);
     setActionMessage("");
     try {
       const res = await api<{ member: Member }>(`/api/admin/members/${current._id}/properties`, {
         method: "POST",
         token,
+        body: JSON.stringify(address),
       });
       const created = res.member;
       const id = created?._id ? String(created._id) : "";
@@ -1644,21 +1657,30 @@ export default function AdminWorkbenchPage() {
                   memberNumber: row.memberNumber || "",
                   firstName: row.firstName,
                   lastName: row.lastName,
-                  addressLine1: "",
-                  city: "",
-                  state: "",
-                  postalCode: "",
+                  addressLine1: address.addressLine1 || "",
+                  city: address.city || "",
+                  state: address.state || "",
+                  postalCode: address.postalCode || "",
                   isPrimary: false,
                   lifetime: true,
                   paymentNotes: "",
                 },
               ]
         );
-        pendingAddressFocusRef.current = true;
+        // Only jump the cursor to the address field when none was entered up front.
+        pendingAddressFocusRef.current = !address.addressLine1.trim();
         selectMemberById(id);
       }
-      setActionMessage("New property opened — enter the street address below, then save.");
-      flashSaveToast("New property added — enter the address, then save", true, 5000);
+      setShowAddProperty(false);
+      const hadAddress = Boolean(address.addressLine1.trim());
+      setActionMessage(
+        hadAddress ? "New property added." : "New property opened — enter the street address below, then save."
+      );
+      flashSaveToast(
+        hadAddress ? "New property added" : "New property added — enter the address, then save",
+        true,
+        5000
+      );
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Could not add property";
       setActionMessage(msg);
@@ -2123,7 +2145,7 @@ export default function AdminWorkbenchPage() {
           className="admin-wb-btn admin-wb-btn-secondary"
           type="button"
           disabled={!current || addingProperty}
-          onClick={() => void addProperty()}
+          onClick={openAddProperty}
           title="Create a free/lifetime property record linked to this membership (one annual fee on the primary)"
         >
           {addingProperty ? "Adding…" : "Add Property"}
@@ -2756,7 +2778,7 @@ export default function AdminWorkbenchPage() {
                 className="admin-wb-btn admin-wb-btn-secondary"
                 style={{ marginTop: "0.45rem", fontSize: "0.68rem" }}
                 disabled={!current || addingProperty}
-                onClick={() => void addProperty()}
+                onClick={openAddProperty}
               >
                 {addingProperty ? "Adding…" : "Add another property"}
               </button>
@@ -3897,6 +3919,123 @@ export default function AdminWorkbenchPage() {
           setPaymentFindOpen(false);
         }}
       />
+
+      {showAddProperty && current && (() => {
+        const ownerName = `${addPropertyOwner?.firstName ?? ""} ${addPropertyOwner?.lastName ?? ""}`.trim();
+        const ownerInitials =
+          `${addPropertyOwner?.firstName?.[0] ?? ""}${addPropertyOwner?.lastName?.[0] ?? ""}`.toUpperCase() || "•";
+        // Suppress the synthetic placeholder addresses (…@oilcoop.local) — they're
+        // system-generated, not a real contact email.
+        const rawEmail = addPropertyOwner?.email ?? "";
+        const ownerEmail = rawEmail && !/\.local$/i.test(rawEmail) ? rawEmail : "";
+        const ownerPhone = addPropertyOwner?.phone ? formatPhoneValue(addPropertyOwner.phone) : "";
+        const contact = [ownerEmail, ownerPhone].filter(Boolean).join(" · ") || "No contact on file";
+        return (
+          <div
+            className="admin-modal-overlay admin-addprop-overlay"
+            onClick={() => {
+              if (!addingProperty) setShowAddProperty(false);
+            }}
+          >
+            <div className="admin-modal-panel admin-addprop-panel" onClick={(e) => e.stopPropagation()}>
+              <div className="admin-addprop-head">
+                <div>
+                  <h2>Add property</h2>
+                  <p>Creates a free/lifetime property linked to this membership. Annual dues stay on the primary property.</p>
+                </div>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-ghost admin-addprop-close"
+                  onClick={() => setShowAddProperty(false)}
+                  disabled={addingProperty}
+                  aria-label="Close"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="admin-addprop-owner">
+                <div className="admin-addprop-avatar" aria-hidden="true">{ownerInitials}</div>
+                <div className="admin-addprop-owner-body">
+                  <div className="admin-addprop-owner-top">
+                    <span className="admin-addprop-owner-name">{ownerName || "Unknown owner"}</span>
+                    <span className="admin-addprop-chip">Carried over</span>
+                  </div>
+                  <div className="admin-addprop-owner-contact">{contact}</div>
+                </div>
+              </div>
+
+              <div className="admin-addprop-fields">
+                <label className="admin-addprop-field">
+                  <span>Street address</span>
+                  <input
+                    className="admin-input"
+                    autoFocus
+                    value={newPropAddress.addressLine1}
+                    placeholder="123 Main St"
+                    onChange={(e) => setNewPropAddress((p) => ({ ...p, addressLine1: e.target.value }))}
+                  />
+                </label>
+                <label className="admin-addprop-field">
+                  <span>
+                    Apt / Unit <span className="admin-optional">(optional)</span>
+                  </span>
+                  <input
+                    className="admin-input"
+                    value={newPropAddress.addressLine2}
+                    onChange={(e) => setNewPropAddress((p) => ({ ...p, addressLine2: e.target.value }))}
+                  />
+                </label>
+                <div className="admin-addprop-grid">
+                  <label className="admin-addprop-field">
+                    <span>City</span>
+                    <input
+                      className="admin-input"
+                      value={newPropAddress.city}
+                      onChange={(e) => setNewPropAddress((p) => ({ ...p, city: e.target.value }))}
+                    />
+                  </label>
+                  <label className="admin-addprop-field">
+                    <span>State</span>
+                    <input
+                      className="admin-input"
+                      value={newPropAddress.state}
+                      onChange={(e) => setNewPropAddress((p) => ({ ...p, state: e.target.value }))}
+                    />
+                  </label>
+                  <label className="admin-addprop-field">
+                    <span>ZIP</span>
+                    <input
+                      className="admin-input"
+                      value={newPropAddress.postalCode}
+                      onChange={(e) => setNewPropAddress((p) => ({ ...p, postalCode: e.target.value }))}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="admin-addprop-actions">
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-ghost"
+                  onClick={() => setShowAddProperty(false)}
+                  disabled={addingProperty}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-primary"
+                  disabled={addingProperty}
+                  onClick={() => void submitAddProperty(newPropAddress)}
+                >
+                  {addingProperty ? "Adding…" : "Add property"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

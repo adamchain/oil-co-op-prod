@@ -1,6 +1,19 @@
 /** Empty in dev (Vite proxies /api → server). Set VITE_API_URL on the client Railway service to your API public URL. */
 const base = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
 
+/**
+ * Origin-stable URL for an admin-replaceable marketing image (e.g.
+ * "/site/house.jpg", "/coop-logo.png"). Routes through the API so admin uploads
+ * actually show: a plain root-relative <img src> would load the original from
+ * the client host and never reach the override store on the API. `version`
+ * cache-busts the preview after a replacement.
+ */
+export function siteImageUrl(path: string, version?: number | string | null): string {
+  const rel = path.replace(/^\/+/, "");
+  const suffix = version != null ? `?v=${version}` : "";
+  return `${base}/api/site-images/asset/${rel}${suffix}`;
+}
+
 export async function api<T>(
   path: string,
   opts: RequestInit & { token?: string | null } = {}

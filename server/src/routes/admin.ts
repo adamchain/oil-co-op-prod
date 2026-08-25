@@ -887,11 +887,28 @@ function formatPrimaryPaymentNote(m: {
  * Create an additional property record linked to this member's primary membership.
  * Matches legacy Approach: one paid primary + free/lifetime linked properties.
  */
+const addPropertySchema = z.object({
+  addressLine1: z.string().max(200).optional(),
+  addressLine2: z.string().max(200).optional(),
+  city: z.string().max(120).optional(),
+  state: z.string().max(120).optional(),
+  postalCode: z.string().max(40).optional(),
+});
+
 router.post("/members/:id/properties", async (req: AuthedRequest, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) {
     res.status(400).json({ error: "Invalid id" });
     return;
   }
+  // The workbench "Add Property" form collects the new address up front; older
+  // callers may still POST an empty body, in which case the address stays blank
+  // and is filled in later by editing the record.
+  const parsedAddress = addPropertySchema.safeParse(req.body ?? {});
+  if (!parsedAddress.success) {
+    res.status(400).json({ error: parsedAddress.error.flatten() });
+    return;
+  }
+  const addr = parsedAddress.data;
 
   const source = await Member.findById(req.params.id);
   if (!source || source.role !== "member") {
@@ -960,11 +977,11 @@ router.post("/members/:id/properties", async (req: AuthedRequest, res) => {
     lastName: primary.lastName,
     phone: primary.phone || "",
     phoneDigits: primary.phoneDigits || "",
-    addressLine1: "",
-    addressLine2: "",
-    city: "",
-    state: "",
-    postalCode: "",
+    addressLine1: addr.addressLine1 || "",
+    addressLine2: addr.addressLine2 || "",
+    city: addr.city || "",
+    state: addr.state || "",
+    postalCode: addr.postalCode || "",
     role: "member",
     status: "active",
     signedUpVia: "admin",
@@ -989,6 +1006,36 @@ router.post("/members/:id/properties", async (req: AuthedRequest, res) => {
       linkedFromMemberNumber: primary.memberNumber || "",
     },
   });
+
+  // When an address was supplied up front, mirror it onto the primary's
+  // properties[] so the member portal lists the new property immediately —
+  // same shape the PUT handler maintains when a linked address is edited.
+  if (String(member.addressLine1 || "").trim()) {
+    if (!Array.isArray(primary.properties)) {
+      primary.properties = [] as typeof primary.properties;
+    }
+    (primary.properties as Array<{
+      label?: string;
+      addressLine1?: string;
+      addressLine2?: string;
+      city?: string;
+      state?: string;
+      postalCode?: string;
+      isPrimary?: boolean;
+      linkedMemberId?: mongoose.Types.ObjectId;
+    }>).push({
+      label: "Additional property",
+      addressLine1: member.addressLine1 || "",
+      addressLine2: member.addressLine2 || "",
+      city: member.city || "",
+      state: member.state || "",
+      postalCode: member.postalCode || "",
+      isPrimary: false,
+      linkedMemberId: member._id,
+    });
+    primary.markModified("properties");
+    await primary.save();
+  }
 
   await logActivity(
     member._id,

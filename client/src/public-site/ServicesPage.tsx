@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import type { ReactNode } from "react";
+import { siteImageUrl } from "../api";
 import { useSiteText } from "./content/SiteContentContext";
 import type { ContentGroup } from "./content/types";
 
@@ -769,7 +770,7 @@ export default function ServicesPage() {
   return (
     <div className="mkt-services-page">
       <section className="mkt-svc-hero">
-        <img src="/site/family.jpg" alt="" className="mkt-svc-hero-img" />
+        <img src={siteImageUrl("/site/family.jpg")} alt="" className="mkt-svc-hero-img" />
         <div className="mkt-svc-hero-scrim" aria-hidden />
         <div className="mkt-container mkt-svc-hero-copy">
           <h1>{t("services.heroTitle")}</h1>

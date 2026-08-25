@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { siteImageUrl } from "../api";
 import type { ContentGroup } from "./content/types";
 import { useSiteText } from "./content/SiteContentContext";
 
@@ -965,7 +966,7 @@ export function SavingsSection() {
           </figure>
 
           <ImageSlot
-            src="/site/family.jpg"
+            src={siteImageUrl("/site/family.jpg")}
             alt="A local family outside their home in winter"
             label="Photo: a member family at home in winter"
             className="mkt-img-slot--tall"
@@ -1130,7 +1131,7 @@ export function FinalCtaBand() {
   return (
     <section className="mkt-finalcta" id="join">
       <div className="mkt-finalcta-bg" aria-hidden>
-        <ImageSlot src="/site/house.jpg" alt="" label="Photo: a warm, lit home on a winter evening" />
+        <ImageSlot src={siteImageUrl("/site/house.jpg")} alt="" label="Photo: a warm, lit home on a winter evening" />
       </div>
       <div className="mkt-finalcta-inner">
         <h2>{t("home.finalCtaTitle")}</h2>

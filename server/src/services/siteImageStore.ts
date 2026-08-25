@@ -1,4 +1,21 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { SiteImage } from "../models/SiteImage.js";
+
+// Bundled originals shipped with the server so the API can serve the default
+// image before it has ever been replaced. Resolved relative to the server root
+// (dist/ at runtime → ../assets), so it works whether we run tsx or built JS.
+const defaultsDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "../../assets/site-defaults");
+
+const CONTENT_TYPE_BY_EXT: Record<string, string> = {
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".webp": "image/webp",
+  ".gif": "image/gif",
+  ".svg": "image/svg+xml",
+};
 
 /**
  * The fixed set of marketing-site images an admin is allowed to replace. These
@@ -54,6 +71,30 @@ export async function loadSiteImageCache(): Promise<void> {
 /** In-memory override for a path, if one exists. Used by the serving middleware. */
 export function getSiteImageOverride(path: string): Override | undefined {
   return cache.get(path);
+}
+
+/** Read the bundled original for an editable path, if one is shipped. */
+function readSiteImageDefault(editablePath: string): { contentType: string; data: Buffer } | null {
+  // editablePath is like "/site/house.jpg" or "/coop-logo.png"; map to the
+  // bundled file under assets/site-defaults, guarding against path traversal.
+  const rel = editablePath.replace(/^\/+/, "");
+  const file = path.join(defaultsDir, rel);
+  if (!file.startsWith(defaultsDir) || !fs.existsSync(file)) return null;
+  return {
+    contentType: CONTENT_TYPE_BY_EXT[path.extname(file).toLowerCase()] ?? "application/octet-stream",
+    data: fs.readFileSync(file),
+  };
+}
+
+/**
+ * The image to serve for an editable path: the admin override if one exists,
+ * otherwise the bundled original. Returns null for unknown/absent slots.
+ */
+export function getSiteImageAsset(editablePath: string): { contentType: string; data: Buffer } | null {
+  if (!isEditableImagePath(editablePath)) return null;
+  const override = cache.get(editablePath);
+  if (override) return { contentType: override.contentType, data: override.data };
+  return readSiteImageDefault(editablePath);
 }
 
 /** Persist a replacement image and refresh the in-memory cache. */

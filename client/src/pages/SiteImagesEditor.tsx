@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { api } from "../api";
+import { api, siteImageUrl } from "../api";
 import { useAuth } from "../authContext";
 
 /** One replaceable image slot, mirrored from the server registry. */
@@ -118,7 +118,7 @@ export default function SiteImagesEditor() {
           {images.map((img) => {
             const busy = busyPath === img.path;
             // Cache-bust the preview so a just-replaced image shows immediately.
-            const previewSrc = `${img.path}?v=${img.updatedAt ?? "original"}`;
+            const previewSrc = siteImageUrl(img.path, img.updatedAt ?? "original");
             return (
               <div key={img.path} style={{ display: "grid", gap: "0.5rem" }}>
                 <div

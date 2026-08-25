@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { api } from "../api";
+import { api, siteImageUrl } from "../api";
 import {
   StepsSection,
   TownsSection,
@@ -103,7 +103,7 @@ function HeroPriceAbove({ price }: { price: CurrentOilPrice | null }) {
       </div>
       <div className="mkt-hero-media mkt-hero-media--compact">
         <ImageSlot
-          src="/site/truck.jpg"
+          src={siteImageUrl("/site/truck.jpg")}
           alt="A heating-oil delivery truck at a member's home"
           label="Photo: heating-oil delivery at a member's home"
           className="mkt-img-slot--hero"

@@ -15,6 +15,7 @@ import communityRoutes from "./routes/community.js";
 import siteContentRoutes from "./routes/siteContent.js";
 import {
   EDITABLE_IMAGE_PATHS,
+  getSiteImageAsset,
   getSiteImageOverride,
   loadSiteImageCache,
 } from "./services/siteImageStore.js";
@@ -51,6 +52,23 @@ app.get(EDITABLE_IMAGE_PATHS, (req, res, next) => {
   res.set("Content-Type", override.contentType);
   res.set("Cache-Control", "no-cache");
   res.send(override.data);
+});
+
+// Public, origin-stable URL for the editable marketing images. The client (a
+// separate service in prod, Vite dev server locally) requests these through the
+// API so admin replacements actually win — a root-relative <img src> would load
+// the original from the client host and never reach the override store. Serves
+// the override if one exists, else the bundled original.
+app.get("/api/site-images/asset/*", (req, res, next) => {
+  const rel = (req.params as unknown as Record<string, string>)[0] ?? "";
+  const asset = getSiteImageAsset(`/${rel}`);
+  if (!asset) {
+    next();
+    return;
+  }
+  res.set("Content-Type", asset.contentType);
+  res.set("Cache-Control", "no-cache");
+  res.send(asset.data);
 });
 
 if (fs.existsSync(publicAssets)) {
