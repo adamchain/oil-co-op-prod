@@ -21,6 +21,7 @@ import { connectDb } from "../db.js";
 import { Member } from "../models/Member.js";
 import { OilCompany } from "../models/OilCompany.js";
 import { nextJuneFirstAfterSignup } from "../utils/juneBilling.js";
+import { parseLegacyDate, parseLegacyYes, pickField } from "../utils/legacyImport.js";
 
 /** Tiny CSV parser that handles quoted fields and embedded newlines. */
 function parseCsv(text: string): string[][] {
@@ -143,6 +144,15 @@ async function main() {
       return digits;
     };
     const phone = r.PHONE_1 ? buildPhone(r.ACODE_1, r.PHONE_1) : r.PHONE_2 ? buildPhone(r.ACODE_2, r.PHONE_2) : "";
+    const phone2 = r.PHONE_2 ? buildPhone(r.ACODE_2, r.PHONE_2) : "";
+    const phone3 = pickField(r, "PHONE_3", "PHONE3")
+      ? buildPhone(pickField(r, "ACODE_3", "ACODE3"), pickField(r, "PHONE_3", "PHONE3"))
+      : "";
+    const newMemberDt = parseLegacyDate(pickField(r, "NEW_MEMBER", "NEW_MEM_DT", "NEW_MEM_DA", "DATE_ADD"));
+    const originalStartDate = parseLegacyDate(
+      pickField(r, "ORIG_START", "ORIGINAL_S", "ORIG_DATE", "DATE_START", "START_DATE", "FIRST_DATE", "ORIGINAL_START")
+    );
+    const seniorMember = parseLegacyYes(pickField(r, "SENIOR", "SENIOR_MEM", "SENIOR_M"));
 
     const addressLine1 = [r.STREET_NO, r.STREET_NM].filter(Boolean).join(" ").trim();
     const addressLine2 = r.APT_NO_1 ? `Apt ${r.APT_NO_1}` : "";
@@ -159,7 +169,15 @@ async function main() {
       streetNo: r.STREET_NO || "",
       aptNo1: r.APT_NO_1 || "",
       plus4: r.PLUS_4 || "",
-      phone2: r.PHONE_2 ? buildPhone(r.ACODE_2, r.PHONE_2) : "",
+      phone2,
+      phone3,
+      typePhone2: pickField(r, "TYPE_PH2", "TYPE_PHO2", "TYPE_PHONE2") || "",
+      typePhone3: pickField(r, "TYPE_PH3", "TYPE_PHO3", "TYPE_PHONE3") || "",
+      seniorFlag: pickField(r, "SENIOR", "SENIOR_MEM", "SENIOR_M"),
+      seniorMember,
+      dateAdd: r.DATE_ADD || "",
+      newMemberDt,
+      originalStartDate,
       company: r.COMPANY || "",
       carrierRt: r.CARRIER_RT || "",
       keyCodes: r.KEY_CODES || "",
@@ -172,7 +190,6 @@ async function main() {
       pref1: r.PREF_1 || "",
       pref2: r.PREF_2 || "",
       lastUser: r.LAST_USER || "",
-      dateAdd: r.DATE_ADD || "",
       dateUpdat: r.DATE_UPDAT || "",
       workbenchMemberStatus: "ACTIVE",
       importSource: "ri-members-csv",

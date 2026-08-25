@@ -286,12 +286,24 @@ function parseMonthCell(raw: string): number | null {
 
 function parseYearCell(raw: string): number | null {
   const s = String(raw || "").trim();
-  const m = s.match(/\d{2,4}/);
-  if (!m) return null;
-  let n = Number(m[0]);
-  if (n < 100) n += 2000;
-  if (n < 1900 || n > 2200) return null;
-  return n;
+  const four = s.match(/(?:19|20)\d{2}/);
+  if (four) return Number(four[0]);
+  if (/^\d{4}$/.test(s)) {
+    const n = Number(s);
+    if (n >= 1900 && n <= 2200) return n;
+  }
+  if (/^\d{2}$/.test(s)) {
+    const n = Number(s) + 2000;
+    if (n >= 1900 && n <= 2200) return n;
+  }
+  return null;
+}
+
+/** Carry the last non-empty cell down — Approach/Excel exports often leave account/year blank after the first row of a group. */
+function fillDown(value: string, last: { current: string }): string {
+  const t = String(value || "").trim();
+  if (t) last.current = t;
+  return last.current;
 }
 
 function buildImportName(
@@ -609,9 +621,10 @@ export default function AdminDeliveryImportPage() {
       address: colKeyForField("address"),
     };
 
+    const fileYear = parseYearCell(fileName);
     const dateMode: "date" | "monthYear" | "none" = cols.dateDelivered
       ? "date"
-      : cols.month && cols.year
+      : cols.month
         ? "monthYear"
         : "none";
 
@@ -623,23 +636,54 @@ export default function AdminDeliveryImportPage() {
       if (!cols.fuelType && !defaults.fuelType) missingFields.push("Fuel type");
     }
 
+    const lastAccount = { current: "" };
+    const lastYear = { current: fileYear ? String(fileYear) : "" };
+    const lastFuel = { current: defaults.fuelType || "" };
+    const lastCompany = { current: resolvedDefaultCompanyName };
+    const lastName = { current: "" };
+    const lastNameFirst = { current: "" };
+    const lastNameLast = { current: "" };
+
     const rows = sheet.rows.map((r, i) => {
       const cell = (col: string | null) => (col ? String(r[col] ?? "").trim() : "");
+      const gallonsRaw = cell(cols.gallons);
+      const monthRaw = cell(cols.month);
+      const dateRaw = cell(cols.dateDelivered);
+      // Always carry account/year/name even on group-header rows with no gallons.
+      fillDown(cell(cols.account), lastAccount);
+      fillDown(cell(cols.fuelType), lastFuel);
+      fillDown(cell(cols.companyName), lastCompany);
+      fillDown(cell(cols.name), lastName);
+      fillDown(cell(cols.nameFirst), lastNameFirst);
+      fillDown(cell(cols.nameLast), lastNameLast);
+      const yearFromMonth = parseYearCell(monthRaw);
+      fillDown(cell(cols.year) || (yearFromMonth ? String(yearFromMonth) : ""), lastYear);
+
+      const sourceHasDelivery = Boolean(gallonsRaw) || Boolean(monthRaw) || Boolean(dateRaw);
+      if (!sourceHasDelivery) {
+        return {
+          rowNumber: i + 2,
+          fuelType: "",
+          account: "",
+          companyName: "",
+          dateDelivered: "",
+          gallons: 0,
+        };
+      }
       let dateDelivered = "";
       if (dateMode === "date") {
-        dateDelivered = cell(cols.dateDelivered);
+        dateDelivered = dateRaw;
       } else if (dateMode === "monthYear") {
-        const m = parseMonthCell(cell(cols.month));
-        const y = parseYearCell(cell(cols.year));
+        const m = parseMonthCell(monthRaw);
+        const y = parseYearCell(lastYear.current) || yearFromMonth || fileYear;
         if (m && y) {
           dateDelivered = `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}-01`;
         }
       }
-      const gallonsRaw = cell(cols.gallons);
       const nameCell = buildImportName(
-        cell(cols.name),
-        cell(cols.nameFirst),
-        cell(cols.nameLast),
+        lastName.current,
+        lastNameFirst.current,
+        lastNameLast.current,
         Boolean(cols.name),
         Boolean(cols.nameFirst),
         Boolean(cols.nameLast)
@@ -647,17 +691,18 @@ export default function AdminDeliveryImportPage() {
       const addressCell = cell(cols.address);
       return {
         rowNumber: i + 2,
-        fuelType: cell(cols.fuelType) || defaults.fuelType,
-        account: cell(cols.account),
-        companyName: cell(cols.companyName) || resolvedDefaultCompanyName,
+        fuelType: lastFuel.current,
+        account: lastAccount.current,
+        companyName: lastCompany.current,
         dateDelivered,
         gallons: Number(String(gallonsRaw).replace(/[^\d.\-]/g, "")) || 0,
         ...(nameCell ? { name: nameCell } : {}),
         ...(addressCell ? { address: addressCell } : {}),
       };
     });
-    return { rows, missingFields, mappingErrors, dateMode, ignoredColumnIndices };
-  }, [sheet, columnMapping, defaults, resolvedDefaultCompanyName]);
+    const nonempty = rows.filter((row) => row.account || row.dateDelivered || row.gallons);
+    return { rows: nonempty, missingFields, mappingErrors, dateMode, ignoredColumnIndices };
+  }, [sheet, columnMapping, defaults, resolvedDefaultCompanyName, fileName]);
 
   async function postImport(dryRun: boolean) {
     if (!token || builtRows.rows.length === 0) return;
@@ -781,7 +826,7 @@ export default function AdminDeliveryImportPage() {
         )}
       </div>
       <p style={{ color: "var(--admin-muted)", fontSize: "0.875rem", margin: "0.25rem 0 1.25rem" }}>
-        Upload a monthly delivery file from your oil company. The system matches each row to a customer by their account number and adds the delivery to their record.
+        Upload a monthly delivery file from your oil company. The system matches each row to a customer by their account number and adds the delivery to their record. If account, year, or fuel type is only filled on the first row of a group, those values are carried down to the rows below.
       </p>
 
       {/* Step 1 */}

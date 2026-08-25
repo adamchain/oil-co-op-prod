@@ -14,6 +14,7 @@ import {
 } from "../components/MemberFilterWidget";
 import { exactStateMatch, stateSynonyms } from "../utils/stateAbbreviations";
 import { formatPhoneValue } from "../utils/phone";
+import { hydrateLegacyProfile } from "../utils/legacyProfile";
 import PaymentFindModal from "../components/PaymentFindModal";
 import { type InvoiceMember } from "../utils/invoice";
 import { downloadMembershipInvoicePdf } from "../utils/invoicePdf";
@@ -282,7 +283,9 @@ function memberFromApiPatch(prev: Member, raw: Record<string, unknown>, oilCos: 
         : raw.primaryMemberId
           ? String(raw.primaryMemberId)
           : null,
-    legacyProfile: (raw.legacyProfile as Record<string, unknown> | undefined) ?? prev.legacyProfile,
+    legacyProfile: hydrateLegacyProfile({
+      ...(((raw.legacyProfile as Record<string, unknown> | undefined) ?? prev.legacyProfile) || {}),
+    }),
   };
   const oid = raw.oilCompanyId;
   if (oid == null || oid === "") next.oilCompanyId = null;
@@ -786,7 +789,10 @@ export default function AdminWorkbenchPage() {
         `/api/admin/members?${params}`,
         { token }
       );
-      setMembers(rows);
+      setMembers(rows.map((m) => ({
+        ...m,
+        legacyProfile: hydrateLegacyProfile({ ...(m.legacyProfile || {}) }),
+      })));
       if (total != null) setTotalMemberCount(total);
     } finally {
       setLoading(false);
@@ -1098,7 +1104,10 @@ export default function AdminWorkbenchPage() {
         missingMemberFetchAttempt.current = null;
         setMembers((prev) => {
           if (prev.some((m) => m._id === r.member._id)) return prev;
-          return [r.member, ...prev];
+          return [{
+            ...r.member,
+            legacyProfile: hydrateLegacyProfile({ ...(r.member.legacyProfile || {}) }),
+          }, ...prev];
         });
         setIndex(0);
       })
@@ -1145,7 +1154,7 @@ export default function AdminWorkbenchPage() {
       baselineSerializedRef.current = "";
       return;
     }
-    const lp = { ...(current.legacyProfile || {}) } as Record<string, unknown>;
+    const lp = hydrateLegacyProfile({ ...(current.legacyProfile || {}) } as Record<string, unknown>);
     if (typeof lp.workbenchMemberStatus !== "string" || !lp.workbenchMemberStatus) {
       lp.workbenchMemberStatus = defaultWorkbenchMemberStatus({ ...current, legacyProfile: lp });
     }

@@ -28,6 +28,7 @@ import { Member } from "../models/Member.js";
 import { OilCompany } from "../models/OilCompany.js";
 import { normalizeRows, sortRowsDesc, type DeliveryRow } from "../utils/deliveryRows.js";
 import { nextJuneFirstAfterSignup } from "../utils/juneBilling.js";
+import { parseLegacyDate, parseLegacyYes, pickField } from "../utils/legacyImport.js";
 
 // ---------------------------------------------------------------------------
 // CSV parser (handles quoted fields + embedded newlines)
@@ -377,6 +378,11 @@ async function main() {
     const lastName  = r.L_NAME_1 || id;
     const email = (r.E_MAIL || "").toLowerCase().trim() || syntheticEmail(id, firstName, lastName);
     const phone = r.PHONE_1 ? buildPhone(r.ACODE_1, r.PHONE_1) : (r.PHONE_2 ? buildPhone(r.ACODE_2, r.PHONE_2) : "");
+    const phone2 = r.PHONE_2 ? buildPhone(r.ACODE_2, r.PHONE_2) : "";
+    const phone3 = pickField(r, "PHONE_3", "PHONE3") ? buildPhone(pickField(r, "ACODE_3", "ACODE3"), pickField(r, "PHONE_3", "PHONE3")) : "";
+    const newMemberDt = parseLegacyDate(pickField(r, "NEW_MEMBER", "NEW_MEM_DT", "NEW_MEM_DA", "DATE_ADD"));
+    const originalStartDate = parseLegacyDate(pickField(r, "ORIG_START", "ORIGINAL_S", "ORIG_DATE", "DATE_START", "START_DATE", "FIRST_DATE", "ORIGINAL_START"));
+    const seniorMember = parseLegacyYes(pickField(r, "SENIOR", "SENIOR_MEM", "SENIOR_M"));
     const addressLine1 = [r.STREET_NO, r.STREET_NM].filter(Boolean).join(" ").trim();
     const addressLine2 = r.APT_NO_1 ? `Apt ${r.APT_NO_1}` : "";
 
@@ -450,7 +456,14 @@ async function main() {
       howJoined: r.HOW_JOINED || "",
       oilProgram: r.OIL_PROGRA || "",
       seniorFlag: r.SENIOR || "",
+      seniorMember,
       dateAdd: r.DATE_ADD || "",
+      newMemberDt,
+      originalStartDate,
+      phone2,
+      phone3,
+      typePhone2: pickField(r, "TYPE_PH2", "TYPE_PHO2", "TYPE_PHONE2") || "",
+      typePhone3: pickField(r, "TYPE_PH3", "TYPE_PHO3", "TYPE_PHONE3") || "",
       dateUpdat: r.DATE_UPDAT || "",
       droppedDate: r.DROPPED_DA || "",
       delinquent: r.DELINQUENT || "",

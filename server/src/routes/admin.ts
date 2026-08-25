@@ -432,6 +432,16 @@ router.get("/members", async (req, res) => {
         ],
       },
     ];
+  } else if (flag === "seniorMember") {
+    filter.$and = [
+      ...((filter.$and as unknown[] | undefined) || []),
+      {
+        $or: [
+          { "legacyProfile.seniorMember": true },
+          { "legacyProfile.seniorFlag": { $regex: /^(y|yes|true|1|x|senior)$/i } },
+        ],
+      },
+    ];
   } else if (flag && FLAG_KEYS.has(flag)) {
     filter[`legacyProfile.${flag}`] = true;
   }
@@ -473,6 +483,7 @@ router.get("/members", async (req, res) => {
       { "legacyProfile.streetNo": rx },
       { "legacyProfile.aptNo1": rx },
       { "legacyProfile.phone2": rx },
+      { "legacyProfile.phone3": rx },
       { "legacyProfile.company": rx },
       { "legacyProfile.oilId": rx },
       { "legacyProfile.workbenchMemberStatus": rx },
