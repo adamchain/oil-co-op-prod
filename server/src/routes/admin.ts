@@ -574,7 +574,11 @@ router.get("/members", async (req, res) => {
     (m as Record<string, unknown>).referralCount = referralCountByMember.get(String(m._id)) || 0;
   }
 
-  res.json({ members });
+  // When slim mode is on (workbench initial load / search), return the true
+  // total member count so the UI can display "Record N of M (X total)".
+  const total = slim ? await Member.countDocuments({ role: "member" }) : undefined;
+
+  res.json({ members, ...(total != null ? { total } : {}) });
 });
 
 router.get("/members/:id", async (req, res) => {

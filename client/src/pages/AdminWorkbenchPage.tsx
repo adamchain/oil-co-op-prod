@@ -449,6 +449,7 @@ export default function AdminWorkbenchPage() {
   }, [worksheetVisibleColumns]);
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [totalMemberCount, setTotalMemberCount] = useState<number | null>(null);
   const [oilCompanies, setOilCompanies] = useState<OilCompany[]>([]);
   const [referralSources, setReferralSources] = useState<string[]>([...REFERRAL_SOURCE]);
   const [referralCustom, setReferralCustom] = useState("");
@@ -781,11 +782,12 @@ export default function AdminWorkbenchPage() {
       const q = quickSearch.trim();
       const params = new URLSearchParams({ slim: "1" });
       if (q) params.set("q", q);
-      const { members: rows } = await api<{ members: Member[] }>(
+      const { members: rows, total } = await api<{ members: Member[]; total?: number }>(
         `/api/admin/members?${params}`,
         { token }
       );
       setMembers(rows);
+      if (total != null) setTotalMemberCount(total);
     } finally {
       setLoading(false);
     }
@@ -2109,7 +2111,9 @@ export default function AdminWorkbenchPage() {
           </div>
           <span className="admin-wb-count">
             Record {recordCount} of {filteredMembers.length}
-            {filteredMembers.length !== members.length ? ` (${members.length} total)` : ""}
+            {totalMemberCount != null && totalMemberCount > filteredMembers.length
+              ? ` (${totalMemberCount.toLocaleString()} total)`
+              : filteredMembers.length !== members.length ? ` (${members.length} loaded)` : ""}
           </span>
         </div>
         <div className="admin-wb-header-right">
