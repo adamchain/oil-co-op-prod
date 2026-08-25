@@ -34,6 +34,8 @@ export default function AdminMembersPage() {
     if (!token) return;
     const u = new URLSearchParams();
     if (q.trim()) u.set("q", q.trim());
+    u.set("all", "1");
+    u.set("slim", "1");
     api<{ members: MemberRow[] }>(`/api/admin/members?${u}`, { token }).then((r) => setRows(r.members));
   }, [token, q]);
 
