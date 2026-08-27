@@ -421,6 +421,7 @@ router.get("/members", async (req, res) => {
     "lowVolume",
     "useBothNames",
     "mailAddr",
+    "callBack",
   ]);
   if (flag === "waived") {
     filter.$and = [

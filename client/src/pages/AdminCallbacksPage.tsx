@@ -37,7 +37,7 @@ export default function AdminCallbacksPage() {
     if (!token) return;
     setLoading(true);
     try {
-      const { members: rows } = await api<{ members: CallbackMember[] }>("/api/admin/members?all=1", { token });
+      const { members: rows } = await api<{ members: CallbackMember[] }>("/api/admin/members?flag=callBack&slim=1", { token });
       setMembers(rows);
     } finally {
       setLoading(false);
@@ -50,16 +50,11 @@ export default function AdminCallbacksPage() {
   }, [token]);
 
   const callbackRows = useMemo(() => {
-    return members
-      .filter((m) => {
-        const lp = (m.legacyProfile || {}) as Record<string, unknown>;
-        return lp.callBack === true;
-      })
-      .sort((a, b) => {
-        const aLp = (a.legacyProfile || {}) as Record<string, unknown>;
-        const bLp = (b.legacyProfile || {}) as Record<string, unknown>;
-        return callbackTimestamp(aLp.callBackDate) - callbackTimestamp(bLp.callBackDate);
-      });
+    return [...members].sort((a, b) => {
+      const aLp = (a.legacyProfile || {}) as Record<string, unknown>;
+      const bLp = (b.legacyProfile || {}) as Record<string, unknown>;
+      return callbackTimestamp(aLp.callBackDate) - callbackTimestamp(bLp.callBackDate);
+    });
   }, [members]);
 
   async function removeFromCallbacks(memberId: string) {
