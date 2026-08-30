@@ -26,6 +26,7 @@ import { connectDb } from "../db.js";
 import { config } from "../config.js";
 import { Member } from "../models/Member.js";
 import { OilCompany } from "../models/OilCompany.js";
+import { Referral } from "../models/Referral.js";
 import { normalizeRows, sortRowsDesc, type DeliveryRow } from "../utils/deliveryRows.js";
 import { nextJuneFirstAfterSignup } from "../utils/juneBilling.js";
 import { formatApproachPhone, parseLegacyDate, parseLegacyYes, pickField } from "../utils/legacyImport.js";
@@ -466,6 +467,14 @@ async function main() {
       company: r.COMPANY || "",
       zone: r.ZONE || "",
       cluster: r.CLUSTER || "",
+      referredById: pickField(r, "REFERRED_B", "REF_BY_ID", "REFER_BY", "REFERRED_BY") || "",
+      dateReferred: parseLegacyDate(pickField(r, "DATE_REFER", "DATE_REF", "DATE_REFE")) || "",
+      referralSource: pickField(r, "REFERRAL_S", "REF_SOURCE", "REFERRAL_SOURCE") || "",
+      nextStep: pickField(r, "NEXT_STEP") || "",
+      contactNote: pickField(r, "CONTACT_NO", "CONTACT_N", "CONTACT_NOTE") || "",
+      employer: pickField(r, "EMPLOYER", "EMPLOY") || "",
+      callBack: parseLegacyYes(pickField(r, "CALL_BACK", "CALLBACK", "CB_FLAG", "CALL_B")),
+      callBackDate: parseLegacyDate(pickField(r, "CALL_BACK_D", "CALLBDATE", "CB_DATE", "CALL_BACK_DATE")) || "",
       workbenchMemberStatus: status.toUpperCase(),
       deliveryHistoryRows,
       paymentsHistory,
@@ -538,6 +547,114 @@ async function main() {
   console.log(`Members created: ${created}  updated: ${updated}  skipped: ${skipped}  email-collisions reassigned: ${emailCollisions}`);
 
   // -------------------------------------------------------------------------
+  // Phase 7: Create Referral documents from legacyProfile.referredById
+  // -------------------------------------------------------------------------
+  console.log("\n--- Phase 7: Referral backfill ---");
+
+  type LeanMember = { _id: mongoose.Types.ObjectId; memberNumber?: string; legacyProfile?: Record<string, unknown> };
+  const allMembers = (await Member.find({ role: "member" })
+    .select("_id memberNumber legacyProfile")
+    .lean()) as unknown as LeanMember[];
+
+  const byMemberNumber = new Map<string, string>();
+  const byLegacyId = new Map<string, string>();
+  for (const m of allMembers) {
+    if (m.memberNumber) byMemberNumber.set(m.memberNumber.trim(), String(m._id));
+    const lid = String((m.legacyProfile as Record<string, unknown> | undefined)?.legacyId || "").trim();
+    if (lid) byLegacyId.set(lid, String(m._id));
+  }
+
+  const existingReferrals = await Referral.find({}).select("newMemberId").lean();
+  const alreadyLinked = new Set(existingReferrals.map((r) => String(r.newMemberId)));
+
+  let referralsCreated = 0;
+  let referralsSkipped = 0;
+  const perReferrer = new Map<string, number>();
+
+  for (const m of allMembers) {
+    const lp = (m.legacyProfile || {}) as Record<string, unknown>;
+    const ref = String(lp.referredById || "").trim();
+    if (!ref) continue;
+    if (alreadyLinked.has(String(m._id))) { referralsSkipped++; continue; }
+    const referrerId = byMemberNumber.get(ref) || byLegacyId.get(ref) ||
+      byMemberNumber.get(`CT-${ref}`) || byMemberNumber.get(`RI-${ref}`);
+    if (!referrerId || referrerId === String(m._id)) continue;
+    const creditedAt = (() => {
+      const s = String(lp.dateReferred || "").trim();
+      if (!s) return undefined;
+      const t = Date.parse(s);
+      return Number.isNaN(t) ? undefined : new Date(t);
+    })();
+    if (apply) {
+      try {
+        await Referral.create({
+          newMemberId: new mongoose.Types.ObjectId(String(m._id)),
+          referrerMemberId: new mongoose.Types.ObjectId(referrerId),
+          ...(creditedAt ? { creditedAt } : {}),
+        });
+        await Member.updateOne(
+          { _id: m._id },
+          { $set: { referredByMemberId: new mongoose.Types.ObjectId(referrerId) } }
+        );
+        referralsCreated++;
+        perReferrer.set(referrerId, (perReferrer.get(referrerId) || 0) + 1);
+      } catch {
+        referralsSkipped++;
+      }
+    } else {
+      referralsCreated++;
+      perReferrer.set(referrerId, (perReferrer.get(referrerId) || 0) + 1);
+    }
+  }
+
+  let refFloorApplied = 0;
+  if (apply) {
+    const LIFETIME_REFERRALS = 5;
+    for (const referrerId of perReferrer.keys()) {
+      const count = await Referral.countDocuments({ referrerMemberId: referrerId });
+      await Member.updateOne(
+        { _id: referrerId },
+        { $set: { successfulReferralCount: count, lifetimeAnnualFeeWaived: count >= LIFETIME_REFERRALS } }
+      );
+    }
+
+    // Apply REF# from employer field as a floor for successfulReferralCount.
+    // Approach encodes referral count as "REF7" in the employer field when no
+    // other employer data is stored. Use it where the backfill undercount.
+    for (const m of allMembers) {
+      const lp = (m.legacyProfile || {}) as Record<string, unknown>;
+      const employer = String(lp.employer || "").trim();
+      const refMatch = employer.match(/^REF(\d+)$/i);
+      if (!refMatch) continue;
+      const refCount = parseInt(refMatch[1], 10);
+      if (!Number.isFinite(refCount) || refCount <= 0) continue;
+      const memberId = String(m._id);
+      const liveCount = await Referral.countDocuments({ referrerMemberId: memberId });
+      if (liveCount >= refCount) continue; // already accurate or better
+      await Member.updateOne(
+        { _id: memberId },
+        {
+          $set: {
+            successfulReferralCount: refCount,
+            lifetimeAnnualFeeWaived: refCount >= LIFETIME_REFERRALS,
+          },
+        }
+      );
+      refFloorApplied++;
+    }
+  } else {
+    // Dry-run: count how many REF# floors would be applied
+    for (const m of allMembers) {
+      const lp = (m.legacyProfile || {}) as Record<string, unknown>;
+      const employer = String(lp.employer || "").trim();
+      if (/^REF\d+$/i.test(employer)) refFloorApplied++;
+    }
+  }
+
+  console.log(`Referral docs ${apply ? "created" : "would create"}: ${referralsCreated}  skipped (already linked): ${referralsSkipped}`);
+  console.log(`REF# employer floors ${apply ? "applied" : "would apply"}: ${refFloorApplied}`);
+
+  // -------------------------------------------------------------------------
   // Summary
   // -------------------------------------------------------------------------
   console.log("\n================ SUMMARY ================");
@@ -550,6 +667,8 @@ async function main() {
   console.log(`Payment rows indexed:         ${payments.length}`);
   console.log(`Program rows indexed:         ${programs.length}`);
   console.log(`Contact notes indexed:        ${contacts.length}`);
+  console.log(`Referral docs created:        ${referralsCreated}`);
+  console.log(`REF# employer floors applied: ${refFloorApplied}`);
 
   if (!apply) {
     console.log("\nDRY RUN complete — no changes written. Re-run with --apply to commit.");

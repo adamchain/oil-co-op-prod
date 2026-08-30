@@ -1170,6 +1170,121 @@ router.get("/members/:id/property-group", async (req, res) => {
   });
 });
 
+/**
+ * Link an existing member record as an additional (free/lifetime) property under
+ * this member's primary membership — the "grabber" workflow.
+ * Body: { existingMemberId: string }
+ */
+router.post("/members/:id/adopt-property", async (req: AuthedRequest, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const { existingMemberId } = req.body ?? {};
+  if (!existingMemberId || !mongoose.isValidObjectId(existingMemberId)) {
+    res.status(400).json({ error: "existingMemberId is required and must be a valid id" });
+    return;
+  }
+  if (String(existingMemberId) === String(req.params.id)) {
+    res.status(400).json({ error: "Cannot link a member to itself" });
+    return;
+  }
+
+  const source = await Member.findById(req.params.id);
+  if (!source || source.role !== "member") {
+    res.status(404).json({ error: "Member not found" });
+    return;
+  }
+  const primaryId = source.primaryMemberId || source._id;
+  const primary = source.primaryMemberId
+    ? await Member.findById(source.primaryMemberId)
+    : source;
+  if (!primary || primary.role !== "member") {
+    res.status(404).json({ error: "Primary member not found" });
+    return;
+  }
+
+  const existing = await Member.findById(existingMemberId);
+  if (!existing || existing.role !== "member") {
+    res.status(404).json({ error: "Existing member not found" });
+    return;
+  }
+  if (existing.primaryMemberId) {
+    res.status(409).json({ error: "That member is already linked to another primary membership" });
+    return;
+  }
+
+  // Set the existing member as a linked property under this primary.
+  existing.primaryMemberId = primaryId as mongoose.Types.ObjectId;
+  existing.lifetimeAnnualFeeWaived = true;
+  const existingLp =
+    typeof existing.legacyProfile === "object" && existing.legacyProfile
+      ? (existing.legacyProfile as Record<string, unknown>)
+      : {};
+  existing.legacyProfile = {
+    ...existingLp,
+    waiveFeeLifetime: true,
+    linkedFromMemberNumber: primary.memberNumber || "",
+  };
+  existing.markModified("legacyProfile");
+  await existing.save();
+
+  // Mirror the existing member's address onto primary's properties[] if it has one.
+  if (String(existing.addressLine1 || "").trim()) {
+    if (!Array.isArray(primary.properties)) {
+      primary.properties = [] as typeof primary.properties;
+    }
+    const props = primary.properties as Array<{
+      label?: string;
+      addressLine1?: string;
+      addressLine2?: string;
+      city?: string;
+      state?: string;
+      postalCode?: string;
+      isPrimary?: boolean;
+      linkedMemberId?: mongoose.Types.ObjectId;
+    }>;
+    const already = props.find(
+      (p) => p.linkedMemberId && String(p.linkedMemberId) === String(existing._id)
+    );
+    if (!already) {
+      // Ensure primary address row exists first.
+      if (!props.some((p) => p.isPrimary) && primary.addressLine1) {
+        props.unshift({
+          label: "Primary",
+          addressLine1: primary.addressLine1 || "",
+          addressLine2: primary.addressLine2 || "",
+          city: primary.city || "",
+          state: primary.state || "",
+          postalCode: primary.postalCode || "",
+          isPrimary: true,
+        });
+      }
+      props.push({
+        label: "Additional property",
+        addressLine1: existing.addressLine1 || "",
+        addressLine2: existing.addressLine2 || "",
+        city: existing.city || "",
+        state: existing.state || "",
+        postalCode: existing.postalCode || "",
+        isPrimary: false,
+        linkedMemberId: existing._id,
+      });
+      primary.markModified("properties");
+      await primary.save();
+    }
+  }
+
+  await logActivity(
+    existing._id,
+    "admin_property_adopted",
+    { primaryMemberId: String(primaryId), adminId: req.userId },
+    new mongoose.Types.ObjectId(req.userId!)
+  );
+
+  res.status(200).json({ member: existing });
+});
+
 const createMemberSchema = z.object({
   firstName: z.string().min(1),
   lastName: z.string().min(1),

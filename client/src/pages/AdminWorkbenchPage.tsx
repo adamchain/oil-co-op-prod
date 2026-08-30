@@ -508,6 +508,9 @@ export default function AdminWorkbenchPage() {
   const [showAddProperty, setShowAddProperty] = useState(false);
   const emptyPropAddress = { addressLine1: "", addressLine2: "", city: "", state: "", postalCode: "" };
   const [newPropAddress, setNewPropAddress] = useState(emptyPropAddress);
+  const [adoptPropertyQuery, setAdoptPropertyQuery] = useState("");
+  const [adoptingProperty, setAdoptingProperty] = useState(false);
+  const [adoptPropertyError, setAdoptPropertyError] = useState("");
   const pendingAddressFocusRef = useRef(false);
   const address1Ref = useRef<HTMLInputElement>(null);
 
@@ -1626,6 +1629,8 @@ export default function AdminWorkbenchPage() {
   const openAddProperty = () => {
     if (!current) return;
     setNewPropAddress(emptyPropAddress);
+    setAdoptPropertyQuery("");
+    setAdoptPropertyError("");
     setActionMessage("");
     setShowAddProperty(true);
   };
@@ -1701,6 +1706,62 @@ export default function AdminWorkbenchPage() {
       flashSaveToast(msg, false);
     } finally {
       setAddingProperty(false);
+    }
+  };
+
+  const adoptExistingProperty = async (existingMemberId: string) => {
+    if (!token || !current) return;
+    setAdoptingProperty(true);
+    setAdoptPropertyError("");
+    try {
+      const res = await api<{ member: Member }>(`/api/admin/members/${current._id}/adopt-property`, {
+        method: "POST",
+        token,
+        body: JSON.stringify({ existingMemberId }),
+      });
+      const adopted = res.member;
+      const id = adopted?._id ? String(adopted._id) : "";
+      if (adopted && id) {
+        setMembers((prev) =>
+          prev.map((m) =>
+            m._id === id
+              ? {
+                  ...m,
+                  primaryMemberId: current.primaryMemberId || current._id,
+                  lifetimeAnnualFeeWaived: true,
+                }
+              : m
+          )
+        );
+        setPropertyGroup((prev) =>
+          prev.some((p) => p._id === id)
+            ? prev
+            : [
+                ...prev,
+                {
+                  _id: id,
+                  memberNumber: adopted.memberNumber || "",
+                  firstName: adopted.firstName,
+                  lastName: adopted.lastName,
+                  addressLine1: adopted.addressLine1 || "",
+                  city: adopted.city || "",
+                  state: adopted.state || "",
+                  postalCode: adopted.postalCode || "",
+                  isPrimary: false,
+                  lifetime: true,
+                  paymentNotes: "",
+                },
+              ]
+        );
+      }
+      setShowAddProperty(false);
+      setAdoptPropertyQuery("");
+      flashSaveToast("Property linked successfully", true, 4000);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Could not link property";
+      setAdoptPropertyError(msg);
+    } finally {
+      setAdoptingProperty(false);
     }
   };
 
@@ -4027,22 +4088,78 @@ export default function AdminWorkbenchPage() {
                 </div>
               </div>
 
+              <div className="admin-addprop-divider">
+                <span>— or link an existing member record —</span>
+              </div>
+
+              <div className="admin-addprop-adopt">
+                <p className="admin-addprop-adopt-hint">
+                  Search for a member already in the system and link them as an additional property under this membership.
+                </p>
+                <div className="admin-toolbar" style={{ marginBottom: "0.5rem" }}>
+                  <input
+                    className="admin-input"
+                    placeholder="Search by name, member #, or address…"
+                    value={adoptPropertyQuery}
+                    onChange={(e) => { setAdoptPropertyQuery(e.target.value); setAdoptPropertyError(""); }}
+                    disabled={adoptingProperty}
+                    style={{ flex: 1 }}
+                  />
+                </div>
+                {adoptPropertyError && (
+                  <p className="admin-error" style={{ marginBottom: "0.5rem" }}>{adoptPropertyError}</p>
+                )}
+                {adoptPropertyQuery.trim().length >= 2 && (
+                  <div className="admin-table-wrap" style={{ maxHeight: "200px", overflowY: "auto" }}>
+                    <table className="admin-table">
+                      <tbody>
+                        {(() => {
+                          const needle = adoptPropertyQuery.trim().toLowerCase();
+                          const alreadyLinkedIds = new Set(propertyGroup.map((p) => p._id));
+                          const matches = members
+                            .filter((m) => m._id !== current?._id && !alreadyLinkedIds.has(m._id) && !m.primaryMemberId)
+                            .filter((m) => {
+                              const hay = `${m.firstName} ${m.lastName} ${m.memberNumber || ""} ${m.addressLine1 || ""} ${m.city || ""}`.toLowerCase();
+                              return hay.includes(needle);
+                            })
+                            .slice(0, 25);
+                          if (matches.length === 0) {
+                            return <tr><td className="admin-meta">No unlinked members match</td></tr>;
+                          }
+                          return matches.map((m) => (
+                            <tr
+                              key={m._id}
+                              style={{ cursor: adoptingProperty ? "default" : "pointer" }}
+                              onClick={() => { if (!adoptingProperty) void adoptExistingProperty(m._id); }}
+                            >
+                              <td style={{ fontWeight: 600 }}>{`${m.firstName} ${m.lastName}`.trim()}</td>
+                              <td>{m.memberNumber || "—"}</td>
+                              <td>{[m.addressLine1, m.city, m.state].filter(Boolean).join(", ") || "—"}</td>
+                            </tr>
+                          ));
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
               <div className="admin-addprop-actions">
                 <button
                   type="button"
                   className="admin-btn admin-btn-ghost"
-                  onClick={() => setShowAddProperty(false)}
-                  disabled={addingProperty}
+                  onClick={() => { setShowAddProperty(false); setAdoptPropertyQuery(""); setAdoptPropertyError(""); }}
+                  disabled={addingProperty || adoptingProperty}
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   className="admin-btn admin-btn-primary"
-                  disabled={addingProperty}
+                  disabled={addingProperty || adoptingProperty}
                   onClick={() => void submitAddProperty(newPropAddress)}
                 >
-                  {addingProperty ? "Adding…" : "Add property"}
+                  {addingProperty ? "Adding…" : "Add new property"}
                 </button>
               </div>
             </div>

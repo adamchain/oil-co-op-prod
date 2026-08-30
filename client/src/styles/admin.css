@@ -3013,6 +3013,31 @@ button.admin-wb-panel-title.admin-wb-panel-toggle:hover {
   cursor: default;
 }
 
+.admin-addprop-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1.25rem 0 0;
+  color: var(--admin-muted, #8b8b8b);
+  font-size: 0.75rem;
+}
+.admin-addprop-divider::before,
+.admin-addprop-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #eef2f7;
+}
+
+.admin-addprop-adopt {
+  margin-top: 0.75rem;
+}
+.admin-addprop-adopt-hint {
+  font-size: 0.75rem;
+  color: var(--admin-muted, #8b8b8b);
+  margin: 0 0 0.5rem;
+}
+
 @media (max-width: 520px) {
   .admin-addprop-grid {
     grid-template-columns: 1fr 1fr;
