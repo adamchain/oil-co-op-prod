@@ -214,6 +214,24 @@ function parseProgramFile(filePath: string): ProgramRecord[] {
   return out;
 }
 
+type ReferredByRecord = { memberId: string; referredBy: string; dateReferred: string };
+function parseReferredByFile(filePath: string): ReferredByRecord[] {
+  if (!fs.existsSync(filePath)) return [];
+  const raw = fs.readFileSync(filePath, "utf8");
+  const rows = parseCsv(raw);
+  if (rows.length < 2) return [];
+  const headers = rows[0];
+  const out: ReferredByRecord[] = [];
+  for (const row of rows.slice(1)) {
+    const r = toObj(headers, row);
+    const memberId = r.MEMBER_ID || "";
+    const referredBy = r.REFERRED_B || "";
+    if (!memberId || !referredBy) continue;
+    out.push({ memberId, referredBy, dateReferred: parseLegacyDate(r.DATE_REFER) || "" });
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -240,6 +258,7 @@ async function main() {
   const programFile   = f("Oil Co-op Program  History TRANSFER.TXT");
   const oilCoFile     = f("Oil Co-op Oil Company Info TRANSFER.TXT");
   const propCoFile    = f("Oil Co-op Propane Company Info TRANSFER.TXT");
+  const referredByFile = f("Oil Co-op Referred By TRANSFER.TXT");
 
   for (const fp of [firstFile, delivFile, payFile, contactFile, programFile, oilCoFile, propCoFile]) {
     if (!fs.existsSync(fp)) { console.error(`Missing file: ${fp}`); process.exit(1); }
@@ -256,6 +275,11 @@ async function main() {
   const contacts    = parseContactFile(contactFile);
   const payments    = parsePaymentsFile(payFile);
   const programs    = parseProgramFile(programFile);
+  // Build a lookup: member's own legacyId → { referredBy, dateReferred } from dedicated file.
+  const referredByMap = new Map<string, { referredBy: string; dateReferred: string }>();
+  for (const rec of parseReferredByFile(referredByFile)) {
+    referredByMap.set(rec.memberId, { referredBy: rec.referredBy, dateReferred: rec.dateReferred });
+  }
 
   console.log(`Oil companies:      ${oilCos.length} unique`);
   console.log(`Propane companies:  ${propCos.length} unique`);
@@ -264,6 +288,7 @@ async function main() {
   console.log(`Contact records:    ${contacts.length}`);
   console.log(`Payment records:    ${payments.length}`);
   console.log(`Program records:    ${programs.length}`);
+  console.log(`Referred-by links:  ${referredByMap.size}`);
 
   await connectDb();
 
@@ -467,8 +492,9 @@ async function main() {
       company: r.COMPANY || "",
       zone: r.ZONE || "",
       cluster: r.CLUSTER || "",
-      referredById: pickField(r, "REFERRED_B", "REF_BY_ID", "REFER_BY", "REFERRED_BY") || "",
-      dateReferred: parseLegacyDate(pickField(r, "DATE_REFER", "DATE_REF", "DATE_REFE")) || "",
+      // Prefer the dedicated Referred By file; fall back to column in main file.
+      referredById: referredByMap.get(id)?.referredBy || pickField(r, "REFERRED_B", "REF_BY_ID", "REFER_BY", "REFERRED_BY") || "",
+      dateReferred: referredByMap.get(id)?.dateReferred || parseLegacyDate(pickField(r, "DATE_REFER", "DATE_REF", "DATE_REFE")) || "",
       referralSource: pickField(r, "REFERRAL_S", "REF_SOURCE", "REFERRAL_SOURCE") || "",
       nextStep: pickField(r, "NEXT_STEP") || "",
       contactNote: pickField(r, "CONTACT_NO", "CONTACT_N", "CONTACT_NOTE") || "",
