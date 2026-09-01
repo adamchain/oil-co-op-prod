@@ -1081,7 +1081,9 @@ export default function AdminWorkbenchPage() {
 
   /** Select member from `?member=` or load that record if it is outside the current result set. */
   useEffect(() => {
-    if (!token || !memberParam || loading) return;
+    if (!token || !memberParam) return;
+    // Check filteredMembers and members even while loading — only block the
+    // individual API fetch below, which would race with the bulk loadMembers.
     const filteredIdx = filteredMembers.findIndex((m) => m._id === memberParam);
     if (filteredIdx >= 0) {
       setIndex(filteredIdx);
@@ -1098,6 +1100,9 @@ export default function AdminWorkbenchPage() {
       missingMemberFetchAttempt.current = null;
       return;
     }
+    // Don't start an individual fetch while the bulk load is in flight — the
+    // member will likely arrive in that batch.
+    if (loading) return;
     if (missingMemberFetchAttempt.current === memberParam) return;
     missingMemberFetchAttempt.current = memberParam;
     let cancelled = false;

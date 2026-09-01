@@ -500,7 +500,8 @@ async function main() {
       contactNote: pickField(r, "CONTACT_NO", "CONTACT_N", "CONTACT_NOTE") || "",
       employer: pickField(r, "EMPLOYER", "EMPLOY") || "",
       callBack: parseLegacyYes(pickField(r, "CALL_BACK", "CALLBACK", "CB_FLAG", "CALL_B")),
-      callBackDate: parseLegacyDate(pickField(r, "CALL_BACK_D", "CALLBDATE", "CB_DATE", "CALL_BACK_DATE")) || "",
+      // Approach truncates column names to 10 chars: CALL_BACK_DATE → "CALL_BACK_"
+      callBackDate: parseLegacyDate(pickField(r, "CALL_BACK_", "CALL_BACK_D", "CALLBDATE", "CB_DATE", "CALL_BACK_DATE")) || "",
       workbenchMemberStatus: status.toUpperCase(),
       deliveryHistoryRows,
       paymentsHistory,
