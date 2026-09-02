@@ -2534,6 +2534,16 @@ export default function AdminWorkbenchPage() {
                     style={{ flex: "1 1 180px", minWidth: "180px" }}
                   />
                 </div>
+                {current?.notes && (
+                  <div className="admin-form-span-4" style={{ marginBottom: "0.5rem" }}>
+                    <div style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--wb-muted)", marginBottom: "0.25rem", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                      Legacy Notes (Approach)
+                    </div>
+                    <div style={{ fontSize: "0.78rem", whiteSpace: "pre-wrap", background: "var(--wb-surface)", border: "1px solid var(--wb-border)", borderRadius: "var(--wb-radius-sm)", padding: "0.5rem", maxHeight: "180px", overflowY: "auto", color: "var(--wb-text)" }}>
+                      {current.notes}
+                    </div>
+                  </div>
+                )}
                 <label className="admin-form-span-4 admin-note-field">
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.25rem" }}>
                     <span>Internal Notes</span>
