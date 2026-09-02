@@ -571,7 +571,54 @@ router.get("/members", async (req, res) => {
       .sort((a, b) => score(a) - score(b))
       .slice(0, isShortStateLikeQuery ? 1200 : 300);
   } else if (tokens.length > 1) {
-    members = members.slice(0, 1000);
+    // Score multi-token results so that name+name queries like "margaret h"
+    // surface "Margaret Harvey" at the top instead of burying it after
+    // thousands of members that happen to have "h" somewhere in their record.
+    const tLower = tokens.map((t) => t.toLowerCase());
+    const score = (m: any) => {
+      const first = String(m.firstName || "").toLowerCase();
+      const last  = String(m.lastName  || "").toLowerCase();
+      const first2 = String((m.legacyProfile as any)?.firstName2 || "").toLowerCase();
+      const last2  = String((m.legacyProfile as any)?.lastName2  || "").toLowerCase();
+      const memberNo = String(m.memberNumber || "").toLowerCase();
+
+      // Check all token permutations against (first,last) and (last,first).
+      const namePairs = [
+        [first, last],
+        [last, first],
+        [first2, last2],
+        [last2, first2],
+        [first, last2],
+        [last, first2],
+      ];
+
+      for (const [a, b] of namePairs) {
+        const allStartWith = tLower.every((t, i) => (i === 0 ? a : b).startsWith(t) || (i === 0 ? b : a).startsWith(t));
+        if (tLower.length === 2) {
+          // Both tokens start their respective name part
+          if (a.startsWith(tLower[0]) && b.startsWith(tLower[1])) return 0;
+          if (a.startsWith(tLower[1]) && b.startsWith(tLower[0])) return 0;
+          // One starts, one anywhere in the name part
+          if (a.startsWith(tLower[0]) && b.includes(tLower[1])) return 1;
+          if (a.startsWith(tLower[1]) && b.includes(tLower[0])) return 1;
+          if (a.includes(tLower[0]) && b.startsWith(tLower[1])) return 1;
+          if (a.includes(tLower[1]) && b.startsWith(tLower[0])) return 1;
+          // Both appear anywhere in name parts
+          if (a.includes(tLower[0]) && b.includes(tLower[1])) return 2;
+          if (a.includes(tLower[1]) && b.includes(tLower[0])) return 2;
+        } else if (allStartWith) {
+          return 0;
+        }
+      }
+      // All tokens appear somewhere in the full name string
+      const fullName = `${first} ${last} ${first2} ${last2}`.trim();
+      if (tLower.every((t) => fullName.includes(t))) return 3;
+      if (tLower.every((t) => memberNo.includes(t))) return 4;
+      return 5;
+    };
+    members = members
+      .sort((a, b) => score(a) - score(b))
+      .slice(0, 300);
   }
 
   // Attach each member's total number of referrals made (referrerMemberId === member._id),
