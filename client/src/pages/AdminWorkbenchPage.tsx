@@ -1568,6 +1568,9 @@ export default function AdminWorkbenchPage() {
       if (key === "newMemberDt") {
         nextLegacy.oilStartDate = String(value ?? "");
       }
+      if (key === "oilWorkbenchStatus" && value === "NO OIL") {
+        nextLegacy.oilStartDate = "";
+      }
       return { ...f, legacyProfile: nextLegacy };
     });
 

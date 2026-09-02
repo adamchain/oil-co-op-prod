@@ -297,6 +297,7 @@ async function main() {
   // -------------------------------------------------------------------------
   console.log("\n--- Phase 1: Companies ---");
   const codeToOilId = new Map<string, mongoose.Types.ObjectId>();
+  const codeToName  = new Map<string, string>(); // company code → display name
 
   const allCompanies = [...oilCos, ...propCos];
   const seenName = new Map<string, mongoose.Types.ObjectId>(); // name (lower) → _id
@@ -330,6 +331,7 @@ async function main() {
       cosMatched++;
     }
     codeToOilId.set(co.code, oid);
+    codeToName.set(co.code, co.name.trim());
   }
   console.log(`Companies created: ${cosCreated}  matched: ${cosMatched}`);
 
@@ -470,7 +472,18 @@ async function main() {
       oilCoRaw: oilCoCode,
       oilId: r.OIL_ID || "",
       propaneCoRaw: r.PROPANE_CO || "",
+      propCoCode: r.PROPANE_CO || "",
+      propaneCompanyName: codeToName.get(r.PROPANE_CO || "") || "",
       propaneId: r.PROPANE_ID || "",
+      propaneStatus: (() => {
+        const raw = (r.PROPANE_ME || "").trim().toUpperCase();
+        return ["ACTIVE","INACTIVE","PROSPECTIVE","RESIDENT","NO PROPANE"].includes(raw) ? raw : (raw ? raw : "UNKNOWN");
+      })(),
+      propaneStartDate: parseLegacyDate(r.PROPANE_ST) || "",
+      useBothNames: parseLegacyYes(r.USE_BOTH_N),
+      deliveryHistory: parseLegacyYes(r.DELIVERY_H),
+      nrdOil: parseLegacyYes(r["NRD-OI"] || ""),
+      nrdProp: parseLegacyYes(r["NRD-Prop"] || ""),
       howJoined: r.HOW_JOINED || "",
       oilProgram: r.OIL_PROGRA || "",
       seniorFlag: r.SENIOR || "",
