@@ -788,6 +788,10 @@ export default function AdminWorkbenchPage() {
       const q = quickSearch.trim();
       const params = new URLSearchParams({ slim: "1" });
       if (q) params.set("q", q);
+      // Filters run client-side, but they need the full dataset. When filters
+      // are active and there's no search query narrowing results, ask the server
+      // for all members so filter results aren't capped at the default 200.
+      if (filters.length > 0 && !q) params.set("all", "1");
       const { members: rows, total } = await api<{ members: Member[]; total?: number }>(
         `/api/admin/members?${params}`,
         { token }
@@ -985,8 +989,9 @@ export default function AdminWorkbenchPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  // Debounced server-side member fetch. Empty query → 200 most recent (instant).
-  // Non-empty → server search with 350 ms debounce so we don't fire on every keystroke.
+  // Debounced server-side member fetch. Empty query + no filters → 200 most recent (instant).
+  // Filters active → fetch all members so client-side filter sees the full dataset.
+  // Non-empty search → server search with 350 ms debounce so we don't fire on every keystroke.
   useEffect(() => {
     if (!token) return;
     const q = quickSearch.trim();
@@ -994,7 +999,7 @@ export default function AdminWorkbenchPage() {
     const timer = setTimeout(() => { void loadMembers(); }, delay);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quickSearch, token]);
+  }, [quickSearch, token, filters]);
 
   useEffect(() => {
     missingMemberFetchAttempt.current = null;
