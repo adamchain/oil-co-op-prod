@@ -102,7 +102,7 @@ export function hydrateLegacyProfile(lp: Record<string, unknown>): Record<string
   }
 
   const boolAliases: Array<[string, string[]]> = [
-    ["nrdOil", ["nrdOil", "NRD-OI", "NRD-OIL", "NRD_OIL", "NRD OIL"]],
+    ["nrdOil", ["nrdOil", "NRD-OI", "NRD-OIL", "NRD_OIL", "NRD OIL", "NO_RECENT_"]],
     ["nrdProp", ["nrdProp", "NRD-Prop", "NRD-PROP", "NRD_PROP", "NRD PROP"]],
     ["deliveryHistory", ["deliveryHistory", "DELIVERY_H"]],
     ["emailOptOut", ["emailOptOut", "EMAIL_OPT", "OPT_OUT", "OPTED_OUT"]],

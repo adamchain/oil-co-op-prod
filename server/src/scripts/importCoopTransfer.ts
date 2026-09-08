@@ -517,7 +517,7 @@ async function main() {
       propaneStartDate: parseLegacyDate(r.PROPANE_ST) || "",
       useBothNames: parseLegacyYes(r.USE_BOTH_N),
       deliveryHistory: parseLegacyYes(r.DELIVERY_H),
-      nrdOil: parseLegacyYes(pickField(r, "NRD-OI", "NRD-OIL", "NRD_OIL", "NRDOI", "NRD OIL")),
+      nrdOil: parseLegacyYes(pickField(r, "NO_RECENT_", "NRD-OI", "NRD-OIL", "NRD_OIL", "NRDOI", "NRD OIL")),
       nrdProp: parseLegacyYes(pickField(r, "NRD-Prop", "NRD-PROP", "NRD_PROP", "NRD-PR", "NRD PROP")),
       emailOptOut: parsedEmail.optedOut || parseLegacyYes(pickField(r, "OPT_OUT", "EMAIL_OPT", "OPTED_OUT")),
       emailRaw: parsedEmail.source,
