@@ -32,7 +32,7 @@ export function parseLegacyDate(raw: string | undefined | null): string {
   return "";
 }
 
-const YES_VALUES = new Set(["y", "yes", "true", "1", "x", "senior", "checked"]);
+const YES_VALUES = new Set(["y", "yes", "true", "1", "x", "senior", "checked", "t", "-1", "on"]);
 
 export function parseLegacyYes(raw: string | undefined | null): boolean {
   return YES_VALUES.has(String(raw ?? "").trim().toLowerCase());

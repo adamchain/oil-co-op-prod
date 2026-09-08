@@ -4,7 +4,7 @@
  * the Data Entry tab actually binds to so imported records don't look empty.
  */
 
-const YES_VALUES = new Set(["y", "yes", "true", "1", "x", "senior", "checked"]);
+const YES_VALUES = new Set(["y", "yes", "true", "1", "x", "senior", "checked", "t", "-1", "on"]);
 
 /** HTML date inputs need YYYY-MM-DD; Approach often exported M/D/YY. */
 export function toDateInputValue(raw: unknown): string {

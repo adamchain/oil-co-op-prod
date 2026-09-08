@@ -11,6 +11,7 @@
  *   4. Contact history → notesHistory entries (matched by ID)
  *   5. Payments received → legacyProfile.paymentsHistory (matched by ID)
  *   6. Program history → legacyProfile.programHistory (matched by MEMBER_ID)
+ *   7. NRD-Oil / NRD-Prop checkboxes (Approach NRD-OI / NRD-Prop columns)
  *
  * Safety: DRY RUN by default.  Pass --apply to write to the database.
  *
@@ -373,6 +374,7 @@ async function main() {
   );
 
   let created = 0, updated = 0, skipped = 0, emailCollisions = 0;
+  let nrdOilCount = 0, nrdPropCount = 0;
   const BATCH = 200;
   let batch: any[] = [];
 
@@ -526,12 +528,16 @@ async function main() {
       // Approach truncates column names to 10 chars: CALL_BACK_DATE → "CALL_BACK_"
       callBackDate: parseLegacyDate(pickField(r, "CALL_BACK_", "CALL_BACK_D", "CALLBDATE", "CB_DATE", "CALL_BACK_DATE")) || "",
       workbenchMemberStatus: status.toUpperCase(),
+      oilWorkbenchStatus: status.toUpperCase(),
       deliveryHistoryRows,
       paymentsHistory,
       programHistory,
     };
 
     const existing = await Member.findOne({ memberNumber }).lean() as any;
+
+    if (legacyProfile.nrdOil) nrdOilCount++;
+    if (legacyProfile.nrdProp) nrdPropCount++;
 
     if (existing) {
       if (apply) {
@@ -603,6 +609,7 @@ async function main() {
   await flush();
 
   console.log(`Members created: ${created}  updated: ${updated}  skipped: ${skipped}  email-collisions reassigned: ${emailCollisions}`);
+  console.log(`NRD-Oil tagged: ${nrdOilCount}  NRD-Prop tagged: ${nrdPropCount}`);
 
   // -------------------------------------------------------------------------
   // Phase 7: Create Referral documents from legacyProfile.referredById
