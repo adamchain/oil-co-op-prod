@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../authContext";
 
@@ -84,8 +84,8 @@ export default function AdminCallbacksPage() {
     }
   }
 
-  function goToWorkbench(memberId: string) {
-    navigate(`/admin/workbench?member=${encodeURIComponent(memberId)}`);
+  function workbenchHref(memberId: string) {
+    return `/admin/workbench?member=${encodeURIComponent(memberId)}`;
   }
 
   return (
@@ -119,10 +119,16 @@ export default function AdminCallbacksPage() {
                   <tr
                     key={m._id}
                     style={{ cursor: "pointer" }}
-                    onClick={() => goToWorkbench(m._id)}
+                    onClick={() => navigate(workbenchHref(m._id))}
                   >
                     <td style={{ fontWeight: 600 }}>
-                      {m.firstName} {m.lastName}
+                      <Link
+                        to={workbenchHref(m._id)}
+                        onClick={(e) => e.stopPropagation()}
+                        style={{ color: "inherit", textDecoration: "underline" }}
+                      >
+                        {m.firstName} {m.lastName}
+                      </Link>
                     </td>
                     <td>{m.phone || "—"}</td>
                     <td style={{ fontWeight: 600 }}>{formatDate(lp.callBackDate)}</td>

@@ -797,10 +797,27 @@ export default function AdminWorkbenchPage() {
         `/api/admin/members?${params}`,
         { token }
       );
-      setMembers(rows.map((m) => ({
+      let nextRows = rows;
+      const wanted = memberParam.trim();
+      if (wanted && !nextRows.some((m) => m._id === wanted)) {
+        try {
+          const extra = await api<{ member: Member }>(`/api/admin/members/${wanted}`, { token });
+          if (extra?.member?._id) nextRows = [extra.member, ...nextRows];
+        } catch {
+          /* member may have been deleted */
+        }
+      }
+      setMembers(nextRows.map((m) => ({
         ...m,
         legacyProfile: hydrateLegacyProfile({ ...(m.legacyProfile || {}) } as Record<string, unknown>),
       })));
+      if (wanted) {
+        const idx = nextRows.findIndex((m) => m._id === wanted);
+        if (idx >= 0) {
+          suppressIndexResetRef.current = true;
+          setIndex(idx);
+        }
+      }
       if (total != null) setTotalMemberCount(total);
     } finally {
       setLoading(false);
@@ -1294,8 +1311,11 @@ export default function AdminWorkbenchPage() {
       suppressIndexResetRef.current = false;
       return;
     }
+    // Deep-links (?member= from Callbacks, search results, etc.) own the
+    // selected index. Resetting to 0 here was landing staff on the wrong record.
+    if (memberParam) return;
     setIndex(0);
-  }, [filters, quickSearch]);
+  }, [filters, quickSearch, memberParam]);
 
   useEffect(() => {
     if (filteredMembers.length > 0 && index >= filteredMembers.length) {
