@@ -19,7 +19,7 @@ import mongoose from "mongoose";
 import { connectDb } from "../db.js";
 import { config } from "../config.js";
 import { Member } from "../models/Member.js";
-import { normalizeRows, sortRowsDesc, type DeliveryRow } from "../utils/deliveryRows.js";
+import { mergeDeliveryRows, normalizeRows, type DeliveryRow } from "../utils/deliveryRows.js";
 
 const BATCH_ID = "delivery-history-v3";
 const DEFAULT_FILE = path.resolve("/Users/adamchain/Downloads/delivery history v3.TXT");
@@ -202,7 +202,7 @@ async function main() {
       importBatchId: BATCH_ID,
     }));
 
-    const merged = sortRowsDesc([...kept, ...newRows]);
+    const merged = mergeDeliveryRows(kept, newRows);
 
     if (apply) {
       batch.push({

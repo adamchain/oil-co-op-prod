@@ -89,6 +89,29 @@ export function sortRowsDesc(rows: DeliveryRow[]): DeliveryRow[] {
   });
 }
 
+/** Same physical delivery: date + fuel + gallons to the cent. */
+export function deliveryDedupeKey(row: Pick<DeliveryRow, "dateDelivered" | "fuelType" | "gallons">): string {
+  return `${row.dateDelivered}|${row.fuelType}|${Math.round(Number(row.gallons) * 100)}`;
+}
+
+/**
+ * Merge delivery lists without duplicating the same load. Existing (and manual)
+ * rows win over a second import of the same date/fuel/gallons.
+ */
+export function mergeDeliveryRows(existing: DeliveryRow[], incoming: DeliveryRow[]): DeliveryRow[] {
+  const byKey = new Map<string, DeliveryRow>();
+  for (const row of [...normalizeRows(existing), ...normalizeRows(incoming)]) {
+    const key = deliveryDedupeKey(row);
+    const prev = byKey.get(key);
+    if (!prev) {
+      byKey.set(key, row);
+      continue;
+    }
+    if (prev.source !== "manual" && row.source === "manual") byKey.set(key, row);
+  }
+  return sortRowsDesc([...byKey.values()]);
+}
+
 /**
  * Build the row from a validated input. `_id` is preserved if provided;
  * otherwise a fresh UUID is generated. `deliveryYear` defaults to year-of-date.

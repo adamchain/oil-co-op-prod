@@ -28,7 +28,7 @@ import { config } from "../config.js";
 import { Member } from "../models/Member.js";
 import { OilCompany } from "../models/OilCompany.js";
 import { Referral } from "../models/Referral.js";
-import { normalizeRows, sortRowsDesc, type DeliveryRow } from "../utils/deliveryRows.js";
+import { mergeDeliveryRows, normalizeRows, sortRowsDesc, type DeliveryRow } from "../utils/deliveryRows.js";
 import { nextJuneFirstAfterSignup } from "../utils/juneBilling.js";
 import {
   buildStreetAddress,
@@ -431,16 +431,19 @@ async function main() {
 
     // Delivery rows
     const rawDelivs = delivByMemberId.get(id) || [];
-    const deliveryHistoryRows: DeliveryRow[] = sortRowsDesc(
-      rawDelivs.map((d) => ({
-        _id: crypto.randomUUID(),
-        dateDelivered: d.dateDelivered,
-        deliveryYear: d.year,
-        fuelType: d.fuelType,
-        gallons: d.gallons,
-        source: "import" as const,
-        importBatchId: "coop-main-transfer",
-      }))
+    const deliveryHistoryRows: DeliveryRow[] = mergeDeliveryRows(
+      [],
+      sortRowsDesc(
+        rawDelivs.map((d) => ({
+          _id: crypto.randomUUID(),
+          dateDelivered: d.dateDelivered,
+          deliveryYear: d.year,
+          fuelType: d.fuelType,
+          gallons: d.gallons,
+          source: "import" as const,
+          importBatchId: "coop-main-transfer",
+        }))
+      )
     );
 
     // Payments history
@@ -576,7 +579,14 @@ async function main() {
             notes: r.NOTE || existing.notes || "",
             oilCompanyId: oilCompanyId ?? existing.oilCompanyId ?? null,
             lifetimeAnnualFeeWaived: lifetimeWaived || existing.lifetimeAnnualFeeWaived,
-            legacyProfile: { ...(existing.legacyProfile || {}), ...legacyProfile },
+            legacyProfile: {
+              ...(existing.legacyProfile || {}),
+              ...legacyProfile,
+              deliveryHistoryRows: mergeDeliveryRows(
+                normalizeRows((existing.legacyProfile || {}).deliveryHistoryRows),
+                deliveryHistoryRows
+              ),
+            },
           },
           ...(historyAdds.length ? { $push: { notesHistory: { $each: historyAdds } } } : {}),
         });
