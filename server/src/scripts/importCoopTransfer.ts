@@ -568,10 +568,17 @@ async function main() {
       if (apply) {
         const existingEmail = String(existing.email || "").toLowerCase();
         const existingIsPlaceholder = existingEmail.includes("@import.") || existingEmail.endsWith(".local");
-        const nextEmail =
-          parsedEmail.email && (existingIsPlaceholder || !existingEmail)
-            ? parsedEmail.email
-            : existing.email;
+        const parsed = (parsedEmail.email || "").toLowerCase();
+        let nextEmail = existing.email as string | undefined;
+        if (parsed && parsed !== existingEmail && (existingIsPlaceholder || !existingEmail)) {
+          if (usedEmails.has(parsed)) {
+            emailCollisions++;
+          } else {
+            nextEmail = parsed;
+            if (existingEmail) usedEmails.delete(existingEmail);
+            usedEmails.add(parsed);
+          }
+        }
         const existingHistory = Array.isArray(existing.notesHistory) ? existing.notesHistory : [];
         const existingKeys = new Set(
           existingHistory.map((n: { text?: string }) => normalizeNoteText(n.text || ""))
@@ -580,28 +587,41 @@ async function main() {
           const key = normalizeNoteText(c.text);
           return key && !existingKeys.has(key);
         });
-        await Member.updateOne({ memberNumber }, {
-          $set: {
-            firstName, lastName, phone, addressLine1, addressLine2,
-            ...(nextEmail ? { email: nextEmail } : {}),
-            city: r.CITY || existing.city || "",
-            state: r.STATE || existing.state || "CT",
-            postalCode: r.ZIP || existing.postalCode || "",
-            status,
-            notes: r.NOTE || existing.notes || "",
-            oilCompanyId: oilCompanyId ?? existing.oilCompanyId ?? null,
-            lifetimeAnnualFeeWaived: lifetimeWaived || existing.lifetimeAnnualFeeWaived,
-            legacyProfile: {
-              ...(existing.legacyProfile || {}),
-              ...legacyProfile,
-              deliveryHistoryRows: mergeDeliveryRows(
-                normalizeRows((existing.legacyProfile || {}).deliveryHistoryRows),
-                deliveryHistoryRows
-              ),
-            },
+        const $set: Record<string, unknown> = {
+          firstName, lastName, phone, addressLine1, addressLine2,
+          city: r.CITY || existing.city || "",
+          state: r.STATE || existing.state || "CT",
+          postalCode: r.ZIP || existing.postalCode || "",
+          status,
+          notes: r.NOTE || existing.notes || "",
+          oilCompanyId: oilCompanyId ?? existing.oilCompanyId ?? null,
+          lifetimeAnnualFeeWaived: lifetimeWaived || existing.lifetimeAnnualFeeWaived,
+          legacyProfile: {
+            ...(existing.legacyProfile || {}),
+            ...legacyProfile,
+            deliveryHistoryRows: mergeDeliveryRows(
+              normalizeRows((existing.legacyProfile || {}).deliveryHistoryRows),
+              deliveryHistoryRows
+            ),
           },
-          ...(historyAdds.length ? { $push: { notesHistory: { $each: historyAdds } } } : {}),
-        });
+        };
+        if (nextEmail && String(nextEmail).toLowerCase() !== existingEmail) {
+          $set.email = nextEmail;
+        }
+        try {
+          await Member.updateOne({ memberNumber }, {
+            $set,
+            ...(historyAdds.length ? { $push: { notesHistory: { $each: historyAdds } } } : {}),
+          });
+        } catch (e: any) {
+          if (e?.code !== 11000) throw e;
+          emailCollisions++;
+          delete $set.email;
+          await Member.updateOne({ memberNumber }, {
+            $set,
+            ...(historyAdds.length ? { $push: { notesHistory: { $each: historyAdds } } } : {}),
+          });
+        }
         if (nextEmail) usedEmails.add(String(nextEmail).toLowerCase());
       }
       updated++;
