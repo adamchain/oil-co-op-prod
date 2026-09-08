@@ -37,6 +37,7 @@ import {
   parseLegacyDate,
   parseLegacyYes,
   pickField,
+  normalizeNoteText,
 } from "../utils/legacyImport.js";
 
 // ---------------------------------------------------------------------------
@@ -462,12 +463,21 @@ async function main() {
       cluster: p.cluster,
     }));
 
-    // Contact notes → notesHistory
-    const contactNotes = (contactByMemberId.get(id) || []).map((c) => ({
-      text: c.date ? `[${c.date}] ${c.notes}` : c.notes,
-      createdAt: new Date(),
-      createdBy: "legacy-import",
-    }));
+    // Contact notes → notesHistory (skip rows that duplicate the Approach NOTE field)
+    const legacyNote = (r.NOTE || "").trim();
+    const legacyNoteKey = normalizeNoteText(legacyNote);
+    const contactNotes = (contactByMemberId.get(id) || [])
+      .map((c) => ({
+        text: c.date ? `[${c.date}] ${c.notes}` : c.notes,
+        createdAt: new Date(),
+        createdBy: "legacy-import",
+      }))
+      .filter((c) => {
+        const key = normalizeNoteText(c.text);
+        if (!key) return false;
+        if (legacyNoteKey && key === legacyNoteKey) return false;
+        return true;
+      });
 
     const legacyProfile: Record<string, unknown> = {
       legacyId: id,
@@ -547,6 +557,14 @@ async function main() {
           parsedEmail.email && (existingIsPlaceholder || !existingEmail)
             ? parsedEmail.email
             : existing.email;
+        const existingHistory = Array.isArray(existing.notesHistory) ? existing.notesHistory : [];
+        const existingKeys = new Set(
+          existingHistory.map((n: { text?: string }) => normalizeNoteText(n.text || ""))
+        );
+        const historyAdds = contactNotes.filter((c) => {
+          const key = normalizeNoteText(c.text);
+          return key && !existingKeys.has(key);
+        });
         await Member.updateOne({ memberNumber }, {
           $set: {
             firstName, lastName, phone, addressLine1, addressLine2,
@@ -560,7 +578,7 @@ async function main() {
             lifetimeAnnualFeeWaived: lifetimeWaived || existing.lifetimeAnnualFeeWaived,
             legacyProfile: { ...(existing.legacyProfile || {}), ...legacyProfile },
           },
-          ...(contactNotes.length ? { $push: { notesHistory: { $each: contactNotes } } } : {}),
+          ...(historyAdds.length ? { $push: { notesHistory: { $each: historyAdds } } } : {}),
         });
         if (nextEmail) usedEmails.add(String(nextEmail).toLowerCase());
       }

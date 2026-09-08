@@ -83,6 +83,15 @@ export function buildStreetAddress(
   return [no, nm].filter(Boolean).join(" ");
 }
 
+/** Compare Approach NOTE vs contact-history rows without date prefixes. */
+export function normalizeNoteText(raw: string | undefined | null): string {
+  return String(raw ?? "")
+    .toLowerCase()
+    .replace(/^\[[^\]]+\]\s*/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 /**
  * Format an Approach phone. PHONE_* is usually already 10 digits; ACODE_*
  * repeats the area code and must not be prepended in that case.

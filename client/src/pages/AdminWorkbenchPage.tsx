@@ -1214,7 +1214,7 @@ export default function AdminWorkbenchPage() {
       pendingAddressFocusRef.current = false;
       window.setTimeout(() => address1Ref.current?.focus(), 80);
     }
-    api<{ billing: BillingEvent[]; communications: Comm[]; referral: Referral | null; referralsMade?: ReferralMade[]; merge?: Record<string, unknown> }>(
+    api<{ member?: Member; billing: BillingEvent[]; communications: Comm[]; referral: Referral | null; referralsMade?: ReferralMade[]; merge?: Record<string, unknown> }>(
       `/api/admin/members/${current._id}`,
       { token }
     ).then((r) => {
@@ -1225,6 +1225,19 @@ export default function AdminWorkbenchPage() {
       setReferrerEditing(false);
       setReferrerQuery("");
       setReferrerError("");
+      if (r.member) {
+        setMembers((prev) =>
+          prev.map((m) =>
+            m._id === r.member!._id
+              ? {
+                  ...m,
+                  notes: r.member!.notes ?? m.notes,
+                  notesHistory: r.member!.notesHistory ?? m.notesHistory,
+                }
+              : m
+          )
+        );
+      }
     });
     api<{ merge: Record<string, unknown> }>(`/api/admin/members/${current._id}/email-merge-data`, { token })
       .then((r) => setEmailMergeData(r.merge || null))
@@ -1416,6 +1429,24 @@ export default function AdminWorkbenchPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [form, current?._id, saveTick]
   );
+
+  const visibleNotesHistory = useMemo(() => {
+    const history = current?.notesHistory || [];
+    const legacyKey = (current?.notes || "")
+      .toLowerCase()
+      .replace(/^\[[^\]]+\]\s*/, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!legacyKey) return history;
+    return history.filter((n) => {
+      const key = (n.text || "")
+        .toLowerCase()
+        .replace(/^\[[^\]]+\]\s*/, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      return key !== legacyKey;
+    });
+  }, [current?.notes, current?.notesHistory]);
 
   const downloadText = (filename: string, content: string, mime = "text/plain;charset=utf-8") => {
     const blob = new Blob([content], { type: mime });
@@ -2576,15 +2607,15 @@ export default function AdminWorkbenchPage() {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.25rem" }}>
                     <span>Internal Notes</span>
                     <span style={{ fontSize: "0.65rem", color: "var(--wb-muted)" }}>
-                      {(current?.notesHistory || []).length} saved note(s)
+                      {visibleNotesHistory.length} saved note(s)
                     </span>
                   </div>
                   <div className="admin-notes-history" style={{ maxHeight: "150px", overflowY: "auto", border: "1px solid var(--wb-border)", borderRadius: "var(--wb-radius-sm)", padding: "0.5rem", marginBottom: "0.5rem", background: "var(--wb-surface)" }}>
-                    {(current?.notesHistory || []).length === 0 ? (
+                    {visibleNotesHistory.length === 0 ? (
                       <p style={{ color: "var(--wb-muted)", fontSize: "0.75rem", margin: 0 }}>No notes yet</p>
                     ) : (
-                      [...(current?.notesHistory || [])].reverse().map((note, i) => (
-                        <div key={note._id || i} style={{ paddingBottom: "0.5rem", borderBottom: i < (current?.notesHistory || []).length - 1 ? "1px solid var(--wb-border)" : "none", marginBottom: "0.5rem" }}>
+                      [...visibleNotesHistory].reverse().map((note, i) => (
+                        <div key={note._id || i} style={{ paddingBottom: "0.5rem", borderBottom: i < visibleNotesHistory.length - 1 ? "1px solid var(--wb-border)" : "none", marginBottom: "0.5rem" }}>
                           <div style={{ fontSize: "0.65rem", color: "var(--wb-muted)", marginBottom: "0.15rem" }}>
                             {new Date(note.createdAt).toLocaleDateString()} {new Date(note.createdAt).toLocaleTimeString()} — {note.createdBy}
                           </div>
