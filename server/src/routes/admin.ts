@@ -567,9 +567,10 @@ router.get("/members", async (req, res) => {
       return 7;
     };
 
-    members = members
-      .sort((a, b) => score(a) - score(b))
-      .slice(0, isShortStateLikeQuery ? 1200 : 300);
+    members = members.sort((a, b) => score(a) - score(b));
+    if (isShortStateLikeQuery) {
+      members = members.slice(0, 1200);
+    }
   } else if (tokens.length > 1) {
     // Score multi-token results so that name+name queries like "margaret h"
     // surface "Margaret Harvey" at the top instead of burying it after
@@ -616,9 +617,7 @@ router.get("/members", async (req, res) => {
       if (tLower.every((t) => memberNo.includes(t))) return 4;
       return 5;
     };
-    members = members
-      .sort((a, b) => score(a) - score(b))
-      .slice(0, 300);
+    members = members.sort((a, b) => score(a) - score(b));
   }
 
   // Attach each member's total number of referrals made (referrerMemberId === member._id),

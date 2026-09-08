@@ -13,6 +13,7 @@ import {
   type MemberFilter,
 } from "../components/MemberFilterWidget";
 import { exactStateMatch, stateSynonyms } from "../utils/stateAbbreviations";
+import { memberMatchesQuickSearch } from "../utils/memberSearch";
 import { formatPhoneValue } from "../utils/phone";
 import { hydrateLegacyProfile } from "../utils/legacyProfile";
 import PaymentFindModal from "../components/PaymentFindModal";
@@ -1055,11 +1056,13 @@ export default function AdminWorkbenchPage() {
             .map((x) => String(x).trim())
             .filter(Boolean)
             .join(" ");
+          const nameAndAddress = [combinedFullName, fullAddress].filter(Boolean).join(" ");
           const haystack = [
             m.memberNumber,
             m.firstName,
             m.lastName,
             combinedFullName,
+            nameAndAddress,
             m.email,
             m.phone,
             m.addressLine1,
@@ -1074,10 +1077,8 @@ export default function AdminWorkbenchPage() {
             m.oilCompanyId?.name,
             m.status,
             ...legacyValues,
-          ]
-            .filter(Boolean)
-            .map((x) => String(x).toLowerCase());
-          if (!haystack.some((field) => field.includes(q))) return false;
+          ];
+          if (!memberMatchesQuickSearch(haystack.map(String), q)) return false;
         }
       }
       return true;
@@ -2202,8 +2203,10 @@ export default function AdminWorkbenchPage() {
             type="search"
             value={quickSearch}
             onChange={(e) => applyQuickSearch(e.target.value)}
-            placeholder="Search records..."
+            placeholder="Search name, address, email, phone, member #…"
             aria-label="Quick search"
+            autoComplete="off"
+            spellCheck={false}
           />
           <MemberFilterWidget
             filters={filters}

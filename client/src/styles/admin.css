@@ -644,6 +644,9 @@
   align-items: center;
   gap: 0.5rem;
   flex-wrap: wrap;
+  flex: 1 1 280px;
+  min-width: 0;
+  justify-content: flex-end;
 }
 
 .admin-wb-nav {
@@ -685,7 +688,10 @@
   border-radius: var(--wb-radius-sm);
   padding: 0.3rem 0.55rem;
   font-size: 0.78rem;
-  min-width: 160px;
+  flex: 1 1 320px;
+  min-width: 220px;
+  max-width: none;
+  width: 100%;
   background: var(--wb-surface);
   font-family: inherit;
 }
