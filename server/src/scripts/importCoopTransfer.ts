@@ -29,7 +29,14 @@ import { OilCompany } from "../models/OilCompany.js";
 import { Referral } from "../models/Referral.js";
 import { normalizeRows, sortRowsDesc, type DeliveryRow } from "../utils/deliveryRows.js";
 import { nextJuneFirstAfterSignup } from "../utils/juneBilling.js";
-import { formatApproachPhone, parseLegacyDate, parseLegacyYes, pickField } from "../utils/legacyImport.js";
+import {
+  buildStreetAddress,
+  formatApproachPhone,
+  parseApproachEmail,
+  parseLegacyDate,
+  parseLegacyYes,
+  pickField,
+} from "../utils/legacyImport.js";
 
 // ---------------------------------------------------------------------------
 // CSV parser (handles quoted fields + embedded newlines)
@@ -396,14 +403,15 @@ async function main() {
     const memberNumber = `CT-${id}`;
     const firstName = r.F_NAME_1 || "Unknown";
     const lastName  = r.L_NAME_1 || id;
-    const email = (r.E_MAIL || "").toLowerCase().trim() || syntheticEmail(id, firstName, lastName);
+    const parsedEmail = parseApproachEmail(pickField(r, "E_MAIL", "EMAIL", "E-MAIL", "EMAIL_1", "EMAILADDR"));
+    const email = parsedEmail.email || syntheticEmail(id, firstName, lastName);
     const phone = r.PHONE_1 ? formatApproachPhone(r.ACODE_1, r.PHONE_1) : (r.PHONE_2 ? formatApproachPhone(r.ACODE_2, r.PHONE_2) : "");
     const phone2 = r.PHONE_2 ? formatApproachPhone(r.ACODE_2, r.PHONE_2) : "";
     const phone3 = pickField(r, "PHONE_3", "PHONE3") ? formatApproachPhone(pickField(r, "ACODE_3", "ACODE3"), pickField(r, "PHONE_3", "PHONE3")) : "";
     const newMemberDt = parseLegacyDate(pickField(r, "NEW_MEMBER", "NEW_MEM_DT", "NEW_MEM_DA", "DATE_ADD"));
     const originalStartDate = parseLegacyDate(pickField(r, "ORIG_START", "ORIGINAL_S", "ORIG_DATE", "DATE_START", "START_DATE", "FIRST_DATE", "ORIGINAL_START"));
     const seniorMember = parseLegacyYes(pickField(r, "SENIOR", "SENIOR_MEM", "SENIOR_M"));
-    const addressLine1 = [r.STREET_NO, r.STREET_NM].filter(Boolean).join(" ").trim();
+    const addressLine1 = buildStreetAddress(id, r.STREET_NO, r.STREET_NM);
     const addressLine2 = r.APT_NO_1 ? `Apt ${r.APT_NO_1}` : "";
 
     // Member status
@@ -482,8 +490,10 @@ async function main() {
       propaneStartDate: parseLegacyDate(r.PROPANE_ST) || "",
       useBothNames: parseLegacyYes(r.USE_BOTH_N),
       deliveryHistory: parseLegacyYes(r.DELIVERY_H),
-      nrdOil: parseLegacyYes(r["NRD-OI"] || ""),
-      nrdProp: parseLegacyYes(r["NRD-Prop"] || ""),
+      nrdOil: parseLegacyYes(pickField(r, "NRD-OI", "NRD-OIL", "NRD_OIL", "NRDOI", "NRD OIL")),
+      nrdProp: parseLegacyYes(pickField(r, "NRD-Prop", "NRD-PROP", "NRD_PROP", "NRD-PR", "NRD PROP")),
+      emailOptOut: parsedEmail.optedOut || parseLegacyYes(pickField(r, "OPT_OUT", "EMAIL_OPT", "OPTED_OUT")),
+      emailRaw: parsedEmail.source,
       howJoined: r.HOW_JOINED || "",
       oilProgram: r.OIL_PROGRA || "",
       seniorFlag: r.SENIOR || "",
@@ -525,9 +535,16 @@ async function main() {
 
     if (existing) {
       if (apply) {
+        const existingEmail = String(existing.email || "").toLowerCase();
+        const existingIsPlaceholder = existingEmail.includes("@import.") || existingEmail.endsWith(".local");
+        const nextEmail =
+          parsedEmail.email && (existingIsPlaceholder || !existingEmail)
+            ? parsedEmail.email
+            : existing.email;
         await Member.updateOne({ memberNumber }, {
           $set: {
             firstName, lastName, phone, addressLine1, addressLine2,
+            ...(nextEmail ? { email: nextEmail } : {}),
             city: r.CITY || existing.city || "",
             state: r.STATE || existing.state || "CT",
             postalCode: r.ZIP || existing.postalCode || "",
@@ -539,6 +556,7 @@ async function main() {
           },
           ...(contactNotes.length ? { $push: { notesHistory: { $each: contactNotes } } } : {}),
         });
+        if (nextEmail) usedEmails.add(String(nextEmail).toLowerCase());
       }
       updated++;
       continue;

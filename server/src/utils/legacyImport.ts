@@ -38,6 +38,51 @@ export function parseLegacyYes(raw: string | undefined | null): boolean {
   return YES_VALUES.has(String(raw ?? "").trim().toLowerCase());
 }
 
+const EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
+
+/** Approach often stored "user@host.com - Opted Out" in the email column. */
+export function parseApproachEmail(raw: string | undefined | null): {
+  email: string;
+  optedOut: boolean;
+  source: string;
+} {
+  const source = String(raw ?? "").trim();
+  if (!source) return { email: "", optedOut: false, source: "" };
+  const optedOut =
+    /\bopted\s*out\b/i.test(source) ||
+    /\bdo\s*not\s*e-?mail\b/i.test(source) ||
+    /\bunsubscribe/i.test(source);
+  const match = source.match(EMAIL_RE);
+  const email = (match?.[0] || "").toLowerCase().trim();
+  if (!email || email.endsWith(".local") || email.includes("@import.")) {
+    return { email: "", optedOut, source };
+  }
+  return { email, optedOut, source };
+}
+
+/**
+ * Build street line. Skip STREET_NO when it is actually the Approach ID
+ * jammed in front of the street name.
+ */
+export function buildStreetAddress(
+  memberId: string,
+  streetNo: string | undefined | null,
+  streetNm: string | undefined | null
+): string {
+  const id = String(memberId ?? "").trim();
+  const no = String(streetNo ?? "").trim();
+  const nm = String(streetNm ?? "").trim();
+  const idBare = id.replace(/^CT-/i, "").replace(/^0+/, "");
+  const noBare = no.replace(/^CT-/i, "").replace(/^0+/, "");
+  if (no && id && (no === id || noBare === idBare || no.toUpperCase() === `CT-${idBare}`.toUpperCase())) {
+    return nm;
+  }
+  if (no && nm && (nm.toLowerCase().startsWith(`${no.toLowerCase()} `) || nm.toLowerCase() === no.toLowerCase())) {
+    return nm;
+  }
+  return [no, nm].filter(Boolean).join(" ");
+}
+
 /**
  * Format an Approach phone. PHONE_* is usually already 10 digits; ACODE_*
  * repeats the area code and must not be prepended in that case.
