@@ -799,7 +799,7 @@ export default function AdminWorkbenchPage() {
       );
       setMembers(rows.map((m) => ({
         ...m,
-        legacyProfile: hydrateLegacyProfile({ ...(m.legacyProfile || {}) }),
+        legacyProfile: hydrateLegacyProfile({ ...(m.legacyProfile || {}) } as Record<string, unknown>),
       })));
       if (total != null) setTotalMemberCount(total);
     } finally {

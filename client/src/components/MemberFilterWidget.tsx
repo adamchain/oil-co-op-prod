@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { parseLegacyYes } from "../utils/legacyProfile";
 
 export type FilterFieldType = "text" | "number" | "date" | "boolean" | "enum" | "ref";
 
@@ -51,7 +52,8 @@ export const STATIC_FILTER_FIELDS: FilterFieldDef[] = [
 
   // Address
   { key: "addressLine1", label: "Address 1", type: "text", group: "Address" },
-  { key: "legacyProfile.mailAddr", label: "Mailing Address", type: "text", group: "Address" },
+  { key: "legacyProfile.mailAddr", label: "Has Mailing Address", type: "boolean", group: "Address" },
+  { key: "legacyProfile.callBack", label: "Call Back", type: "boolean", group: "Status" },
   { key: "legacyProfile.aptNo1", label: "Apt No", type: "text", group: "Address" },
   { key: "city", label: "City", type: "text", group: "Address" },
   { key: "state", label: "State", type: "text", group: "Address" },
@@ -181,7 +183,7 @@ export const STATIC_FILTER_FIELDS: FilterFieldDef[] = [
   { key: "legacyProfile.insuranceDatePaid", label: "Insurance Date Paid", type: "date", group: "Insurance" },
 
   // Misc
-  { key: "notes", label: "Internal Notes", type: "text", group: "Misc" },
+  { key: "notes", label: "Notes", type: "text", group: "Misc" },
 ];
 
 export function buildFilterFields(
@@ -284,13 +286,29 @@ function startOfLocalDay(ts: number): number {
   return d.getTime();
 }
 
+function asFilterBool(raw: unknown): boolean {
+  if (raw === true || raw === 1) return true;
+  if (raw === false || raw === 0 || raw == null) return false;
+  return parseLegacyYes(raw);
+}
+
+function normEnum(value: unknown): string {
+  return String(value ?? "").trim().toUpperCase().replace(/\s+/g, " ");
+}
+
 export function evaluateFilter(
   member: Record<string, unknown>,
   filter: MemberFilter,
   field: FilterFieldDef | undefined
 ): boolean {
   if (!field) return true;
-  const raw = getValueAtPath(member, filter.field);
+  let raw = getValueAtPath(member, filter.field);
+  if (filter.field === "legacyProfile.waiveFeeLifetime" && !asFilterBool(raw)) {
+    raw = member.lifetimeAnnualFeeWaived;
+  }
+  if (filter.field === "legacyProfile.oilWorkbenchStatus" && isEmptyValue(raw)) {
+    raw = getValueAtPath(member, "legacyProfile.workbenchMemberStatus");
+  }
   const empty = isEmptyValue(raw);
 
   if (filter.operator === "is_empty") return empty;
@@ -318,7 +336,7 @@ export function evaluateFilter(
       return false;
     }
     case "boolean": {
-      const truthy = !!raw && raw !== "false" && raw !== 0 && raw !== "0";
+      const truthy = asFilterBool(raw);
       if (filter.operator === "is_true") return truthy;
       if (filter.operator === "is_false") return !truthy;
       return false;
@@ -332,8 +350,28 @@ export function evaluateFilter(
         if (via === "WEB") text = "WEB";
         else if (via === "PHONE") text = "PHONE";
       }
-      if (filter.operator === "is") return text === filter.value;
-      if (filter.operator === "is_not") return text !== filter.value;
+      const left = normEnum(text);
+      const right = normEnum(filter.value);
+      if (filter.field === "legacyProfile.howJoined") {
+        const howJoinedAliases: Record<string, string> = {
+          WEB: "WEB",
+          WEBSITE: "WEB",
+          "WEB SITE": "WEB",
+          ONLINE: "WEB",
+          PHONE: "PHONE",
+          TELEPHONE: "PHONE",
+          CALL: "PHONE",
+          EVENT: "EVENT",
+          MAIL: "MAIL",
+          MAILING: "MAIL",
+        };
+        const mapped = howJoinedAliases[left] || left;
+        if (filter.operator === "is") return mapped === right;
+        if (filter.operator === "is_not") return mapped !== right;
+        return false;
+      }
+      if (filter.operator === "is") return left === right;
+      if (filter.operator === "is_not") return left !== right;
       return false;
     }
     case "date": {

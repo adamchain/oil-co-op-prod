@@ -101,5 +101,41 @@ export function hydrateLegacyProfile(lp: Record<string, unknown>): Record<string
     if (p3) lp.phone3 = p3;
   }
 
+  const boolAliases: Array<[string, string[]]> = [
+    ["nrdOil", ["nrdOil", "NRD-OI", "NRD-OIL", "NRD_OIL", "NRD OIL"]],
+    ["nrdProp", ["nrdProp", "NRD-Prop", "NRD-PROP", "NRD_PROP", "NRD PROP"]],
+    ["deliveryHistory", ["deliveryHistory", "DELIVERY_H"]],
+    ["emailOptOut", ["emailOptOut", "EMAIL_OPT", "OPT_OUT", "OPTED_OUT"]],
+    ["callBack", ["callBack", "CALL_BACK", "CALLBACK"]],
+    ["mailAddr", ["mailAddr", "MAIL_ADDR"]],
+    ["standardMembership", ["standardMembership"]],
+    ["lowVolume", ["lowVolume", "LOW_VOLUME"]],
+    ["waiveFeeLifetime", ["waiveFeeLifetime", "LIFETIME_M", "WAIVE_FEE_"]],
+    ["useBothNames", ["useBothNames", "USE_BOTH_N"]],
+  ];
+  for (const [canonical, keys] of boolAliases) {
+    if (typeof lp[canonical] === "boolean") continue;
+    lp[canonical] = keys.some((k) => parseLegacyYes(lp[k]));
+  }
+  if (typeof lp.delinquent !== "boolean") {
+    lp.delinquent = parseLegacyYes(lp.delinquent) || parseLegacyYes(lp.DELINQUENT);
+  }
+  if (typeof lp.notPaidCurrent !== "boolean") {
+    lp.notPaidCurrent = parseLegacyYes(lp.notPaidCurrent);
+  }
+
+  if (!String(lp.oilWorkbenchStatus ?? "").trim()) {
+    const ws = String(lp.workbenchMemberStatus ?? "").trim();
+    if (ws) lp.oilWorkbenchStatus = ws;
+  }
+
+  if (!String(lp.oilStartDate ?? "").trim()) {
+    const iso = firstDate(lp, ["oilStartDate", "newMemberDt", "NEW_MEMBER"]);
+    if (iso) lp.oilStartDate = iso;
+  } else {
+    const iso = toDateInputValue(lp.oilStartDate);
+    if (iso) lp.oilStartDate = iso;
+  }
+
   return lp;
 }
