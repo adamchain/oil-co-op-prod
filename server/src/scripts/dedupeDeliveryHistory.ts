@@ -12,7 +12,7 @@ import { mergeDeliveryRows, normalizeRows } from "../utils/deliveryRows.js";
 
 async function main() {
   const apply = process.argv.includes("--apply");
-  if (!config.mongodbUri) {
+  if (!config.mongoUri) {
     console.error("MONGODB_URI is required");
     process.exit(1);
   }

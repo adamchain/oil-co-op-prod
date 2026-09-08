@@ -15,6 +15,18 @@
  *
  * Safety: DRY RUN by default.  Pass --apply to write to the database.
  *
+ * Remigration: re-running with --apply is the supported way to reload after
+ * mapping fixes. Existing members are updated in place (not duplicated).
+ * Emails: placeholder @import.oilcoop.local addresses are replaced when a
+ * real Approach email exists. Notes: contact rows matching NOTE are skipped
+ * and already-imported notes are not pushed again. Deliveries: merged by
+ * date+fuel+gallons so duplicates collapse. NRD flags are overwritten from
+ * the transfer files.
+ *
+ * After a remigrate (or instead, to clean live data first):
+ *   npx tsx src/scripts/dedupeDeliveryHistory.ts --apply
+ *   npx tsx src/scripts/dedupeNotesHistory.ts --apply
+ *
  * Run:
  *   cd server && MONGODB_URI='mongodb+srv://...' npx tsx src/scripts/importCoopTransfer.ts [--apply] [--dir /path/to/files]
  */
