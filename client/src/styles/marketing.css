@@ -3397,6 +3397,10 @@
   gap: 1.25rem 1.5rem;
 }
 
+.mkt-profile-header-inner--portal {
+  max-width: 36rem;
+}
+
 .mkt-profile-identity {
   display: flex;
   align-items: center;
@@ -3507,6 +3511,42 @@
     gap: 1.75rem;
     align-items: start;
   }
+}
+
+.mkt-profile-body--portal {
+  max-width: 36rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 900px) {
+  .mkt-profile-body--portal {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mkt-profile-status {
+  font-size: 0.95rem;
+  padding: 0.4rem 0.85rem;
+}
+
+.mkt-profile-stats--portal {
+  margin: 1rem 0 0;
+}
+
+.mkt-profile-stats--portal dd {
+  font-size: 1.25rem;
+}
+
+.mkt-profile-ok {
+  margin: 0;
+  color: var(--color-accent-hover);
+  font-weight: 600;
+}
+
+.mkt-profile-card-onfile {
+  margin: 0 0 1rem;
+  font-size: 0.95rem;
+  color: var(--color-text);
 }
 
 .mkt-profile-aside {

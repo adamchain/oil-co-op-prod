@@ -228,6 +228,8 @@ router.get("/me", requireAuth, async (req: AuthedRequest, res) => {
     oilCompanyId: m.oilCompanyId,
     nextAnnualBillingDate: m.nextAnnualBillingDate,
     paymentMethod: m.paymentMethod,
+    cardLast4: m.authnetCardLast4 || "",
+    cardOnFile: Boolean(m.authnetPaymentProfileId),
     autoRenew: m.autoRenew,
     successfulReferralCount: m.successfulReferralCount,
     lifetimeAnnualFeeWaived: m.lifetimeAnnualFeeWaived,

@@ -36,7 +36,8 @@ import { ensureCommunityContent } from "../services/communityStore.js";
 import { computePriceDifference } from "../data/oilPriceSeed.js";
 import { nextJuneFirstAfterSignup } from "../utils/juneBilling.js";
 import { expandStateQuery, US_STATE_ABBR_TO_NAME } from "../utils/stateAbbreviations.js";
-import { chargeCard, addPaymentProfile, createCustomerProfile } from "../services/authorizeNet.js";
+import { chargeCard } from "../services/authorizeNet.js";
+import { storeCardOnFile } from "../services/storeCardOnFile.js";
 import { config, authorizeNetEnabled } from "../config.js";
 import bcrypt from "bcryptjs";
 
@@ -2280,68 +2281,25 @@ router.post("/members/:id/store-card", async (req: AuthedRequest, res) => {
     return;
   }
 
-  if (!authorizeNetEnabled) {
-    res.status(400).json({ error: "Authorize.Net not configured" });
+  const result = await storeCardOnFile(member, parsed.data);
+  if (!result.ok) {
+    res.status(400).json({ error: result.error });
     return;
   }
-
-  const body = parsed.data;
-
-  // Create customer profile if needed
-  let customerProfileId = member.authnetCustomerProfileId;
-  if (!customerProfileId) {
-    const profileResult = await createCustomerProfile({
-      merchantCustomerId: member.memberNumber || String(member._id),
-      email: member.email,
-      description: `${member.firstName} ${member.lastName}`,
-    });
-    if (!profileResult.ok) {
-      res.status(400).json({ error: profileResult.error });
-      return;
-    }
-    customerProfileId = profileResult.customerProfileId;
-  }
-
-  // Add payment profile
-  const paymentResult = await addPaymentProfile({
-    customerProfileId,
-    cardNumber: body.cardNumber,
-    expirationDate: body.expiration,
-    cardCode: body.cvv,
-    firstName: member.firstName,
-    lastName: member.lastName,
-    addressLine1: member.addressLine1,
-    city: member.city,
-    state: member.state,
-    postalCode: member.postalCode,
-  });
-
-  if (!paymentResult.ok) {
-    res.status(400).json({ error: paymentResult.error });
-    return;
-  }
-
-  // Update member with CIM profile IDs
-  member.authnetCustomerProfileId = customerProfileId;
-  member.authnetPaymentProfileId = paymentResult.paymentProfileId;
-  member.authnetCardLast4 = paymentResult.cardLast4;
-  member.authnetCardExpiry = body.expiration.replace(/\D/g, "");
-  member.paymentMethod = "card";
-  member.autoRenew = true;
   await member.save();
 
   await logActivity(
     member._id,
     "admin_card_stored",
-    { cardLast4: paymentResult.cardLast4, adminId: req.userId },
+    { cardLast4: result.cardLast4, adminId: req.userId },
     new mongoose.Types.ObjectId(req.userId!)
   );
 
   res.json({
     ok: true,
-    cardLast4: paymentResult.cardLast4,
-    customerProfileId,
-    paymentProfileId: paymentResult.paymentProfileId,
+    cardLast4: result.cardLast4,
+    customerProfileId: result.customerProfileId,
+    paymentProfileId: result.paymentProfileId,
   });
 });
 

@@ -293,6 +293,76 @@ export async function addPaymentProfile(
   };
 }
 
+export type UpdatePaymentProfileInput = AddPaymentProfileInput & {
+  paymentProfileId: string;
+};
+
+/** Replace the card on an existing CIM payment profile. */
+export async function updatePaymentProfile(
+  input: UpdatePaymentProfileInput
+): Promise<AddPaymentProfileResult> {
+  if (!authorizeNetEnabled) {
+    return { ok: false, error: "authorize_net_not_configured" };
+  }
+
+  const body = {
+    updateCustomerPaymentProfileRequest: {
+      ...auth(),
+      customerProfileId: input.customerProfileId,
+      paymentProfile: {
+        billTo: {
+          firstName: input.firstName,
+          lastName: input.lastName,
+          address: input.addressLine1 || "",
+          city: input.city || "",
+          state: input.state || "",
+          zip: input.postalCode || "",
+          country: "USA",
+        },
+        payment: {
+          creditCard: {
+            cardNumber: input.cardNumber.replace(/\s+/g, ""),
+            expirationDate: normalizeExp(input.expirationDate),
+            cardCode: input.cardCode,
+          },
+        },
+        defaultPaymentProfile: true,
+        customerPaymentProfileId: input.paymentProfileId,
+      },
+      validationMode: config.authorizeNet.env === "production" ? "liveMode" : "testMode",
+    },
+  };
+
+  const res = await fetch(endpoint(), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  const text = (await res.text()).replace(/^\uFEFF/, "");
+  let json: any;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    return { ok: false, error: "invalid_json_response", raw: text };
+  }
+
+  const messages = json.messages || {};
+  if (messages.resultCode !== "Ok") {
+    return {
+      ok: false,
+      error: messages.message?.[0]?.text || "update_payment_profile_failed",
+      raw: json,
+    };
+  }
+
+  return {
+    ok: true,
+    paymentProfileId: input.paymentProfileId,
+    cardLast4: input.cardNumber.replace(/\D/g, "").slice(-4),
+  };
+}
+
 export type ChargeCustomerProfileInput = {
   customerProfileId: string;
   paymentProfileId: string;

@@ -4,6 +4,7 @@ import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 import { Member } from "../models/Member.js";
 import { logActivity } from "../services/activity.js";
 import { addPropertyToMember, serializeProperties } from "../services/accountLookup.js";
+import { storeCardOnFile } from "../services/storeCardOnFile.js";
 import { phoneDigits } from "../utils/phone.js";
 
 const router = Router();
@@ -140,6 +141,38 @@ router.patch("/profile", requireAuth, async (req: AuthedRequest, res) => {
       properties: serializeProperties(m),
       legacyProfile: m.legacyProfile || {},
     },
+  });
+});
+
+const storeCardSchema = z.object({
+  cardNumber: z.string().min(12),
+  expiration: z.string().min(4),
+  cvv: z.string().min(3),
+});
+
+/** Member self-service: vault a credit/debit card (Authorize.Net CIM). PAN is never stored. */
+router.post("/card", requireAuth, async (req: AuthedRequest, res) => {
+  const parsed = storeCardSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const m = await Member.findById(req.userId);
+  if (!m) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const result = await storeCardOnFile(m, parsed.data);
+  if (!result.ok) {
+    res.status(400).json({ error: result.error });
+    return;
+  }
+  await m.save();
+  await logActivity(m._id, "member_card_stored", { cardLast4: result.cardLast4 }, m._id);
+  res.json({
+    ok: true,
+    cardLast4: result.cardLast4,
+    cardOnFile: true,
   });
 });
 
