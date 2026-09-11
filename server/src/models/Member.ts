@@ -92,6 +92,13 @@ const memberSchema = new Schema(
       default: "card",
     },
     autoRenew: { type: Boolean, default: true },
+    /** Annual dues tier. June auto-renew charges this plan's fee, not Approach card notes. */
+    membershipPlan: {
+      type: String,
+      enum: ["standard", "senior", "lowVolume"],
+      default: "standard",
+      index: true,
+    },
 
     /** Stripe integration (legacy/alternative) */
     stripeCustomerId: { type: String, default: "" },

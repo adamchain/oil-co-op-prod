@@ -363,6 +363,42 @@ export async function updatePaymentProfile(
   };
 }
 
+/** Remove a stored CIM payment profile. Does not delete the customer profile. */
+export async function deletePaymentProfile(input: {
+  customerProfileId: string;
+  paymentProfileId: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!authorizeNetEnabled) {
+    return { ok: false, error: "authorize_net_not_configured" };
+  }
+  const body = {
+    deleteCustomerPaymentProfileRequest: {
+      ...auth(),
+      customerProfileId: input.customerProfileId,
+      customerPaymentProfileId: input.paymentProfileId,
+    },
+  };
+  const res = await fetch(endpoint(), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const text = (await res.text()).replace(/^\uFEFF/, "");
+  let json: any;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    return { ok: false, error: "invalid_json_response" };
+  }
+  const messages = json.messages || {};
+  if (messages.resultCode !== "Ok") {
+    const code = messages.message?.[0]?.code;
+    if (code === "E00040") return { ok: true };
+    return { ok: false, error: messages.message?.[0]?.text || "delete_payment_profile_failed" };
+  }
+  return { ok: true };
+}
+
 export type ChargeCustomerProfileInput = {
   customerProfileId: string;
   paymentProfileId: string;

@@ -37,13 +37,16 @@ import { computePriceDifference } from "../data/oilPriceSeed.js";
 import { nextJuneFirstAfterSignup } from "../utils/juneBilling.js";
 import { expandStateQuery, US_STATE_ABBR_TO_NAME } from "../utils/stateAbbreviations.js";
 import { chargeCard } from "../services/authorizeNet.js";
-import { storeCardOnFile } from "../services/storeCardOnFile.js";
+import { storeCardOnFile, removeCardOnFile } from "../services/storeCardOnFile.js";
+import { annualFeeCentsFor, planFlags, syncMembershipPlanFields } from "../utils/membershipFees.js";
 import { config, authorizeNetEnabled } from "../config.js";
 import bcrypt from "bcryptjs";
+import productBoardRoutes from "./productBoard.js";
 
 const router = Router();
 
 router.use(requireAuth, requireAdmin);
+router.use("/product-board", productBoardRoutes);
 
 router.get("/email-templates", async (_req, res) => {
   await ensureEmailTemplates();
@@ -812,6 +815,7 @@ const patchMemberSchema = z.object({
   notes: z.string().optional(),
   paymentMethod: z.enum(["card", "check"]).optional(),
   autoRenew: z.boolean().optional(),
+  membershipPlan: z.enum(["standard", "senior", "lowVolume"]).optional(),
   legacyProfile: z.record(z.string(), z.unknown()).optional(),
 });
 
@@ -859,6 +863,15 @@ router.patch("/members/:id", async (req: AuthedRequest, res) => {
     if (body.paymentMethod === "check") member.autoRenew = false;
   }
   if (body.autoRenew !== undefined) member.autoRenew = body.autoRenew;
+  if (body.membershipPlan) {
+    member.membershipPlan = body.membershipPlan;
+    const lp =
+      typeof member.legacyProfile === "object" && member.legacyProfile
+        ? (member.legacyProfile as Record<string, unknown>)
+        : {};
+    member.legacyProfile = { ...lp, ...planFlags(body.membershipPlan) };
+    member.markModified("legacyProfile");
+  }
   if (body.legacyProfile !== undefined) {
     member.legacyProfile = {
       ...(typeof member.legacyProfile === "object" && member.legacyProfile ? member.legacyProfile : {}),
@@ -872,6 +885,7 @@ router.patch("/members/:id", async (req: AuthedRequest, res) => {
       );
     }
   }
+  syncMembershipPlanFields(member);
   // Linked additional properties always stay on free/lifetime membership.
   if (member.primaryMemberId) {
     member.lifetimeAnnualFeeWaived = true;
@@ -1832,8 +1846,8 @@ router.get("/renewals/dashboard", async (_req, res) => {
     .populate("oilCompanyId", "name")
     .select(
       "memberNumber firstName lastName email status paymentMethod autoRenew " +
-        "stripeDefaultPaymentMethodId nextAnnualBillingDate lifetimeAnnualFeeWaived " +
-        "referralWaiveCredits oilCompanyId"
+        "stripeDefaultPaymentMethodId authnetPaymentProfileId nextAnnualBillingDate lifetimeAnnualFeeWaived " +
+        "referralWaiveCredits oilCompanyId membershipPlan"
     )
     .lean()) as Array<Record<string, unknown>>;
 
@@ -1841,7 +1855,7 @@ router.get("/renewals/dashboard", async (_req, res) => {
   const normalized: any[] = members.map((mm: any) => {
     const due = mm.nextAnnualBillingDate ? new Date(String(mm.nextAnnualBillingDate)) : null;
     const daysUntilDue = due ? dayDiff(due, today) : null;
-    const hasCard = Boolean(mm.stripeDefaultPaymentMethodId);
+    const hasCard = Boolean(mm.authnetPaymentProfileId || mm.stripeDefaultPaymentMethodId);
     return {
       ...mm,
       daysUntilDue,
@@ -2219,7 +2233,7 @@ router.post("/members/:id/payment-link", async (req: AuthedRequest, res) => {
   }
 
   const body = parsed.data;
-  const amountCents = body.amountCents ?? config.annualFeeCents;
+  const amountCents = body.amountCents ?? annualFeeCentsFor(member);
   const billingYear = body.billingYear ?? new Date().getFullYear();
   const token = crypto.randomBytes(32).toString("hex");
   const expiresAt = new Date();
@@ -2301,6 +2315,31 @@ router.post("/members/:id/store-card", async (req: AuthedRequest, res) => {
     customerProfileId: result.customerProfileId,
     paymentProfileId: result.paymentProfileId,
   });
+});
+
+router.delete("/members/:id/card", async (req: AuthedRequest, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const member = await Member.findById(req.params.id);
+  if (!member || member.role !== "member") {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const result = await removeCardOnFile(member);
+  if (!result.ok) {
+    res.status(400).json({ error: result.error });
+    return;
+  }
+  await member.save();
+  await logActivity(
+    member._id,
+    "admin_card_removed",
+    { adminId: req.userId },
+    new mongoose.Types.ObjectId(req.userId!)
+  );
+  res.json({ ok: true });
 });
 
 /**

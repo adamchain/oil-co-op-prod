@@ -68,6 +68,11 @@ type Member = {
   primaryMemberId?: string | null;
   legacyProfile?: Record<string, unknown>;
   referralCount?: number;
+  authnetCardLast4?: string;
+  authnetPaymentProfileId?: string;
+  authnetCardExpiry?: string;
+  nextAnnualBillingDate?: string;
+  membershipPlan?: string;
 };
 
 type PropertyGroupItem = {
@@ -287,6 +292,11 @@ function memberFromApiPatch(prev: Member, raw: Record<string, unknown>, oilCos: 
     legacyProfile: hydrateLegacyProfile({
       ...(((raw.legacyProfile as Record<string, unknown> | undefined) ?? prev.legacyProfile) || {}),
     }),
+    authnetCardLast4: (raw.authnetCardLast4 as string | undefined) ?? prev.authnetCardLast4,
+    authnetPaymentProfileId: (raw.authnetPaymentProfileId as string | undefined) ?? prev.authnetPaymentProfileId,
+    authnetCardExpiry: (raw.authnetCardExpiry as string | undefined) ?? prev.authnetCardExpiry,
+    nextAnnualBillingDate: (raw.nextAnnualBillingDate as string | undefined) ?? prev.nextAnnualBillingDate,
+    membershipPlan: (raw.membershipPlan as string | undefined) ?? prev.membershipPlan,
   };
   const oid = raw.oilCompanyId;
   if (oid == null || oid === "") next.oilCompanyId = null;
@@ -1627,6 +1637,13 @@ export default function AdminWorkbenchPage() {
       }
       if (key === "oilWorkbenchStatus" && value === "NO OIL") {
         nextLegacy.oilStartDate = "";
+      }
+      if (value === true && (key === "standardMembership" || key === "seniorMember" || key === "lowVolume")) {
+        nextLegacy.standardMembership = key === "standardMembership";
+        nextLegacy.seniorMember = key === "seniorMember";
+        nextLegacy.lowVolume = key === "lowVolume";
+        nextLegacy.membershipPlan =
+          key === "seniorMember" ? "senior" : key === "lowVolume" ? "lowVolume" : "standard";
       }
       return { ...f, legacyProfile: nextLegacy };
     });
@@ -3046,6 +3063,7 @@ export default function AdminWorkbenchPage() {
                 billing={billing}
                 member={current}
                 oilCompanyName={selectedOilCompanyName}
+                token={token}
                 onAddPayment={
                   token
                     ? async (line) => {
@@ -3068,6 +3086,11 @@ export default function AdminWorkbenchPage() {
                       }
                     : undefined
                 }
+                onVaultedCardChange={(patch) => {
+                  setMembers((prev) =>
+                    prev.map((m) => (m._id === current._id ? { ...m, ...patch } : m))
+                  );
+                }}
               />
             ) : (
               <p className="admin-meta">Select a member with Search, or use Find members to search the whole list.</p>

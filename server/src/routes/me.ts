@@ -4,7 +4,7 @@ import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 import { Member } from "../models/Member.js";
 import { logActivity } from "../services/activity.js";
 import { addPropertyToMember, serializeProperties } from "../services/accountLookup.js";
-import { storeCardOnFile } from "../services/storeCardOnFile.js";
+import { storeCardOnFile, removeCardOnFile } from "../services/storeCardOnFile.js";
 import { phoneDigits } from "../utils/phone.js";
 
 const router = Router();
@@ -65,6 +65,10 @@ router.patch("/notification-settings", requireAuth, async (req: AuthedRequest, r
 });
 
 router.patch("/profile", requireAuth, async (req: AuthedRequest, res) => {
+  if (req.member!.role === "member") {
+    res.status(403).json({ error: "Email the office to update your contact information." });
+    return;
+  }
   const parsed = profileSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.flatten() });
@@ -174,6 +178,22 @@ router.post("/card", requireAuth, async (req: AuthedRequest, res) => {
     cardLast4: result.cardLast4,
     cardOnFile: true,
   });
+});
+
+router.delete("/card", requireAuth, async (req: AuthedRequest, res) => {
+  const m = await Member.findById(req.userId);
+  if (!m) {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const result = await removeCardOnFile(m);
+  if (!result.ok) {
+    res.status(400).json({ error: result.error });
+    return;
+  }
+  await m.save();
+  await logActivity(m._id, "member_card_removed", {}, m._id);
+  res.json({ ok: true, cardLast4: "", cardOnFile: false });
 });
 
 router.post("/properties", requireAuth, async (req: AuthedRequest, res) => {

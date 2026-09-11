@@ -3,6 +3,7 @@ import { Member } from "../models/Member.js";
 import { BillingEvent } from "../models/BillingEvent.js";
 import { config, stripeEnabled, authorizeNetEnabled } from "../config.js";
 import { followingJuneFirst, juneFirstYear } from "../utils/juneBilling.js";
+import { annualFeeCentsFor } from "../utils/membershipFees.js";
 import { chargeAnnualForCustomer } from "./stripeBilling.js";
 import { chargeCustomerProfile } from "./authorizeNet.js";
 import { logActivity } from "./activity.js";
@@ -87,14 +88,14 @@ async function runJuneFirstAnnualBilling() {
       continue;
     }
 
-    const amount = config.annualFeeCents;
+    const amount = annualFeeCentsFor(m);
 
-    // Check if member has Authorize.Net stored card
+    // Vaulted Authorize.Net / Stripe cards only — never Approach payment-history PANs.
     const hasAuthnetCard = m.authnetCustomerProfileId && m.authnetPaymentProfileId;
     const hasStripeCard = m.stripeCustomerId && m.stripeDefaultPaymentMethodId;
 
     // Check payers or no card on file → send invoice
-    if (m.paymentMethod === "check" || (!hasAuthnetCard && !hasStripeCard)) {
+    if (m.paymentMethod === "check" || !m.autoRenew || (!hasAuthnetCard && !hasStripeCard)) {
       await BillingEvent.create({
         memberId: m._id,
         kind: "annual",

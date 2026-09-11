@@ -3160,3 +3160,140 @@ button.admin-wb-panel-title.admin-wb-panel-toggle:hover {
   user-select: none;
 }
 
+.admin-kanban-page {
+  padding: 1.25rem 1.4rem 2.5rem;
+  max-width: 1400px;
+}
+
+.admin-kanban-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem 1.25rem;
+  margin-bottom: 1rem;
+}
+
+.admin-kanban-head h1 {
+  margin: 0 0 0.3rem;
+  font-size: 1.35rem;
+  font-weight: 600;
+}
+
+.admin-kanban-head p {
+  margin: 0;
+  color: var(--admin-muted);
+  font-size: 0.9rem;
+  max-width: 40rem;
+}
+
+.admin-kanban-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--admin-muted);
+  cursor: pointer;
+}
+
+.admin-kanban-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  max-width: 40rem;
+}
+
+.admin-kanban-add .admin-input {
+  flex: 1;
+  min-width: 12rem;
+}
+
+.admin-kanban-cols {
+  display: grid;
+  gap: 0.85rem;
+  align-items: start;
+}
+
+.admin-kanban-cols--3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.admin-kanban-cols--4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 900px) {
+  .admin-kanban-cols--3,
+  .admin-kanban-cols--4 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.admin-kanban-col {
+  background: #f4f4f5;
+  border: 1px solid var(--admin-border);
+  border-radius: 8px;
+  min-height: 16rem;
+  padding: 0.65rem;
+}
+
+.admin-kanban-col.is-droppable {
+  outline: 1px dashed var(--admin-accent);
+}
+
+.admin-kanban-col h2 {
+  margin: 0 0 0.65rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--admin-muted);
+}
+
+.admin-kanban-col h2 span {
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-kanban-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  min-height: 8rem;
+}
+
+.admin-kanban-card {
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-border);
+  border-radius: 6px;
+  padding: 0.65rem 0.7rem;
+  cursor: grab;
+}
+
+.admin-kanban-card.is-dragging {
+  opacity: 0.55;
+}
+
+.admin-kanban-card-title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--admin-text);
+}
+
+.admin-kanban-card-meta {
+  margin: 0.3rem 0 0;
+  font-size: 0.75rem;
+  color: var(--admin-muted);
+}
+
+.admin-kanban-empty {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  color: var(--admin-muted);
+}
+

@@ -1,7 +1,9 @@
 import type { Dispatch, SetStateAction } from "react";
 import { useEffect, useMemo, useState } from "react";
+import { api } from "../api";
 import type { WorkbenchFormState } from "../pages/AdminWorkbenchPage";
 import { formatPhoneValue } from "../utils/phone";
+import { MEMBERSHIP_PLAN_META, formatUsdFromCents, resolveMembershipPlan } from "../utils/membershipFees";
 
 type BillingEvent = {
   _id: string;
@@ -118,10 +120,25 @@ type PaymentHistoryViewProps = {
   form: WorkbenchFormState;
   setForm: Dispatch<SetStateAction<WorkbenchFormState>>;
   billing: BillingEvent[];
-  member?: { memberNumber?: string; createdAt?: string } | null;
+  member?: {
+    _id?: string;
+    memberNumber?: string;
+    createdAt?: string;
+    authnetCardLast4?: string;
+    authnetPaymentProfileId?: string;
+    authnetCardExpiry?: string;
+    nextAnnualBillingDate?: string;
+    membershipPlan?: string;
+  } | null;
   oilCompanyName?: string;
+  token?: string | null;
   onAddPayment?: (line: NewPaymentLine) => Promise<void>;
   onDeletePayment?: (billingId: string) => Promise<void>;
+  onVaultedCardChange?: (patch: {
+    authnetCardLast4: string;
+    authnetPaymentProfileId: string;
+    authnetCardExpiry?: string;
+  }) => void;
 };
 
 const emptyDraft = {
@@ -134,11 +151,31 @@ const emptyDraft = {
   checkNumber: "",
 };
 
-export default function PaymentHistoryView({ form, setForm, billing, member, oilCompanyName, onAddPayment, onDeletePayment }: PaymentHistoryViewProps) {
+export default function PaymentHistoryView({
+  form,
+  setForm,
+  billing,
+  member,
+  oilCompanyName,
+  token,
+  onAddPayment,
+  onDeletePayment,
+  onVaultedCardChange,
+}: PaymentHistoryViewProps) {
   const legacyValue = (key: string) => String(form.legacyProfile[key] ?? "");
   const legacyBool = (key: string) => Boolean(form.legacyProfile[key]);
   const setLegacy = (key: string, value: string | boolean) =>
-    setForm((f) => ({ ...f, legacyProfile: { ...f.legacyProfile, [key]: value } }));
+    setForm((f) => {
+      const lp = { ...f.legacyProfile, [key]: value };
+      if (value === true && (key === "standardMembership" || key === "seniorMember" || key === "lowVolume")) {
+        lp.standardMembership = key === "standardMembership";
+        lp.seniorMember = key === "seniorMember";
+        lp.lowVolume = key === "lowVolume";
+        lp.membershipPlan =
+          key === "seniorMember" ? "senior" : key === "lowVolume" ? "lowVolume" : "standard";
+      }
+      return { ...f, legacyProfile: lp };
+    });
 
   const regStatus = legacyValue("registrationPaymentStatus").toLowerCase();
   const cardType = legacyValue("ccType");
@@ -157,6 +194,9 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
     });
 
   const [draft, setDraft] = useState(emptyDraft);
+  const [vaultCard, setVaultCard] = useState({ number: "", expiry: "", cvv: "" });
+  const [vaultBusy, setVaultBusy] = useState(false);
+  const [vaultMsg, setVaultMsg] = useState("");
   const [savingLine, setSavingLine] = useState(false);
   const [lineError, setLineError] = useState("");
 
@@ -673,7 +713,151 @@ export default function PaymentHistoryView({ form, setForm, billing, member, oil
           </div>
 
           <div className="admin-wb-panel admin-pay-compact">
-            <div className="admin-wb-panel-title">Credit Card</div>
+            <div className="admin-wb-panel-title">Auto-renew card (Authorize.Net)</div>
+            <p className="admin-meta" style={{ margin: "0 0 0.5rem" }}>
+              This is the card used for June automatic renewal. Approach payment-history numbers cannot be used.
+            </p>
+            {member?.authnetPaymentProfileId && member.authnetCardLast4 ? (
+              <p className="admin-meta" style={{ margin: "0 0 0.5rem" }}>
+                On file: •••• {member.authnetCardLast4}
+                {member.authnetCardExpiry
+                  ? ` · Exp ${String(member.authnetCardExpiry).replace(/\D/g, "").replace(/^(\d{2})(\d{2})$/, "$1/$2")}`
+                  : ""}
+              </p>
+            ) : (
+              <p className="admin-meta" style={{ margin: "0 0 0.5rem" }}>
+                No vaulted card — this member will be invoiced, not auto-charged.
+              </p>
+            )}
+            <p className="admin-meta" style={{ margin: "0 0 0.5rem" }}>
+              Plan: {MEMBERSHIP_PLAN_META[resolveMembershipPlan({ membershipPlan: member?.membershipPlan, legacyProfile: form.legacyProfile })].label}
+              {" · "}
+              {formatUsdFromCents(
+                MEMBERSHIP_PLAN_META[
+                  resolveMembershipPlan({ membershipPlan: member?.membershipPlan, legacyProfile: form.legacyProfile })
+                ].annualCents
+              )}
+              {member?.nextAnnualBillingDate
+                ? ` · Next renewal ${new Date(member.nextAnnualBillingDate).toLocaleDateString()}`
+                : ""}
+            </p>
+            {token && member?._id && (
+              <div className="admin-form-row-wrap">
+                <label className="admin-field admin-field-card">
+                  Card number
+                  <input
+                    className="admin-input"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    value={vaultCard.number}
+                    onChange={(e) =>
+                      setVaultCard((c) => ({ ...c, number: formatCardNumber(e.target.value, false) }))
+                    }
+                  />
+                </label>
+                <label className="admin-field admin-field-exp">
+                  Exp
+                  <input
+                    className="admin-input"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    placeholder="MM/YY"
+                    value={vaultCard.expiry}
+                    onChange={(e) => setVaultCard((c) => ({ ...c, expiry: formatExpiry(e.target.value) }))}
+                  />
+                </label>
+                <label className="admin-field admin-field-cvv">
+                  CVV
+                  <input
+                    className="admin-input"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    maxLength={4}
+                    value={vaultCard.cvv}
+                    onChange={(e) =>
+                      setVaultCard((c) => ({ ...c, cvv: e.target.value.replace(/\D/g, "").slice(0, 4) }))
+                    }
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="admin-btn"
+                  disabled={vaultBusy}
+                  onClick={async () => {
+                    const digits = vaultCard.number.replace(/\D/g, "");
+                    const exp = vaultCard.expiry.replace(/\D/g, "");
+                    if (digits.length < 13 || exp.length !== 4 || vaultCard.cvv.length < 3) {
+                      setVaultMsg("Enter card number, MM/YY, and CVV.");
+                      return;
+                    }
+                    setVaultBusy(true);
+                    setVaultMsg("");
+                    try {
+                      const r = await api<{ cardLast4: string; paymentProfileId: string }>(
+                        `/api/admin/members/${member._id}/store-card`,
+                        {
+                          method: "POST",
+                          token,
+                          body: JSON.stringify({
+                            cardNumber: digits,
+                            expiration: exp,
+                            cvv: vaultCard.cvv,
+                          }),
+                        }
+                      );
+                      onVaultedCardChange?.({
+                        authnetCardLast4: r.cardLast4,
+                        authnetPaymentProfileId: r.paymentProfileId,
+                        authnetCardExpiry: exp,
+                      });
+                      setVaultCard({ number: "", expiry: "", cvv: "" });
+                      setVaultMsg(`Saved card ending ${r.cardLast4}.`);
+                    } catch (e) {
+                      setVaultMsg(e instanceof Error ? e.message : "Could not save card");
+                    } finally {
+                      setVaultBusy(false);
+                    }
+                  }}
+                >
+                  {vaultBusy ? "Saving…" : member.authnetPaymentProfileId ? "Update vaulted card" : "Save for auto-renew"}
+                </button>
+                {member.authnetPaymentProfileId && (
+                  <button
+                    type="button"
+                    className="admin-btn"
+                    disabled={vaultBusy}
+                    onClick={async () => {
+                      if (!window.confirm("Remove the vaulted auto-renew card?")) return;
+                      setVaultBusy(true);
+                      setVaultMsg("");
+                      try {
+                        await api(`/api/admin/members/${member._id}/card`, { method: "DELETE", token });
+                        onVaultedCardChange?.({
+                          authnetCardLast4: "",
+                          authnetPaymentProfileId: "",
+                          authnetCardExpiry: "",
+                        });
+                        setVaultMsg("Vaulted card removed.");
+                      } catch (e) {
+                        setVaultMsg(e instanceof Error ? e.message : "Could not remove card");
+                      } finally {
+                        setVaultBusy(false);
+                      }
+                    }}
+                  >
+                    Remove vaulted card
+                  </button>
+                )}
+              </div>
+            )}
+            {vaultMsg && <p className="admin-meta">{vaultMsg}</p>}
+          </div>
+
+          <div className="admin-wb-panel admin-pay-compact">
+            <div className="admin-wb-panel-title">Approach card notes (not for auto-renew)</div>
+            <p className="admin-meta" style={{ margin: "0 0 0.5rem" }}>
+              Historical Approach numbers. They are not charged in June.
+            </p>
             <div className="admin-form-row-wrap">
               <label className="admin-field admin-field-sm">
                 Card Type

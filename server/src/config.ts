@@ -24,8 +24,8 @@ export const config = {
   clientOrigin: process.env.CLIENT_ORIGIN || "http://localhost:5173",
   stripeSecretKey: process.env.STRIPE_SECRET_KEY || "",
   stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET || "",
-  registrationFeeCents: cents(process.env.REGISTRATION_FEE_CENTS, 5000),
-  annualFeeCents: cents(process.env.ANNUAL_FEE_CENTS, 12000),
+  registrationFeeCents: cents(process.env.REGISTRATION_FEE_CENTS, 1000),
+  annualFeeCents: cents(process.env.ANNUAL_FEE_CENTS, 3500),
   smtp: {
     host: process.env.SMTP_HOST || "",
     port: parseInt(process.env.SMTP_PORT || "587", 10),

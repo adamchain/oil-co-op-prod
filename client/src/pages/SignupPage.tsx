@@ -447,11 +447,11 @@ export default function SignupPage() {
               </p>
             </div>
             <div className="mkt-fee-row">
-              <span>Processing Fee:</span>
+              <span>Due today (processing fee):</span>
               <strong>$10.00</strong>
             </div>
             <div className="mkt-fee-row">
-              <span>Annual dues (selected plan):</span>
+              <span>Annual dues billed each June 1:</span>
               <strong>{planPrice}</strong>
             </div>
           </Section>

@@ -2,6 +2,7 @@ import { authorizeNetEnabled } from "../config.js";
 import {
   addPaymentProfile,
   createCustomerProfile,
+  deletePaymentProfile,
   updatePaymentProfile,
 } from "./authorizeNet.js";
 
@@ -114,4 +115,23 @@ export async function storeCardOnFile(
     customerProfileId,
     paymentProfileId: paymentResult.paymentProfileId,
   };
+}
+
+export async function removeCardOnFile(
+  member: MemberCardDoc
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (member.authnetCustomerProfileId && member.authnetPaymentProfileId && authorizeNetEnabled) {
+    const result = await deletePaymentProfile({
+      customerProfileId: member.authnetCustomerProfileId,
+      paymentProfileId: member.authnetPaymentProfileId,
+    });
+    if (!result.ok) {
+      return { ok: false, error: result.error };
+    }
+  }
+  member.authnetPaymentProfileId = "";
+  member.authnetCardLast4 = "";
+  member.authnetCardExpiry = "";
+  member.autoRenew = false;
+  return { ok: true };
 }

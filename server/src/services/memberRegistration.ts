@@ -242,6 +242,7 @@ export async function registerMember(
       : [],
     paymentMethod: body.paymentMethod,
     autoRenew: body.paymentMethod === "card",
+    membershipPlan: body.membershipPlan || "standard",
     nextAnnualBillingDate: nextAnnual,
     oilCompanyId: oilCompanyObjectId,
     signedUpVia,

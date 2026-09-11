@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../authContext";
+import { formatUsdFromCents } from "../utils/membershipFees";
 
 type Me = {
   email: string;
@@ -9,13 +10,23 @@ type Me = {
   lastName: string;
   memberNumber?: string;
   status?: string;
+  phone?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
   nextAnnualBillingDate?: string;
+  membershipPlanLabel?: string;
+  annualFeeCents?: number;
   cardLast4?: string;
+  cardExpiry?: string;
   cardOnFile?: boolean;
+  autoRenew?: boolean;
   role?: string;
 };
 
-function membershipLabel(status?: string): { text: string; kind: "ok" | "warn" } {
+function membershipStatus(status?: string): { text: string; kind: "ok" | "warn" } {
   if (status === "expired") return { text: "Expired membership", kind: "warn" };
   if (status === "cancelled") return { text: "Cancelled membership", kind: "warn" };
   return { text: "Active membership", kind: "ok" };
@@ -26,6 +37,18 @@ function formatBillingDate(iso?: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+}
+
+function formatExpiryDisplay(raw?: string): string {
+  const d = (raw || "").replace(/\D/g, "");
+  if (d.length !== 4) return "";
+  return `${d.slice(0, 2)}/${d.slice(2)}`;
+}
+
+function formatAddress(m: Me): string {
+  return [m.addressLine1, m.addressLine2, [m.city, m.state].filter(Boolean).join(", "), m.postalCode]
+    .filter(Boolean)
+    .join(", ");
 }
 
 function formatCardNumber(value: string): string {
@@ -45,6 +68,7 @@ export default function AccountPage() {
   const [err, setErr] = useState("");
   const [ok, setOk] = useState("");
   const [saving, setSaving] = useState(false);
+  const [removing, setRemoving] = useState(false);
   const [card, setCard] = useState({ number: "", expiry: "", cvv: "" });
 
   useEffect(() => {
@@ -84,13 +108,40 @@ export default function AccountPage() {
           cvv: card.cvv.replace(/\D/g, ""),
         }),
       });
-      setMe((m) => (m ? { ...m, cardLast4: res.cardLast4, cardOnFile: res.cardOnFile } : m));
+      setMe((m) =>
+        m
+          ? {
+              ...m,
+              cardLast4: res.cardLast4,
+              cardOnFile: res.cardOnFile,
+              autoRenew: true,
+              cardExpiry: expiryDigits,
+            }
+          : m
+      );
       setCard({ number: "", expiry: "", cvv: "" });
-      setOk(res.cardLast4 ? `Card ending in ${res.cardLast4} is on file.` : "Card saved.");
+      setOk(res.cardLast4 ? `Card ending in ${res.cardLast4} is saved for automatic renewal.` : "Card saved.");
     } catch (ex) {
       setErr(ex instanceof Error ? ex.message : "Could not save card");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function removeCard() {
+    if (!token) return;
+    if (!window.confirm("Remove the card on file? You will not be charged automatically at renewal.")) return;
+    setRemoving(true);
+    setErr("");
+    setOk("");
+    try {
+      await api("/api/me/card", { method: "DELETE", token });
+      setMe((m) => (m ? { ...m, cardLast4: "", cardOnFile: false, autoRenew: false, cardExpiry: "" } : m));
+      setOk("Card removed. Email the office if you want to pay by check.");
+    } catch (ex) {
+      setErr(ex instanceof Error ? ex.message : "Could not remove card");
+    } finally {
+      setRemoving(false);
     }
   }
 
@@ -104,9 +155,11 @@ export default function AccountPage() {
     );
   }
 
-  const status = membershipLabel(me.status);
+  const status = membershipStatus(me.status);
   const hasCard = Boolean(me.cardOnFile && me.cardLast4);
   const displayName = [me.firstName, me.lastName].filter(Boolean).join(" ") || me.email;
+  const fee = me.annualFeeCents != null ? formatUsdFromCents(me.annualFeeCents) : "—";
+  const exp = formatExpiryDisplay(me.cardExpiry);
 
   return (
     <div className="mkt-profile">
@@ -140,30 +193,59 @@ export default function AccountPage() {
           </span>
           <dl className="mkt-profile-stats mkt-profile-stats--portal">
             <div>
-              <dt>Next billing date</dt>
+              <dt>Name</dt>
+              <dd>{displayName}</dd>
+            </div>
+            <div>
+              <dt>Email</dt>
+              <dd>{me.email || "—"}</dd>
+            </div>
+            <div>
+              <dt>Phone</dt>
+              <dd>{me.phone || "—"}</dd>
+            </div>
+            <div>
+              <dt>Address</dt>
+              <dd>{formatAddress(me) || "—"}</dd>
+            </div>
+            <div>
+              <dt>Membership / renewal fee</dt>
+              <dd>
+                {me.membershipPlanLabel || "Standard membership"} · {fee} per year
+              </dd>
+            </div>
+            <div>
+              <dt>Next renewal date</dt>
               <dd>{formatBillingDate(me.nextAnnualBillingDate)}</dd>
             </div>
           </dl>
+          <p className="mkt-profile-readonly-note">
+            To change your name, address, phone, or email, contact the office. You can add or replace a card
+            below for automatic renewal.
+          </p>
         </section>
 
         <section className="mkt-profile-card">
           <div className="mkt-profile-card-head">
-            <h2>{hasCard ? "Update card on file" : "Add a card on file"}</h2>
+            <h2>Payment information</h2>
             <p>
-              {hasCard
-                ? `We have a card ending in ${me.cardLast4}. Enter a new credit or debit card to replace it.`
-                : "Save a credit or debit card for annual membership billing. We never store the full card number."}
+              Cards are stored with our processor for June automatic renewal. We never keep the full card number
+              in our database.
             </p>
           </div>
-          {hasCard && (
+          {hasCard ? (
             <p className="mkt-profile-card-onfile">
               Card on file <strong>•••• {me.cardLast4}</strong>
+              {exp ? ` · Exp ${exp}` : ""}
+              {me.autoRenew ? " · Automatic renewal on" : ""}
             </p>
+          ) : (
+            <p className="mkt-profile-card-onfile">No card on file for automatic renewal.</p>
           )}
           <form onSubmit={(e) => void saveCard(e)}>
             <div className="mkt-profile-grid">
               <div className="mkt-field mkt-profile-span-2">
-                <label htmlFor="portal-card-number">Card number</label>
+                <label htmlFor="portal-card-number">{hasCard ? "New card number" : "Card number"}</label>
                 <input
                   id="portal-card-number"
                   className="mkt-input"
@@ -203,8 +285,18 @@ export default function AccountPage() {
             </div>
             <div className="mkt-profile-save-bar">
               <button className="mkt-btn mkt-btn-primary" type="submit" disabled={saving}>
-                {saving ? "Saving…" : hasCard ? "Update card" : "Save card"}
+                {saving ? "Saving…" : hasCard ? "Update card" : "Save card for automatic renewal"}
               </button>
+              {hasCard && (
+                <button
+                  className="mkt-btn mkt-btn-ghost"
+                  type="button"
+                  disabled={removing}
+                  onClick={() => void removeCard()}
+                >
+                  {removing ? "Removing…" : "Remove card"}
+                </button>
+              )}
             </div>
           </form>
         </section>

@@ -1,4 +1,4 @@
-import { config } from "../config.js";
+import { annualFeeCentsFor } from "../utils/membershipFees.js";
 import { BillingEvent } from "../models/BillingEvent.js";
 import { Member, type MemberDoc } from "../models/Member.js";
 import { OilCompany, type OilCompanyDoc } from "../models/OilCompany.js";
@@ -76,7 +76,7 @@ export function buildMemberEmailMergeData(input: {
     : 0;
   const billingDate = nextBill ? formatLongDate(nextBill) : "June 1";
   const nextBillingDate = billingDate;
-  const amountCents = config.annualFeeCents;
+  const amountCents = annualFeeCentsFor(member);
   const amount = formatMoney(amountCents);
   const isAutoRenew = member.paymentMethod === "card" && member.autoRenew;
 

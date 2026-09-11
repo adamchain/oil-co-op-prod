@@ -7,6 +7,11 @@ import { registerMember, registerMemberSchema } from "../services/memberRegistra
 import { requireAuth, signToken, type AuthedRequest } from "../middleware/auth.js";
 import { consumeLoginCode, issueLoginCode } from "../services/loginCode.js";
 import {
+  MEMBERSHIP_PLAN_META,
+  annualFeeCentsFor,
+  resolveMembershipPlan,
+} from "../utils/membershipFees.js";
+import {
   addPropertyToMember,
   findExistingAccount,
   memberContactMatches,
@@ -253,10 +258,14 @@ router.get("/me", requireAuth, async (req: AuthedRequest, res) => {
     status: m.status,
     oilCompanyId: m.oilCompanyId,
     nextAnnualBillingDate: m.nextAnnualBillingDate,
+    membershipPlan: resolveMembershipPlan(m),
+    membershipPlanLabel: MEMBERSHIP_PLAN_META[resolveMembershipPlan(m)].label,
+    annualFeeCents: annualFeeCentsFor(m),
     paymentMethod: m.paymentMethod,
-    cardLast4: m.authnetCardLast4 || "",
-    cardOnFile: Boolean(m.authnetPaymentProfileId),
     autoRenew: m.autoRenew,
+    cardLast4: m.authnetCardLast4 || "",
+    cardExpiry: m.authnetCardExpiry || "",
+    cardOnFile: Boolean(m.authnetPaymentProfileId),
     successfulReferralCount: m.successfulReferralCount,
     lifetimeAnnualFeeWaived: m.lifetimeAnnualFeeWaived,
     referralWaiveCredits: m.referralWaiveCredits,

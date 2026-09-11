@@ -59,6 +59,13 @@ export default function AdminLayout() {
           >
             Add Customer
           </NavLink>
+          <NavLink
+            to="/admin/product-board"
+            className={linkClass}
+            onClick={() => setSidebarOpen(false)}
+          >
+            Product board
+          </NavLink>
         </div>
         <div className="admin-sidebar-foot">
           <div style={{ marginBottom: "0.5rem" }}>
