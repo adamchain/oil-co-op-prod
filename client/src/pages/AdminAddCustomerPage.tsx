@@ -60,7 +60,6 @@ export default function AdminAddCustomerPage() {
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
     email: "",
-    password: "",
     firstName: "",
     lastName: "",
     phone: "",
@@ -109,7 +108,6 @@ export default function AdminAddCustomerPage() {
     try {
       const payload = {
         email: form.email.trim() || undefined,
-        password: form.password,
         firstName: form.firstName,
         lastName: form.lastName,
         phone: form.phone,
@@ -155,7 +153,6 @@ export default function AdminAddCustomerPage() {
   function resetForm() {
     setForm({
       email: "",
-      password: "",
       firstName: "",
       lastName: "",
       phone: "",
@@ -273,16 +270,6 @@ export default function AdminAddCustomerPage() {
                         type="email"
                         value={form.email}
                         onChange={(e) => setForm({ ...form, email: e.target.value })}
-                      />
-                    </Field>
-                    <Field label="Password" width="140px">
-                      <input
-                        className="admin-input"
-                        type="password"
-                        required
-                        minLength={8}
-                        value={form.password}
-                        onChange={(e) => setForm({ ...form, password: e.target.value })}
                       />
                     </Field>
                   </div>

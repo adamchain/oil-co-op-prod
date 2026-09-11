@@ -2,7 +2,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../authContext";
-import { PENDING_PROPERTY_KEY, type PendingProperty } from "../utils/pendingProperty";
+import { type PendingProperty } from "../utils/pendingProperty";
 
 type MembershipPlan = "lowVolume" | "senior" | "standard";
 type YesNo = "yes" | "no";
@@ -124,7 +124,8 @@ export default function SignupPage() {
   const [matchDismissed, setMatchDismissed] = useState(false);
   const [matchModal, setMatchModal] = useState<MatchModalStep>(null);
   const [claimEmail, setClaimEmail] = useState("");
-  const [claimPassword, setClaimPassword] = useState("");
+  const [claimCode, setClaimCode] = useState("");
+  const [claimCodeSent, setClaimCodeSent] = useState(false);
   const [claimLabel, setClaimLabel] = useState("Additional property");
   const [claimLoading, setClaimLoading] = useState(false);
   const [lookupKey, setLookupKey] = useState("");
@@ -143,7 +144,6 @@ export default function SignupPage() {
     mailingState: "CT",
     mailingPostalCode: "",
     email: "",
-    password: "",
     phone: "",
     primaryPhoneType: "CELL" as PhoneType,
     secondaryPhone: "",
@@ -239,14 +239,34 @@ export default function SignupPage() {
     };
   }
 
+  async function onSendClaimCode() {
+    setErr("");
+    if (!claimEmail.trim()) {
+      setErr("Enter your existing account email.");
+      return;
+    }
+    setClaimLoading(true);
+    try {
+      await api<{ ok: boolean }>("/api/auth/request-code", {
+        method: "POST",
+        body: JSON.stringify({ email: claimEmail.trim().toLowerCase() }),
+      });
+      setClaimCodeSent(true);
+    } catch (ex) {
+      setErr(ex instanceof Error ? ex.message : "Could not send code");
+    } finally {
+      setClaimLoading(false);
+    }
+  }
+
   async function onSignInAddProperty() {
     setErr("");
     if (!form.addressLine1.trim() || !form.city.trim() || !form.state.trim() || !form.postalCode.trim()) {
       setErr("Enter the new property address in the Home address fields, then continue.");
       return;
     }
-    if (!claimEmail.trim() || !claimPassword) {
-      setErr("Enter your existing account email and password to continue.");
+    if (!claimEmail.trim() || !claimCode.trim()) {
+      setErr("Enter your email and the sign-in code we sent.");
       return;
     }
     setClaimLoading(true);
@@ -261,14 +281,16 @@ export default function SignupPage() {
           memberNumber?: string;
           role?: string;
         };
-      }>("/api/auth/login", {
+      }>("/api/auth/claim-add-property", {
         method: "POST",
         body: JSON.stringify({
           email: claimEmail.trim().toLowerCase(),
-          password: claimPassword,
+          code: claimCode.trim(),
+          confirmingEmail: form.email.trim(),
+          confirmingPhone: form.phone.trim() || form.secondaryPhone.trim(),
+          property: pendingPropertyFromForm(),
         }),
       });
-      sessionStorage.setItem(PENDING_PROPERTY_KEY, JSON.stringify(pendingPropertyFromForm()));
       setSession(res.token, res.member);
       setMatchModal(null);
       nav("/account");
@@ -329,7 +351,6 @@ export default function SignupPage() {
     try {
       const payload = {
         email: form.email,
-        password: form.password,
         firstName: form.firstName,
         lastName: form.lastName,
         phone: form.phone,
@@ -601,17 +622,6 @@ export default function SignupPage() {
                   setLookupKey("");
                 }}
                 onBlur={() => void checkExistingAccount()}
-              />
-            </div>
-            <div className="mkt-field">
-              <label htmlFor="password">Account password * (min 8 characters)</label>
-              <input
-                id="password"
-                type="password"
-                required
-                minLength={8}
-                value={form.password}
-                onChange={(e) => set("password", e.target.value)}
               />
             </div>
 
@@ -899,6 +909,8 @@ export default function SignupPage() {
                     onClick={() => {
                       setMatchModal("signin");
                       setErr("");
+                      setClaimCodeSent(false);
+                      setClaimCode("");
                       if (accountMatch.matchedBy === "email" && form.email.trim()) {
                         setClaimEmail(form.email.trim().toLowerCase());
                       }
@@ -937,8 +949,8 @@ export default function SignupPage() {
                   </p>
                 </div>
                 <p>
-                  Sign in with your existing account. After you sign in, this address will be ready on your profile —
-                  just hit Save.
+                  We'll email a one-time code to your existing account. After you sign in, this address will be added
+                  to your membership.
                 </p>
                 <div className="mkt-field">
                   <label htmlFor="claimEmail">Account email</label>
@@ -947,21 +959,28 @@ export default function SignupPage() {
                     type="email"
                     required
                     value={claimEmail}
-                    onChange={(e) => setClaimEmail(e.target.value)}
+                    onChange={(e) => {
+                      setClaimEmail(e.target.value);
+                      setClaimCodeSent(false);
+                      setClaimCode("");
+                    }}
                     autoComplete="username"
                   />
                 </div>
-                <div className="mkt-field">
-                  <label htmlFor="claimPassword">Account password</label>
-                  <input
-                    id="claimPassword"
-                    type="password"
-                    required
-                    value={claimPassword}
-                    onChange={(e) => setClaimPassword(e.target.value)}
-                    autoComplete="current-password"
-                  />
-                </div>
+                {claimCodeSent && (
+                  <div className="mkt-field">
+                    <label htmlFor="claimCode">Sign-in code</label>
+                    <input
+                      id="claimCode"
+                      className="mkt-code-input"
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      maxLength={6}
+                      value={claimCode}
+                      onChange={(e) => setClaimCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    />
+                  </div>
+                )}
                 <div className="mkt-field">
                   <label htmlFor="claimLabel">Label for this property (optional)</label>
                   <input
@@ -977,16 +996,17 @@ export default function SignupPage() {
                     type="button"
                     className="mkt-btn mkt-btn-primary"
                     disabled={claimLoading}
-                    onClick={() => void onSignInAddProperty()}
+                    onClick={() => void (claimCodeSent ? onSignInAddProperty() : onSendClaimCode())}
                   >
-                    {claimLoading ? "Signing in…" : "Sign in"}
+                    {claimLoading ? "…" : claimCodeSent ? "Sign in" : "Email me a code"}
                   </button>
                   <button
                     type="button"
                     className="mkt-btn mkt-btn-ghost"
                     onClick={() => {
                       setMatchModal("match");
-                      setClaimPassword("");
+                      setClaimCode("");
+                      setClaimCodeSent(false);
                       setErr("");
                     }}
                   >

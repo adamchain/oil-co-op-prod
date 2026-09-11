@@ -5,6 +5,7 @@ import { Member } from "../models/Member.js";
 import { config, stripeEnabled } from "../config.js";
 import { registerMember, registerMemberSchema } from "../services/memberRegistration.js";
 import { requireAuth, signToken, type AuthedRequest } from "../middleware/auth.js";
+import { consumeLoginCode, issueLoginCode } from "../services/loginCode.js";
 import {
   addPropertyToMember,
   findExistingAccount,
@@ -13,6 +14,22 @@ import {
   toMatchHint,
 } from "../services/accountLookup.js";
 const router = Router();
+
+function sessionBody(member: InstanceType<typeof Member>) {
+  return {
+    token: signToken(String(member._id)),
+    member: {
+      id: String(member._id),
+      email: member.email,
+      firstName: member.firstName,
+      lastName: member.lastName,
+      memberNumber: member.memberNumber,
+      role: member.role,
+      nextAnnualBillingDate: member.nextAnnualBillingDate,
+      oilCompanyId: member.oilCompanyId,
+    },
+  };
+}
 
 const lookupSchema = z.object({
   email: z.string().optional().default(""),
@@ -36,7 +53,7 @@ const propertyBodySchema = z.object({
 
 const claimSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(1),
+  code: z.string().min(4),
   confirmingEmail: z.string().optional().default(""),
   confirmingPhone: z.string().optional().default(""),
   property: propertyBodySchema,
@@ -82,7 +99,7 @@ router.post("/lookup-account", async (req, res) => {
 });
 
 /**
- * Existing member confirms identity (password) and adds a new property address
+ * Existing member confirms identity (email sign-in code) and adds a new property address
  * from the signup form instead of creating a second account.
  */
 router.post("/claim-add-property", async (req, res) => {
@@ -91,9 +108,9 @@ router.post("/claim-add-property", async (req, res) => {
     res.status(400).json({ error: parsed.error.flatten() });
     return;
   }
-  const member = await Member.findOne({ email: parsed.data.email.toLowerCase() });
-  if (!member || !(await bcrypt.compare(parsed.data.password, member.passwordHash))) {
-    res.status(401).json({ error: "Invalid email or password" });
+  const member = await consumeLoginCode(parsed.data.email, parsed.data.code);
+  if (!member) {
+    res.status(401).json({ error: "Invalid or expired sign-in code" });
     return;
   }
   if (!memberContactMatches(member, parsed.data.confirmingEmail, parsed.data.confirmingPhone)) {
@@ -105,16 +122,7 @@ router.post("/claim-add-property", async (req, res) => {
 
   const properties = await addPropertyToMember(member, parsed.data.property);
   res.json({
-    token: signToken(String(member._id)),
-    member: {
-      id: String(member._id),
-      email: member.email,
-      firstName: member.firstName,
-      lastName: member.lastName,
-      memberNumber: member.memberNumber,
-      role: member.role,
-      nextAnnualBillingDate: member.nextAnnualBillingDate,
-    },
+    ...sessionBody(member),
     properties,
   });
 });
@@ -163,24 +171,49 @@ router.post("/register", async (req, res) => {
   }
 
   const member = result.member;
-  const token = signToken(String(member._id));
-  res.status(201).json({
-    token,
-    member: {
-      id: String(member._id),
-      email: member.email,
-      firstName: member.firstName,
-      lastName: member.lastName,
-      memberNumber: member.memberNumber,
-      nextAnnualBillingDate: member.nextAnnualBillingDate,
-      oilCompanyId: member.oilCompanyId,
-    },
-  });
+  res.status(201).json(sessionBody(member));
 });
 
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string(),
+});
+
+const emailSchema = z.object({
+  email: z.string().email(),
+});
+
+const verifyCodeSchema = z.object({
+  email: z.string().email(),
+  code: z.string().min(4),
+});
+
+router.post("/request-code", async (req, res) => {
+  const parsed = emailSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Enter a valid email address." });
+    return;
+  }
+  const result = await issueLoginCode(parsed.data.email);
+  if (!result.ok) {
+    res.status(result.status).json({ error: result.error });
+    return;
+  }
+  res.json({ ok: true });
+});
+
+router.post("/verify-code", async (req, res) => {
+  const parsed = verifyCodeSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Enter the email and sign-in code." });
+    return;
+  }
+  const member = await consumeLoginCode(parsed.data.email, parsed.data.code);
+  if (!member) {
+    res.status(401).json({ error: "Invalid or expired sign-in code" });
+    return;
+  }
+  res.json(sessionBody(member));
 });
 
 router.post("/login", async (req, res) => {
@@ -190,22 +223,15 @@ router.post("/login", async (req, res) => {
     return;
   }
   const member = await Member.findOne({ email: parsed.data.email.toLowerCase() });
-  if (!member || !(await bcrypt.compare(parsed.data.password, member.passwordHash))) {
+  if (!member || member.role !== "admin") {
+    res.status(401).json({ error: "Staff sign-in only. Members use the email code." });
+    return;
+  }
+  if (!(await bcrypt.compare(parsed.data.password, member.passwordHash))) {
     res.status(401).json({ error: "Invalid email or password" });
     return;
   }
-  res.json({
-    token: signToken(String(member._id)),
-    member: {
-      id: String(member._id),
-      email: member.email,
-      firstName: member.firstName,
-      lastName: member.lastName,
-      memberNumber: member.memberNumber,
-      role: member.role,
-      nextAnnualBillingDate: member.nextAnnualBillingDate,
-    },
-  });
+  res.json(sessionBody(member));
 });
 
 router.get("/me", requireAuth, async (req: AuthedRequest, res) => {

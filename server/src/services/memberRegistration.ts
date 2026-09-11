@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import crypto from "node:crypto";
 import mongoose from "mongoose";
 import { z } from "zod";
 import { Member } from "../models/Member.js";
@@ -18,7 +19,10 @@ export const registerMemberSchema = z.object({
     (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
     z.string().email().optional()
   ),
-  password: z.string().min(8),
+  password: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+    z.string().min(8).optional()
+  ),
   firstName: z.string().min(1),
   lastName: z.string().min(1),
   phone: z.string().optional().default(""),
@@ -124,7 +128,10 @@ export async function registerMember(
     oilCompanyObjectId = oc._id;
   }
 
-  const passwordHash = await bcrypt.hash(body.password, 10);
+  const passwordHash = await bcrypt.hash(
+    body.password && body.password.length >= 8 ? body.password : crypto.randomBytes(32).toString("hex"),
+    10
+  );
   const signupDate = new Date();
   const nextAnnual = nextJuneFirstAfterSignup(signupDate);
   const memberNumber = await nextMemberNumber();

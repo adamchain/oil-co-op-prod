@@ -391,3 +391,16 @@ export async function sendOilCompanyAssignedEmail(
   if (!resolved) return;
   await sendMemberEmail(member._id, member.email, resolved.subject, resolved.text, resolved.html, letterContextFromMember(member));
 }
+
+export async function sendLoginCodeEmail(member: MemberDoc, code: string): Promise<void> {
+  const subject = "Your Oil Co-op sign-in code";
+  const text =
+    `Hi ${member.firstName},\n\nYour sign-in code is ${code}.\n\n` +
+    `It expires in 10 minutes. If you did not request this, you can ignore this email.\n`;
+  const html =
+    `<p>Hi ${escapeHtml(member.firstName)},</p>` +
+    `<p>Your sign-in code is:</p>` +
+    `<p style="font-size:28px;font-weight:700;letter-spacing:0.18em;margin:16px 0;">${escapeHtml(code)}</p>` +
+    `<p>It expires in 10 minutes. If you did not request this, you can ignore this email.</p>`;
+  await sendMemberEmail(member._id, member.email, subject, text, html, letterContextFromMember(member));
+}
