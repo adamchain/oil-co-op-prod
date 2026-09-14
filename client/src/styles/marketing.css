@@ -3414,7 +3414,7 @@
 }
 
 .mkt-profile-header-inner--portal {
-  max-width: 36rem;
+  max-width: 1100px;
 }
 
 .mkt-profile-identity {
@@ -3530,14 +3530,212 @@
 }
 
 .mkt-profile-body--portal {
-  max-width: 36rem;
-  grid-template-columns: 1fr;
+  max-width: 1100px;
 }
 
-@media (min-width: 900px) {
-  .mkt-profile-body--portal {
-    grid-template-columns: 1fr;
+.mkt-portal {
+  background:
+    linear-gradient(180deg, var(--color-bg-alt) 0%, var(--color-bg) 18rem);
+}
+
+.mkt-portal-shell {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1.5rem 1.25rem 4rem;
+  display: grid;
+  gap: 1.25rem;
+}
+
+@media (min-width: 860px) {
+  .mkt-portal-shell {
+    grid-template-columns: 230px minmax(0, 1fr);
+    gap: 1.75rem;
+    padding-top: 2rem;
+    align-items: start;
   }
+}
+
+.mkt-portal-nav {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 1.15rem 1rem 1rem;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+@media (min-width: 860px) {
+  .mkt-portal-nav {
+    position: sticky;
+    top: 5.5rem;
+  }
+}
+
+.mkt-portal-nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.mkt-portal-avatar {
+  width: 3rem;
+  height: 3rem;
+  font-size: 0.95rem;
+}
+
+.mkt-portal-nav-kicker {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+
+.mkt-portal-nav-name {
+  margin: 0.1rem 0 0;
+  font-weight: 650;
+  font-size: 0.95rem;
+  line-height: 1.25;
+  color: var(--color-forest, var(--color-text));
+}
+
+.mkt-portal-nav-meta {
+  margin: 0.1rem 0 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.mkt-portal-tabs {
+  display: flex;
+  gap: 0.35rem;
+  overflow-x: auto;
+}
+
+@media (min-width: 860px) {
+  .mkt-portal-tabs {
+    flex-direction: column;
+    overflow: visible;
+  }
+}
+
+.mkt-portal-tabs button {
+  flex: none;
+  appearance: none;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  padding: 0.55rem 0.75rem;
+  border-radius: 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.mkt-portal-tabs button:hover {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-hover);
+}
+
+.mkt-portal-tabs button.is-active {
+  background: var(--color-accent-soft);
+  color: var(--color-accent-hover);
+}
+
+.mkt-portal-nav-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--color-border);
+}
+
+.mkt-portal-nav-link {
+  appearance: none;
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--color-text-muted) !important;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.mkt-portal-nav-link:hover {
+  color: var(--color-accent) !important;
+}
+
+.mkt-portal-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.mkt-portal-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+}
+
+.mkt-portal-welcome {
+  padding: 0.15rem 0.15rem 0.35rem;
+}
+
+.mkt-portal-welcome .mkt-profile-name {
+  margin-bottom: 0.45rem;
+}
+
+.mkt-portal-welcome .mkt-profile-badge {
+  margin-top: 0.85rem;
+}
+
+.mkt-portal-tiles {
+  display: grid;
+  gap: 1rem;
+}
+
+@media (min-width: 640px) {
+  .mkt-portal-tiles {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.mkt-portal-tile-label {
+  margin: 0 0 0.35rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.mkt-portal-tile-value {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.45rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--color-forest, var(--color-text));
+}
+
+.mkt-portal-tile-hint {
+  margin: 0.45rem 0 0;
+  font-size: 0.88rem;
+  color: var(--color-text-muted);
+  line-height: 1.4;
+}
+
+.mkt-portal-tile-btn {
+  margin-top: 1rem;
 }
 
 .mkt-profile-status {

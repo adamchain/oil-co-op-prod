@@ -4,6 +4,8 @@ import { api } from "../api";
 import { useAuth } from "../authContext";
 import { formatUsdFromCents } from "../utils/membershipFees";
 
+type Tab = "dashboard" | "payment" | "membership";
+
 type Me = {
   email: string;
   firstName: string;
@@ -27,9 +29,9 @@ type Me = {
 };
 
 function membershipStatus(status?: string): { text: string; kind: "ok" | "warn" } {
-  if (status === "expired") return { text: "Expired membership", kind: "warn" };
-  if (status === "cancelled") return { text: "Cancelled membership", kind: "warn" };
-  return { text: "Active membership", kind: "ok" };
+  if (status === "expired") return { text: "Expired", kind: "warn" };
+  if (status === "cancelled") return { text: "Cancelled", kind: "warn" };
+  return { text: "Active", kind: "ok" };
 }
 
 function formatBillingDate(iso?: string): string {
@@ -62,9 +64,14 @@ function formatExpiry(value: string): string {
   return digits;
 }
 
+function greetingName(me: Me): string {
+  return me.firstName?.trim() || me.email;
+}
+
 export default function AccountPage() {
   const { token, member, logout } = useAuth();
   const [me, setMe] = useState<Me | null>(null);
+  const [tab, setTab] = useState<Tab>("dashboard");
   const [err, setErr] = useState("");
   const [ok, setOk] = useState("");
   const [saving, setSaving] = useState(false);
@@ -77,6 +84,12 @@ export default function AccountPage() {
       .then(setMe)
       .catch((e) => setErr(String(e.message)));
   }, [token]);
+
+  function go(next: Tab) {
+    setTab(next);
+    setErr("");
+    setOk("");
+  }
 
   async function saveCard(e: FormEvent) {
     e.preventDefault();
@@ -160,146 +173,213 @@ export default function AccountPage() {
   const displayName = [me.firstName, me.lastName].filter(Boolean).join(" ") || me.email;
   const fee = me.annualFeeCents != null ? formatUsdFromCents(me.annualFeeCents) : "—";
   const exp = formatExpiryDisplay(me.cardExpiry);
+  const initials = [me.firstName?.[0], me.lastName?.[0]].filter(Boolean).join("").toUpperCase() || "M";
 
   return (
-    <div className="mkt-profile">
-      <header className="mkt-profile-header">
-        <div className="mkt-profile-header-inner mkt-profile-header-inner--portal">
-          <div>
-            <p className="mkt-profile-eyebrow">Member portal</p>
-            <h1 className="mkt-profile-name">{displayName}</h1>
-            <p className="mkt-profile-meta">Member #{me.memberNumber || "—"}</p>
+    <div className="mkt-profile mkt-portal">
+      <div className="mkt-portal-shell">
+        <aside className="mkt-portal-nav" aria-label="Member portal">
+          <div className="mkt-portal-nav-brand">
+            <span className="mkt-profile-avatar mkt-portal-avatar" aria-hidden>
+              {initials}
+            </span>
+            <div>
+              <p className="mkt-portal-nav-kicker">Member portal</p>
+              <p className="mkt-portal-nav-name">{displayName}</p>
+              <p className="mkt-portal-nav-meta">#{me.memberNumber || "—"}</p>
+            </div>
           </div>
-          <div className="mkt-profile-header-actions">
+          <nav className="mkt-portal-tabs">
+            <button type="button" className={tab === "dashboard" ? "is-active" : ""} onClick={() => go("dashboard")}>
+              Dashboard
+            </button>
+            <button type="button" className={tab === "payment" ? "is-active" : ""} onClick={() => go("payment")}>
+              Payment
+            </button>
+            <button type="button" className={tab === "membership" ? "is-active" : ""} onClick={() => go("membership")}>
+              Membership
+            </button>
+          </nav>
+          <div className="mkt-portal-nav-foot">
             {member?.role === "admin" && (
-              <Link to="/admin/members" className="mkt-btn mkt-btn-ghost">
+              <Link to="/admin/members" className="mkt-portal-nav-link">
                 Admin console
               </Link>
             )}
-            <button type="button" className="mkt-btn mkt-btn-ghost" onClick={logout}>
+            <Link to="/" className="mkt-portal-nav-link">
+              Public site
+            </Link>
+            <button type="button" className="mkt-portal-nav-link" onClick={logout}>
               Sign out
             </button>
           </div>
-        </div>
-      </header>
+        </aside>
 
-      <div className="mkt-profile-body mkt-profile-body--portal">
-        {err && <p className="mkt-error">{err}</p>}
-        {ok && <p className="mkt-profile-ok">{ok}</p>}
+        <div className="mkt-portal-main">
+          {err && <p className="mkt-error">{err}</p>}
+          {ok && <p className="mkt-profile-ok">{ok}</p>}
 
-        <section className="mkt-profile-card">
-          <span className={`mkt-profile-badge mkt-profile-badge--${status.kind} mkt-profile-status`}>
-            {status.text}
-          </span>
-          <dl className="mkt-profile-stats mkt-profile-stats--portal">
-            <div>
-              <dt>Name</dt>
-              <dd>{displayName}</dd>
-            </div>
-            <div>
-              <dt>Email</dt>
-              <dd>{me.email || "—"}</dd>
-            </div>
-            <div>
-              <dt>Phone</dt>
-              <dd>{me.phone || "—"}</dd>
-            </div>
-            <div>
-              <dt>Address</dt>
-              <dd>{formatAddress(me) || "—"}</dd>
-            </div>
-            <div>
-              <dt>Membership / renewal fee</dt>
-              <dd>
-                {me.membershipPlanLabel || "Standard membership"} · {fee} per year
-              </dd>
-            </div>
-            <div>
-              <dt>Next renewal date</dt>
-              <dd>{formatBillingDate(me.nextAnnualBillingDate)}</dd>
-            </div>
-          </dl>
-          <p className="mkt-profile-readonly-note">
-            To change your name, address, phone, or email, contact the office. You can add or replace a card
-            below for automatic renewal.
-          </p>
-        </section>
+          {tab === "dashboard" && (
+            <div className="mkt-portal-panel">
+              <header className="mkt-portal-welcome">
+                <p className="mkt-profile-eyebrow">Welcome back</p>
+                <h1 className="mkt-profile-name">{greetingName(me)}</h1>
+                <p className="mkt-profile-meta">
+                  Thanks for being a co-op member. Here is a snapshot of your membership and billing.
+                </p>
+                <span className={`mkt-profile-badge mkt-profile-badge--${status.kind}`}>{status.text} membership</span>
+              </header>
 
-        <section className="mkt-profile-card">
-          <div className="mkt-profile-card-head">
-            <h2>Payment information</h2>
-            <p>
-              Cards are stored with our processor for June automatic renewal. We never keep the full card number
-              in our database.
-            </p>
-          </div>
-          {hasCard ? (
-            <p className="mkt-profile-card-onfile">
-              Card on file <strong>•••• {me.cardLast4}</strong>
-              {exp ? ` · Exp ${exp}` : ""}
-              {me.autoRenew ? " · Automatic renewal on" : ""}
-            </p>
-          ) : (
-            <p className="mkt-profile-card-onfile">No card on file for automatic renewal.</p>
+              <div className="mkt-portal-tiles">
+                <article className="mkt-profile-card mkt-portal-tile">
+                  <p className="mkt-portal-tile-label">Next billing date</p>
+                  <p className="mkt-portal-tile-value">{formatBillingDate(me.nextAnnualBillingDate)}</p>
+                  <p className="mkt-portal-tile-hint">
+                    {me.membershipPlanLabel || "Standard membership"} · {fee} / year
+                  </p>
+                </article>
+                <article className="mkt-profile-card mkt-portal-tile">
+                  <p className="mkt-portal-tile-label">Card on file</p>
+                  <p className="mkt-portal-tile-value">
+                    {hasCard ? `•••• ${me.cardLast4}` : "None"}
+                  </p>
+                  <p className="mkt-portal-tile-hint">
+                    {hasCard
+                      ? [exp ? `Expires ${exp}` : null, me.autoRenew ? "Auto-renew on" : "Auto-renew off"]
+                          .filter(Boolean)
+                          .join(" · ")
+                      : "Add a card for automatic June renewal."}
+                  </p>
+                  <button type="button" className="mkt-btn mkt-btn-primary mkt-portal-tile-btn" onClick={() => go("payment")}>
+                    {hasCard ? "Update card" : "Add card"}
+                  </button>
+                </article>
+              </div>
+            </div>
           )}
-          <form onSubmit={(e) => void saveCard(e)}>
-            <div className="mkt-profile-grid">
-              <div className="mkt-field mkt-profile-span-2">
-                <label htmlFor="portal-card-number">{hasCard ? "New card number" : "Card number"}</label>
-                <input
-                  id="portal-card-number"
-                  className="mkt-input"
-                  inputMode="numeric"
-                  autoComplete="cc-number"
-                  placeholder="ACCT-000015"
-                  value={card.number}
-                  onChange={(e) => setCard((c) => ({ ...c, number: formatCardNumber(e.target.value) }))}
-                />
+
+          {tab === "payment" && (
+            <section className="mkt-profile-card">
+              <div className="mkt-profile-card-head">
+                <h2>Payment</h2>
+                <p>
+                  Cards are stored with our processor for June automatic renewal. We never keep the full card
+                  number in our database.
+                </p>
               </div>
-              <div className="mkt-field">
-                <label htmlFor="portal-card-exp">Expiration (MM/YY)</label>
-                <input
-                  id="portal-card-exp"
-                  className="mkt-input"
-                  inputMode="numeric"
-                  autoComplete="cc-exp"
-                  placeholder="MM/YY"
-                  value={card.expiry}
-                  onChange={(e) => setCard((c) => ({ ...c, expiry: formatExpiry(e.target.value) }))}
-                />
-              </div>
-              <div className="mkt-field">
-                <label htmlFor="portal-card-cvv">CVV</label>
-                <input
-                  id="portal-card-cvv"
-                  className="mkt-input"
-                  inputMode="numeric"
-                  autoComplete="cc-csc"
-                  placeholder="123"
-                  value={card.cvv}
-                  onChange={(e) =>
-                    setCard((c) => ({ ...c, cvv: e.target.value.replace(/\D/g, "").slice(0, 4) }))
-                  }
-                />
-              </div>
-            </div>
-            <div className="mkt-profile-save-bar">
-              <button className="mkt-btn mkt-btn-primary" type="submit" disabled={saving}>
-                {saving ? "Saving…" : hasCard ? "Update card" : "Save card for automatic renewal"}
-              </button>
-              {hasCard && (
-                <button
-                  className="mkt-btn mkt-btn-ghost"
-                  type="button"
-                  disabled={removing}
-                  onClick={() => void removeCard()}
-                >
-                  {removing ? "Removing…" : "Remove card"}
-                </button>
+              {hasCard ? (
+                <p className="mkt-profile-card-onfile">
+                  Active card <strong>•••• {me.cardLast4}</strong>
+                  {exp ? ` · Exp ${exp}` : ""}
+                  {me.autoRenew ? " · Automatic renewal on" : ""}
+                </p>
+              ) : (
+                <p className="mkt-profile-card-onfile">No card on file for automatic renewal.</p>
               )}
-            </div>
-          </form>
-        </section>
+              <form onSubmit={(e) => void saveCard(e)}>
+                <div className="mkt-profile-grid">
+                  <div className="mkt-field mkt-profile-span-2">
+                    <label htmlFor="portal-card-number">{hasCard ? "New card number" : "Card number"}</label>
+                    <input
+                      id="portal-card-number"
+                      className="mkt-input"
+                      inputMode="numeric"
+                      autoComplete="cc-number"
+                      placeholder="ACCT-000015"
+                      value={card.number}
+                      onChange={(e) => setCard((c) => ({ ...c, number: formatCardNumber(e.target.value) }))}
+                    />
+                  </div>
+                  <div className="mkt-field">
+                    <label htmlFor="portal-card-exp">Expiration (MM/YY)</label>
+                    <input
+                      id="portal-card-exp"
+                      className="mkt-input"
+                      inputMode="numeric"
+                      autoComplete="cc-exp"
+                      placeholder="MM/YY"
+                      value={card.expiry}
+                      onChange={(e) => setCard((c) => ({ ...c, expiry: formatExpiry(e.target.value) }))}
+                    />
+                  </div>
+                  <div className="mkt-field">
+                    <label htmlFor="portal-card-cvv">CVV</label>
+                    <input
+                      id="portal-card-cvv"
+                      className="mkt-input"
+                      inputMode="numeric"
+                      autoComplete="cc-csc"
+                      placeholder="123"
+                      value={card.cvv}
+                      onChange={(e) =>
+                        setCard((c) => ({ ...c, cvv: e.target.value.replace(/\D/g, "").slice(0, 4) }))
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="mkt-profile-save-bar">
+                  <button className="mkt-btn mkt-btn-primary" type="submit" disabled={saving}>
+                    {saving ? "Saving…" : hasCard ? "Update card" : "Save card for automatic renewal"}
+                  </button>
+                  {hasCard && (
+                    <button
+                      className="mkt-btn mkt-btn-ghost"
+                      type="button"
+                      disabled={removing}
+                      onClick={() => void removeCard()}
+                    >
+                      {removing ? "Removing…" : "Remove card"}
+                    </button>
+                  )}
+                </div>
+              </form>
+            </section>
+          )}
+
+          {tab === "membership" && (
+            <section className="mkt-profile-card">
+              <div className="mkt-profile-card-head">
+                <h2>Membership</h2>
+                <p>Contact details on file with the office.</p>
+              </div>
+              <span className={`mkt-profile-badge mkt-profile-badge--${status.kind} mkt-profile-status`}>
+                {status.text} membership
+              </span>
+              <dl className="mkt-profile-stats mkt-profile-stats--portal">
+                <div>
+                  <dt>Name</dt>
+                  <dd>{displayName}</dd>
+                </div>
+                <div>
+                  <dt>Email</dt>
+                  <dd>{me.email || "—"}</dd>
+                </div>
+                <div>
+                  <dt>Phone</dt>
+                  <dd>{me.phone || "—"}</dd>
+                </div>
+                <div>
+                  <dt>Address</dt>
+                  <dd>{formatAddress(me) || "—"}</dd>
+                </div>
+                <div>
+                  <dt>Plan</dt>
+                  <dd>
+                    {me.membershipPlanLabel || "Standard membership"} · {fee} per year
+                  </dd>
+                </div>
+                <div>
+                  <dt>Next renewal date</dt>
+                  <dd>{formatBillingDate(me.nextAnnualBillingDate)}</dd>
+                </div>
+              </dl>
+              <p className="mkt-profile-readonly-note">
+                To change your name, address, phone, or email, contact the office. You can add or replace a card
+                on the Payment tab.
+              </p>
+            </section>
+          )}
+        </div>
       </div>
     </div>
   );
