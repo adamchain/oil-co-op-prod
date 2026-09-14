@@ -169,13 +169,15 @@ export async function createCustomerProfile(
     return { ok: false, error: "authorize_net_not_configured" };
   }
 
+  // Do not send `description` on CIM `profile`. The JSON API maps to XSD
+  // sequence merchantCustomerId → description → email → paymentProfiles;
+  // a description after email is rejected (E00003).
   const body = {
     createCustomerProfileRequest: {
       ...auth(),
       profile: {
         merchantCustomerId: input.merchantCustomerId,
         email: input.email,
-        description: input.description || "",
       },
     },
   };
