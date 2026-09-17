@@ -453,6 +453,9 @@ router.get("/members", async (req, res) => {
   const tokens = qTrimmed.split(/\s+/).filter(Boolean);
   const escapeRx = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const stateOnlyClauseFor = (token: string): { $or: { state: RegExp }[] } | null => {
+    // Only 2-letter abbreviations (RI, VA, PA) are state-only. Full names like
+    // "Virginia" or "Georgia" are also people names and must search first/last.
+    if (!/^[A-Za-z]{2}$/.test(token.trim())) return null;
     const alt = expandStateQuery(token);
     if (!alt) return null;
     const tokenRx = new RegExp(`^${escapeRx(token)}$`, "i");
@@ -463,7 +466,9 @@ router.get("/members", async (req, res) => {
     const rx = new RegExp(escapeRx(token), "i");
     const stateAlt = expandStateQuery(token);
     const stateRxList: { state: RegExp }[] = [{ state: rx }];
-    if (stateAlt) {
+    // Expand abbr → full name (VA → Virginia) only for 2-letter queries. Expanding
+    // "Virginia" to every member whose state is "VA" hides people named Virginia.
+    if (stateAlt && /^[A-Za-z]{2}$/.test(token.trim())) {
       const altRx = new RegExp(`^${escapeRx(stateAlt)}$`, "i");
       stateRxList.push({ state: altRx });
     }
@@ -499,9 +504,9 @@ router.get("/members", async (req, res) => {
       { "legacyProfile.contactNote": rx },
     ];
   };
-  // When the entire query is exactly a known state abbreviation or state name
-  // (e.g. "PA", "Pennsylvania"), restrict the search to the state field only.
-  // Otherwise short tokens like "pa" would match any name/city containing "pa".
+  // When the entire query is exactly a 2-letter state abbreviation (e.g. "PA"),
+  // restrict the search to the state field only. Full state names like "Virginia"
+  // stay a normal name/address search so people with that first name are found.
   const stateOnly = tokens.length === 1 ? stateOnlyClauseFor(tokens[0]) : null;
   if (stateOnly) {
     filter.$and = [

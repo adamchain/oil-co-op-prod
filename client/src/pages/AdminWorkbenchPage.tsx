@@ -1082,11 +1082,10 @@ export default function AdminWorkbenchPage() {
         if (!allFiltersMatch) return false;
       }
       if (q) {
-        // If the entire query is a known state abbreviation or full state name
-        // (e.g. "ri", "Rhode Island"), restrict the match to the state field
-        // — both the literal stored value and any equivalent synonym (so a
-        // member stored as "RI" or "Rhode Island" both match either query).
-        const stateMatch = exactStateMatch(q);
+        // 2-letter state abbreviations (ri, va) stay state-only so "pa" doesn't
+        // match every name containing those letters. Full names like "Virginia"
+        // search people, addresses, and towns — they are also first names.
+        const stateMatch = /^[a-z]{2}$/.test(q) ? exactStateMatch(q) : null;
         if (stateMatch) {
           const [abbr, full] = stateMatch;
           const wanted = new Set([abbr.toLowerCase(), full.toLowerCase()]);
