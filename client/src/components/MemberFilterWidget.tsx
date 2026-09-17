@@ -55,7 +55,7 @@ export const STATIC_FILTER_FIELDS: FilterFieldDef[] = [
   { key: "legacyProfile.mailAddr", label: "Has Mailing Address", type: "boolean", group: "Address" },
   { key: "legacyProfile.callBack", label: "Call Back", type: "boolean", group: "Status" },
   { key: "legacyProfile.aptNo1", label: "Apt No", type: "text", group: "Address" },
-  { key: "city", label: "City", type: "text", group: "Address" },
+  { key: "city", label: "Town / City", type: "text", group: "Address" },
   { key: "state", label: "State", type: "text", group: "Address" },
   { key: "postalCode", label: "Zip", type: "text", group: "Address" },
 
@@ -263,6 +263,52 @@ function getValueAtPath(member: Record<string, unknown>, path: string): unknown 
   return cur;
 }
 
+function asRefId(raw: unknown): string {
+  if (raw == null || raw === "") return "";
+  if (typeof raw === "string" || typeof raw === "number") return String(raw).trim();
+  if (typeof raw === "object") {
+    const o = raw as Record<string, unknown>;
+    if (o._id != null) return asRefId(o._id);
+    if (o.id != null) return asRefId(o.id);
+  }
+  return String(raw).trim();
+}
+
+function asRefName(raw: unknown): string {
+  if (raw && typeof raw === "object" && "name" in (raw as object)) {
+    return String((raw as { name?: unknown }).name || "").trim();
+  }
+  return "";
+}
+
+function namesLooselyMatch(a: string, b: string): boolean {
+  const left = a.trim().toLowerCase();
+  const right = b.trim().toLowerCase();
+  if (!left || !right) return false;
+  if (left === right) return true;
+  return left.includes(right) || right.includes(left);
+}
+
+function matchesText(value: unknown, operator: FilterOperator, target: string): boolean {
+  const text = isEmptyValue(value) ? "" : String(value).toLowerCase().trim();
+  if (operator === "contains") return target ? text.includes(target) : true;
+  if (operator === "equals") return text === target;
+  if (operator === "starts_with") return target ? text.startsWith(target) : true;
+  return false;
+}
+
+function oilCompanyIdentity(member: Record<string, unknown>): { id: string; names: string[] } {
+  const oc = member.oilCompanyId;
+  const lp =
+    member.legacyProfile && typeof member.legacyProfile === "object"
+      ? (member.legacyProfile as Record<string, unknown>)
+      : {};
+  const names = [asRefName(oc), String(lp.oilCompanyName || "")]
+    .map((n) => n.trim())
+    .filter(Boolean);
+  return { id: asRefId(oc), names };
+}
+
 function isEmptyValue(v: unknown): boolean {
   if (v === null || v === undefined) return true;
   if (typeof v === "string") return v.trim() === "";
@@ -309,6 +355,18 @@ export function evaluateFilter(
   if (filter.field === "legacyProfile.oilWorkbenchStatus" && isEmptyValue(raw)) {
     raw = getValueAtPath(member, "legacyProfile.workbenchMemberStatus");
   }
+  if (filter.field === "oilCompanyId._id") {
+    const { id, names } = oilCompanyIdentity(member);
+    raw = id || names[0] || "";
+  }
+  if (filter.field === "city") {
+    const cities = [raw, getValueAtPath(member, "legacyProfile.mailCity")];
+    const emptyCities = cities.every((v) => isEmptyValue(v));
+    if (filter.operator === "is_empty") return emptyCities;
+    if (filter.operator === "is_not_empty") return !emptyCities;
+    const target = (filter.value || "").toLowerCase().trim();
+    return cities.some((v) => matchesText(v, filter.operator, target));
+  }
   const empty = isEmptyValue(raw);
 
   if (filter.operator === "is_empty") return empty;
@@ -316,12 +374,8 @@ export function evaluateFilter(
 
   switch (field.type) {
     case "text": {
-      const text = empty ? "" : String(raw).toLowerCase();
       const target = (filter.value || "").toLowerCase().trim();
-      if (filter.operator === "contains") return target ? text.includes(target) : true;
-      if (filter.operator === "equals") return text === target;
-      if (filter.operator === "starts_with") return target ? text.startsWith(target) : true;
-      return false;
+      return matchesText(raw, filter.operator, target);
     }
     case "number": {
       const target = Number(String(filter.value).trim());
@@ -343,6 +397,18 @@ export function evaluateFilter(
     }
     case "enum":
     case "ref": {
+      if (filter.field === "oilCompanyId._id") {
+        const { id, names } = oilCompanyIdentity(member);
+        const selectedId = String(filter.value || "").trim();
+        const selectedLabel = (field.options || []).find((o) => o.value === selectedId)?.label || "";
+        const selectedName = selectedLabel.replace(/\s*\(inactive\)\s*$/i, "").trim();
+        const matched =
+          Boolean(selectedId && id && id.toLowerCase() === selectedId.toLowerCase()) ||
+          names.some((n) => namesLooselyMatch(n, selectedName));
+        if (filter.operator === "is") return matched;
+        if (filter.operator === "is_not") return !matched;
+        return false;
+      }
       let text = empty ? "" : String(raw);
       // For howJoined, fall back to signedUpVia for members who lack a legacyProfile value
       if (!text && filter.field === "legacyProfile.howJoined") {

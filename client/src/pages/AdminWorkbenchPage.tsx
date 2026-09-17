@@ -2262,7 +2262,10 @@ export default function AdminWorkbenchPage() {
             <button onClick={() => nav("last")} title="Last">&gt;|</button>
           </div>
           <span className="admin-wb-count">
-            Record {recordCount} of {totalMemberCount != null && !quickSearch.trim() ? totalMemberCount.toLocaleString() : filteredMembers.length.toLocaleString()}
+            Record {recordCount} of {(quickSearch.trim() || filters.length > 0
+              ? filteredMembers.length
+              : totalMemberCount != null ? totalMemberCount : filteredMembers.length
+            ).toLocaleString()}
           </span>
         </div>
         <div className="admin-wb-header-right">
