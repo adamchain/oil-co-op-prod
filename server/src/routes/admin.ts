@@ -1274,6 +1274,16 @@ router.post("/members/:id/adopt-property", async (req: AuthedRequest, res) => {
     res.status(409).json({ error: "That member is already linked to another primary membership" });
     return;
   }
+  const existingChildCount = await Member.countDocuments({
+    role: "member",
+    primaryMemberId: existing._id,
+  });
+  if (existingChildCount > 0) {
+    res.status(409).json({
+      error: "That member already has linked properties. Grab those records individually, or unlink them first.",
+    });
+    return;
+  }
 
   // Set the existing member as a linked property under this primary.
   existing.primaryMemberId = primaryId as mongoose.Types.ObjectId;

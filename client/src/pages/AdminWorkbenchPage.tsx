@@ -66,6 +66,7 @@ type Member = {
   oilCompanyId?: { _id: string; name: string } | null;
   /** When set, this record is an additional (free/lifetime) property under a primary membership. */
   primaryMemberId?: string | null;
+  lifetimeAnnualFeeWaived?: boolean;
   legacyProfile?: Record<string, unknown>;
   referralCount?: number;
   authnetCardLast4?: string;
@@ -522,6 +523,9 @@ export default function AdminWorkbenchPage() {
   const [adoptPropertyQuery, setAdoptPropertyQuery] = useState("");
   const [adoptingProperty, setAdoptingProperty] = useState(false);
   const [adoptPropertyError, setAdoptPropertyError] = useState("");
+  const [adoptMatches, setAdoptMatches] = useState<Member[]>([]);
+  const [adoptSearchLoading, setAdoptSearchLoading] = useState(false);
+  const [grabberFocus, setGrabberFocus] = useState(false);
   const pendingAddressFocusRef = useRef(false);
   const address1Ref = useRef<HTMLInputElement>(null);
 
@@ -1004,6 +1008,35 @@ export default function AdminWorkbenchPage() {
     void loadReferralSources();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
+
+  useEffect(() => {
+    if (!showAddProperty || !token) return;
+    const q = adoptPropertyQuery.trim();
+    if (q.length < 2) {
+      setAdoptMatches([]);
+      setAdoptSearchLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setAdoptSearchLoading(true);
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          const params = new URLSearchParams({ slim: "1", q });
+          const { members: rows } = await api<{ members: Member[] }>(`/api/admin/members?${params}`, { token });
+          if (!cancelled) setAdoptMatches(rows || []);
+        } catch {
+          if (!cancelled) setAdoptMatches([]);
+        } finally {
+          if (!cancelled) setAdoptSearchLoading(false);
+        }
+      })();
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [adoptPropertyQuery, showAddProperty, token]);
 
   useEffect(() => {
     if (!token) return;
@@ -1708,11 +1741,13 @@ export default function AdminWorkbenchPage() {
    * paid record — one annual renewal on the primary even with multiple properties.
    */
   // Open the Add Property form (owner shown read-only + a fresh address).
-  const openAddProperty = () => {
+  const openAddProperty = (opts?: { grabber?: boolean }) => {
     if (!current) return;
     setNewPropAddress(emptyPropAddress);
     setAdoptPropertyQuery("");
+    setAdoptMatches([]);
     setAdoptPropertyError("");
+    setGrabberFocus(Boolean(opts?.grabber));
     setActionMessage("");
     setShowAddProperty(true);
   };
@@ -1791,30 +1826,38 @@ export default function AdminWorkbenchPage() {
     }
   };
 
-  const adoptExistingProperty = async (existingMemberId: string) => {
+  const adoptExistingProperty = async (existing: Member) => {
     if (!token || !current) return;
+    const label = `${existing.firstName} ${existing.lastName}`.trim() || existing.memberNumber || "this record";
+    const addr = [existing.addressLine1, existing.city, existing.state].filter(Boolean).join(", ");
+    if (!confirm(`Grabber: link ${label}${addr ? ` (${addr})` : ""} as an additional free property under this membership?`)) {
+      return;
+    }
     setAdoptingProperty(true);
     setAdoptPropertyError("");
     try {
       const res = await api<{ member: Member }>(`/api/admin/members/${current._id}/adopt-property`, {
         method: "POST",
         token,
-        body: JSON.stringify({ existingMemberId }),
+        body: JSON.stringify({ existingMemberId: existing._id }),
       });
       const adopted = res.member;
       const id = adopted?._id ? String(adopted._id) : "";
       if (adopted && id) {
-        setMembers((prev) =>
-          prev.map((m) =>
-            m._id === id
-              ? {
-                  ...m,
-                  primaryMemberId: current.primaryMemberId || current._id,
-                  lifetimeAnnualFeeWaived: true,
-                }
-              : m
-          )
-        );
+        const linkedPrimaryId = current.primaryMemberId || current._id;
+        const row: Member = {
+          ...adopted,
+          _id: id,
+          primaryMemberId: linkedPrimaryId,
+          lifetimeAnnualFeeWaived: true,
+          legacyProfile: hydrateLegacyProfile({ ...(adopted.legacyProfile || {}) } as Record<string, unknown>),
+        };
+        setMembers((prev) => {
+          if (prev.some((m) => m._id === id)) {
+            return prev.map((m) => (m._id === id ? { ...m, ...row } : m));
+          }
+          return [row, ...prev];
+        });
         setPropertyGroup((prev) =>
           prev.some((p) => p._id === id)
             ? prev
@@ -1822,23 +1865,25 @@ export default function AdminWorkbenchPage() {
                 ...prev,
                 {
                   _id: id,
-                  memberNumber: adopted.memberNumber || "",
-                  firstName: adopted.firstName,
-                  lastName: adopted.lastName,
-                  addressLine1: adopted.addressLine1 || "",
-                  city: adopted.city || "",
-                  state: adopted.state || "",
-                  postalCode: adopted.postalCode || "",
+                  memberNumber: row.memberNumber || "",
+                  firstName: row.firstName,
+                  lastName: row.lastName,
+                  addressLine1: row.addressLine1 || "",
+                  city: row.city || "",
+                  state: row.state || "",
+                  postalCode: row.postalCode || "",
                   isPrimary: false,
                   lifetime: true,
                   paymentNotes: "",
                 },
               ]
         );
+        selectMemberById(id);
       }
       setShowAddProperty(false);
       setAdoptPropertyQuery("");
-      flashSaveToast("Property linked successfully", true, 4000);
+      setAdoptMatches([]);
+      flashSaveToast("Property linked with grabber", true, 4000);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Could not link property";
       setAdoptPropertyError(msg);
@@ -2949,9 +2994,19 @@ export default function AdminWorkbenchPage() {
                 className="admin-wb-btn admin-wb-btn-secondary"
                 style={{ marginTop: "0.45rem", fontSize: "0.68rem" }}
                 disabled={!current || addingProperty}
-                onClick={openAddProperty}
+                onClick={() => openAddProperty()}
               >
                 {addingProperty ? "Adding…" : "Add another property"}
+              </button>
+              <button
+                type="button"
+                className="admin-wb-btn admin-wb-btn-secondary"
+                style={{ marginTop: "0.35rem", marginLeft: "0.35rem", fontSize: "0.68rem" }}
+                disabled={!current || adoptingProperty}
+                onClick={() => openAddProperty({ grabber: true })}
+                title="Link an existing member record as an additional property"
+              >
+                Grabber: link existing
               </button>
               </>)}
             </div>
@@ -4147,7 +4202,7 @@ export default function AdminWorkbenchPage() {
                   <span>Street address</span>
                   <input
                     className="admin-input"
-                    autoFocus
+                    autoFocus={!grabberFocus}
                     value={newPropAddress.addressLine1}
                     placeholder="123 Main St"
                     onChange={(e) => setNewPropAddress((p) => ({ ...p, addressLine1: e.target.value }))}
@@ -4192,18 +4247,19 @@ export default function AdminWorkbenchPage() {
               </div>
 
               <div className="admin-addprop-divider">
-                <span>— or link an existing member record —</span>
+                <span>Grabber — or link an existing member record</span>
               </div>
 
               <div className="admin-addprop-adopt">
                 <p className="admin-addprop-adopt-hint">
-                  Search for a member already in the system and link them as an additional property under this membership.
+                  Search the full membership list and attach that address as an additional free property under this membership.
                 </p>
                 <div className="admin-toolbar" style={{ marginBottom: "0.5rem" }}>
                   <input
                     className="admin-input"
                     placeholder="Search by name, member #, or address…"
                     value={adoptPropertyQuery}
+                    autoFocus={grabberFocus}
                     onChange={(e) => { setAdoptPropertyQuery(e.target.value); setAdoptPropertyError(""); }}
                     disabled={adoptingProperty}
                     style={{ flex: 1 }}
@@ -4217,15 +4273,13 @@ export default function AdminWorkbenchPage() {
                     <table className="admin-table">
                       <tbody>
                         {(() => {
-                          const needle = adoptPropertyQuery.trim().toLowerCase();
                           const alreadyLinkedIds = new Set(propertyGroup.map((p) => p._id));
-                          const matches = members
+                          const matches = adoptMatches
                             .filter((m) => m._id !== current?._id && !alreadyLinkedIds.has(m._id) && !m.primaryMemberId)
-                            .filter((m) => {
-                              const hay = `${m.firstName} ${m.lastName} ${m.memberNumber || ""} ${m.addressLine1 || ""} ${m.city || ""}`.toLowerCase();
-                              return hay.includes(needle);
-                            })
                             .slice(0, 25);
+                          if (adoptSearchLoading && matches.length === 0) {
+                            return <tr><td className="admin-meta">Searching all members…</td></tr>;
+                          }
                           if (matches.length === 0) {
                             return <tr><td className="admin-meta">No unlinked members match</td></tr>;
                           }
@@ -4233,7 +4287,7 @@ export default function AdminWorkbenchPage() {
                             <tr
                               key={m._id}
                               style={{ cursor: adoptingProperty ? "default" : "pointer" }}
-                              onClick={() => { if (!adoptingProperty) void adoptExistingProperty(m._id); }}
+                              onClick={() => { if (!adoptingProperty) void adoptExistingProperty(m); }}
                             >
                               <td style={{ fontWeight: 600 }}>{`${m.firstName} ${m.lastName}`.trim()}</td>
                               <td>{m.memberNumber || "—"}</td>
