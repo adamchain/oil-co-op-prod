@@ -26,7 +26,7 @@ export type NewPaymentLine = {
   paidDate?: string;
   amountCents: number;
   method: "" | "authorize.net" | "check" | "money_order";
-  type: "new" | "renew";
+  type: "new" | "renew" | "referral";
   checkNumber?: string;
 };
 
@@ -46,6 +46,7 @@ const METHOD_OPTIONS = [
 const TYPE_OPTIONS = [
   { value: "renew", label: "Renew" },
   { value: "new", label: "New" },
+  { value: "referral", label: "Referral" },
 ] as const;
 
 const methodLabel = (v: string) => METHOD_OPTIONS.find((o) => o.value === v)?.label ?? (v ? v : "—");
@@ -147,7 +148,7 @@ const emptyDraft = {
   paidDate: "",
   amount: "",
   method: "" as "" | "authorize.net" | "check" | "money_order",
-  type: "renew" as "new" | "renew",
+  type: "renew" as "new" | "renew" | "referral",
   checkNumber: "",
 };
 
@@ -417,13 +418,16 @@ export default function PaymentHistoryView({
                         : b.status === "pending"
                           ? "Check"
                           : "Authorize.Net";
-                    const typeLabel = b.entryType === "new"
+                    const entry = String(b.entryType || "").toLowerCase();
+                    const typeLabel = entry === "new"
                       ? "New"
-                      : b.entryType === "renew"
+                      : entry === "renew"
                         ? "Renew"
-                        : b.kind === "registration"
-                          ? "New"
-                          : "Renew";
+                        : entry === "referral"
+                          ? "Referral"
+                          : b.kind === "registration"
+                            ? "New"
+                            : "Renew";
                     return (
                       <tr key={b._id}>
                         <td>{b.billingYear ?? new Date(b.paidDate || b.createdAt).getFullYear()}</td>

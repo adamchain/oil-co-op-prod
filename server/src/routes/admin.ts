@@ -669,7 +669,7 @@ router.get("/members/:id", async (req, res) => {
   const legacyPayments = ((member.legacyProfile as any)?.paymentsHistory || []).map(
     (p: any, i: number) => ({
       _id: `legacy-${i}`,
-      kind: p.entryType === "new" ? "registration" : "annual",
+      kind: String(p.entryType || "").toLowerCase() === "new" ? "registration" : String(p.entryType || "").toLowerCase() === "referral" ? "manual_adjustment" : "annual",
       status: p.feeWaived ? "waived" : "paid",
       amountCents: p.amountCents || 0,
       billingYear: p.billingYear,
@@ -677,7 +677,7 @@ router.get("/members/:id", async (req, res) => {
       manualEntry: true,
       paymentMethod: p.paymentMethod || "",
       checkNumber: p.checkNumber || "",
-      entryType: p.entryType || "renew",
+      entryType: String(p.entryType || "renew").toLowerCase(),
       paidDate: p.date || null,
       legacy: true,
     })
@@ -1520,7 +1520,7 @@ const manualBillingSchema = z.object({
   paidDate: z.string().optional(),
   amountCents: z.number().int().min(0),
   method: z.enum(["", "authorize.net", "check", "money_order"]).default(""),
-  type: z.enum(["new", "renew"]).default("renew"),
+  type: z.enum(["new", "renew", "referral"]).default("renew"),
   checkNumber: z.string().max(60).optional(),
 });
 
@@ -1549,7 +1549,7 @@ router.post("/members/:id/billing", async (req: AuthedRequest, res) => {
 
   await BillingEvent.create({
     memberId: member._id,
-    kind: body.type === "new" ? "registration" : "annual",
+    kind: body.type === "new" ? "registration" : body.type === "referral" ? "manual_adjustment" : "annual",
     amountCents: body.amountCents,
     status,
     billingYear: body.billingYear,

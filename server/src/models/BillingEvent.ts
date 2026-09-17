@@ -29,7 +29,7 @@ const billingEventSchema = new Schema(
     paymentMethod: { type: String, default: "" },
     /** Check or money-order number for manual lines. */
     checkNumber: { type: String, default: "" },
-    /** "new" | "renew" — the Type column in the payment history. */
+    /** "new" | "renew" | "referral" — the Type column in the payment history. */
     entryType: { type: String, default: "" },
     /** Date the payment was actually made (falls back to createdAt for display). */
     paidDate: { type: Date, default: null },
