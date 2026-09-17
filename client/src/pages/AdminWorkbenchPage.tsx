@@ -2350,7 +2350,7 @@ export default function AdminWorkbenchPage() {
           className="admin-wb-btn admin-wb-btn-secondary"
           type="button"
           disabled={!current || addingProperty}
-          onClick={openAddProperty}
+          onClick={() => openAddProperty()}
           title="Create a free/lifetime property record linked to this membership (one annual fee on the primary)"
         >
           {addingProperty ? "Adding…" : "Add Property"}
