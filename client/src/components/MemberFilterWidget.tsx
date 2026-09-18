@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { parseLegacyYes } from "../utils/legacyProfile";
+import {
+  namesLooselyMatch,
+  oilCompanyAliases,
+  oilCompanyCodeFromNotes,
+} from "../utils/oilCompanyCodes";
 
 export type FilterFieldType = "text" | "number" | "date" | "boolean" | "enum" | "ref";
 
@@ -21,7 +26,7 @@ export type FilterOperator =
   | "lt"
   | "lte";
 
-export type FilterFieldOption = { value: string; label: string };
+export type FilterFieldOption = { value: string; label: string; code?: string };
 
 export type FilterFieldDef = {
   key: string;
@@ -187,7 +192,7 @@ export const STATIC_FILTER_FIELDS: FilterFieldDef[] = [
 ];
 
 export function buildFilterFields(
-  oilCompanies: { _id: string; name: string; active?: boolean }[]
+  oilCompanies: { _id: string; name: string; active?: boolean; notes?: string }[]
 ): FilterFieldDef[] {
   return STATIC_FILTER_FIELDS.map((f) => {
     if (f.key === "oilCompanyId._id") {
@@ -196,6 +201,7 @@ export function buildFilterFields(
         options: oilCompanies.map((oc) => ({
           value: oc._id,
           label: oc.active === false ? `${oc.name} (inactive)` : oc.name,
+          code: oilCompanyCodeFromNotes(oc.notes),
         })),
       };
     }
@@ -281,14 +287,6 @@ function asRefName(raw: unknown): string {
   return "";
 }
 
-function namesLooselyMatch(a: string, b: string): boolean {
-  const left = a.trim().toLowerCase();
-  const right = b.trim().toLowerCase();
-  if (!left || !right) return false;
-  if (left === right) return true;
-  return left.includes(right) || right.includes(left);
-}
-
 function matchesText(value: unknown, operator: FilterOperator, target: string): boolean {
   const text = isEmptyValue(value) ? "" : String(value).toLowerCase().trim();
   if (operator === "contains") return target ? text.includes(target) : true;
@@ -297,7 +295,7 @@ function matchesText(value: unknown, operator: FilterOperator, target: string): 
   return false;
 }
 
-function oilCompanyIdentity(member: Record<string, unknown>): { id: string; names: string[] } {
+function oilCompanyIdentity(member: Record<string, unknown>): { id: string; names: string[]; codes: string[] } {
   const oc = member.oilCompanyId;
   const lp =
     member.legacyProfile && typeof member.legacyProfile === "object"
@@ -306,7 +304,10 @@ function oilCompanyIdentity(member: Record<string, unknown>): { id: string; name
   const names = [asRefName(oc), String(lp.oilCompanyName || "")]
     .map((n) => n.trim())
     .filter(Boolean);
-  return { id: asRefId(oc), names };
+  const codes = [String(lp.oilCoRaw || "")]
+    .map((n) => n.trim())
+    .filter(Boolean);
+  return { id: asRefId(oc), names, codes };
 }
 
 function isEmptyValue(v: unknown): boolean {
@@ -356,8 +357,8 @@ export function evaluateFilter(
     raw = getValueAtPath(member, "legacyProfile.workbenchMemberStatus");
   }
   if (filter.field === "oilCompanyId._id") {
-    const { id, names } = oilCompanyIdentity(member);
-    raw = id || names[0] || "";
+    const { id, names, codes } = oilCompanyIdentity(member);
+    raw = id || names[0] || codes[0] || "";
   }
   if (filter.field === "city") {
     const cities = [raw, getValueAtPath(member, "legacyProfile.mailCity")];
@@ -398,13 +399,27 @@ export function evaluateFilter(
     case "enum":
     case "ref": {
       if (filter.field === "oilCompanyId._id") {
-        const { id, names } = oilCompanyIdentity(member);
+        const { id, names, codes } = oilCompanyIdentity(member);
         const selectedId = String(filter.value || "").trim();
-        const selectedLabel = (field.options || []).find((o) => o.value === selectedId)?.label || "";
-        const selectedName = selectedLabel.replace(/\s*\(inactive\)\s*$/i, "").trim();
+        const selectedOpt = (field.options || []).find((o) => o.value === selectedId);
+        const selectedName = (selectedOpt?.label || "").replace(/\s*\(inactive\)\s*$/i, "").trim();
+        const relatedOpts = (field.options || []).filter((o) => {
+          const label = o.label.replace(/\s*\(inactive\)\s*$/i, "").trim();
+          return (
+            o.value === selectedId ||
+            (selectedName && namesLooselyMatch(label, selectedName)) ||
+            Boolean(selectedOpt?.code && o.code && selectedOpt.code.toLowerCase() === o.code.toLowerCase())
+          );
+        });
+        const relatedIds = new Set(relatedOpts.map((o) => o.value.toLowerCase()));
+        const relatedNames = relatedOpts.map((o) => o.label.replace(/\s*\(inactive\)\s*$/i, "").trim());
+        const extraCodes = relatedOpts.map((o) => o.code || "").filter(Boolean);
+        const aliases = oilCompanyAliases(selectedName, extraCodes);
         const matched =
           Boolean(selectedId && id && id.toLowerCase() === selectedId.toLowerCase()) ||
-          names.some((n) => namesLooselyMatch(n, selectedName));
+          Boolean(selectedId && id && relatedIds.has(id.toLowerCase())) ||
+          names.some((n) => [...relatedNames, ...aliases.names].some((rn) => namesLooselyMatch(n, rn))) ||
+          codes.some((c) => aliases.codes.some((rc) => c.toLowerCase() === rc.toLowerCase()));
         if (filter.operator === "is") return matched;
         if (filter.operator === "is_not") return !matched;
         return false;
@@ -471,6 +486,17 @@ export function filterSummary(filter: MemberFilter, field: FilterFieldDef | unde
 export function encodeFilters(filters: MemberFilter[]): string {
   if (filters.length === 0) return "";
   return JSON.stringify(filters.map(({ field, operator, value }) => [field, operator, value]));
+}
+
+/** Fields the members list API can apply in Mongo, so the workbench does not need to download every record. */
+export function serverHandlesFilter(filter: MemberFilter): boolean {
+  if (filter.field === "oilCompanyId._id") {
+    return ["is", "is_not", "is_empty", "is_not_empty"].includes(filter.operator);
+  }
+  if (filter.field === "city") {
+    return ["contains", "equals", "starts_with", "is_empty", "is_not_empty"].includes(filter.operator);
+  }
+  return false;
 }
 
 export function decodeFilters(encoded: string): MemberFilter[] {

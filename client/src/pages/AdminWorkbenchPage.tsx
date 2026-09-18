@@ -10,6 +10,7 @@ import {
   decodeFilters,
   encodeFilters,
   evaluateFilter,
+  serverHandlesFilter,
   type MemberFilter,
 } from "../components/MemberFilterWidget";
 import { memberRecordMatchesQuery } from "../utils/memberSearch";
@@ -802,10 +803,13 @@ export default function AdminWorkbenchPage() {
       const q = quickSearch.trim();
       const params = new URLSearchParams({ slim: "1" });
       if (q) params.set("q", q);
-      // Filters run client-side, but they need the full dataset. When filters
-      // are active and there's no search query narrowing results, ask the server
-      // for all members so filter results aren't capped at the default 200.
-      if (filters.length > 0 && !q) params.set("all", "1");
+      // Send structured filters to Mongo so Oil Company / Town queries return
+      // the full match set (350+ Valiant members) instead of scanning the 200
+      // most recently loaded records on the client.
+      const enc = encodeFilters(filters);
+      if (enc) params.set("filters", enc);
+      const needsFullScan = filters.some((f) => !serverHandlesFilter(f));
+      if (needsFullScan && !q) params.set("all", "1");
       const { members: rows, total } = await api<{ members: Member[]; total?: number }>(
         `/api/admin/members?${params}`,
         { token }
@@ -1058,8 +1062,8 @@ export default function AdminWorkbenchPage() {
   }, [token]);
 
   // Debounced server-side member fetch. Empty query + no filters → 200 most recent (instant).
-  // Filters active → fetch all members so client-side filter sees the full dataset.
-  // Non-empty search → server search with 350 ms debounce so we don't fire on every keystroke.
+  // Oil company / town filters go to Mongo so the match set is complete (not the local 200).
+  // Other filters still fetch all members. Non-empty search uses a 350 ms debounce.
   useEffect(() => {
     if (!token) return;
     const q = quickSearch.trim();

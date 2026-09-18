@@ -36,6 +36,7 @@ import { ensureCommunityContent } from "../services/communityStore.js";
 import { computePriceDifference } from "../data/oilPriceSeed.js";
 import { nextJuneFirstAfterSignup } from "../utils/juneBilling.js";
 import { expandStateQuery, US_STATE_ABBR_TO_NAME } from "../utils/stateAbbreviations.js";
+import { applyStructuredMemberFilters } from "../utils/memberListFilters.js";
 import { chargeCard } from "../services/authorizeNet.js";
 import { storeCardOnFile, removeCardOnFile } from "../services/storeCardOnFile.js";
 import { annualFeeCentsFor, planFlags, syncMembershipPlanFields } from "../utils/membershipFees.js";
@@ -413,9 +414,7 @@ router.get("/members", async (req, res) => {
   if (signedUpVia && ["web", "phone", "admin"].includes(signedUpVia)) {
     filter.signedUpVia = signedUpVia;
   }
-  if (oilCompanyId && mongoose.isValidObjectId(oilCompanyId)) {
-    filter.oilCompanyId = new mongoose.Types.ObjectId(oilCompanyId);
-  }
+  const encodedFilters = String(req.query.filters || "");
   const flag = (req.query.flag as string | undefined)?.trim();
   const FLAG_KEYS = new Set([
     "standardMembership",
@@ -521,11 +520,15 @@ router.get("/members", async (req, res) => {
       ...tokens.map((t) => stateOnlyClauseFor(t) || { $or: buildOrForToken(t) }),
     ];
   }
+  const structuredApplied = await applyStructuredMemberFilters(filter, {
+    oilCompanyId,
+    encodedFilters,
+  });
   const requestAll = String(req.query.all || "") === "1";
   const slim = String(req.query.slim || "") === "1";
   let members = await Member.find(filter)
     .sort({ createdAt: -1 })
-    .limit(qTrimmed || flag || requestAll ? 20000 : 200)
+    .limit(qTrimmed || flag || requestAll || structuredApplied ? 20000 : 200)
     .populate("oilCompanyId", "name")
     .lean();
 
