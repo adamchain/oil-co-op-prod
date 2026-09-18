@@ -12,8 +12,7 @@ import {
   evaluateFilter,
   type MemberFilter,
 } from "../components/MemberFilterWidget";
-import { exactStateMatch, stateSynonyms } from "../utils/stateAbbreviations";
-import { memberMatchesQuickSearch } from "../utils/memberSearch";
+import { memberRecordMatchesQuery } from "../utils/memberSearch";
 import { formatPhoneValue } from "../utils/phone";
 import { hydrateLegacyProfile } from "../utils/legacyProfile";
 import PaymentFindModal from "../components/PaymentFindModal";
@@ -821,10 +820,18 @@ export default function AdminWorkbenchPage() {
           /* member may have been deleted */
         }
       }
-      setMembers(nextRows.map((m) => ({
-        ...m,
-        legacyProfile: hydrateLegacyProfile({ ...(m.legacyProfile || {}) } as Record<string, unknown>),
-      })));
+      setMembers((prev) => {
+        // Completing "virgini" → "virginia" used to refetch as a state-only query
+        // and replace name hits with []. Keep the current list when the server
+        // returns nothing but those records still match as a person/address.
+        if (nextRows.length === 0 && q && prev.some((m) => memberRecordMatchesQuery(m, q))) {
+          return prev;
+        }
+        return nextRows.map((m) => ({
+          ...m,
+          legacyProfile: hydrateLegacyProfile({ ...(m.legacyProfile || {}) } as Record<string, unknown>),
+        }));
+      });
       if (wanted) {
         const idx = nextRows.findIndex((m) => m._id === wanted);
         if (idx >= 0) {
@@ -1082,63 +1089,7 @@ export default function AdminWorkbenchPage() {
         if (!allFiltersMatch) return false;
       }
       if (q) {
-        // 2-letter state abbreviations (ri, va) stay state-only so "pa" doesn't
-        // match every name containing those letters. Full names like "Virginia"
-        // search people, addresses, and towns — they are also first names.
-        const stateMatch = /^[a-z]{2}$/.test(q) ? exactStateMatch(q) : null;
-        if (stateMatch) {
-          const [abbr, full] = stateMatch;
-          const wanted = new Set([abbr.toLowerCase(), full.toLowerCase()]);
-          const stateLower = String(m.state || "").toLowerCase().trim();
-          const synonyms = stateSynonyms(m.state).map((s) => s.toLowerCase());
-          if (!wanted.has(stateLower) && !synonyms.some((s) => wanted.has(s))) return false;
-        } else {
-          const legacyValues =
-            m.legacyProfile && typeof m.legacyProfile === "object"
-              ? Object.values(m.legacyProfile as Record<string, unknown>)
-              : [];
-          const noteHistoryTexts = (m.notesHistory || []).map((n) => n.text);
-          const lp = (m.legacyProfile || {}) as Record<string, unknown>;
-          const fullNameParts = [
-            m.firstName,
-            lp.midName1,
-            m.lastName,
-            lp.suffix1,
-            lp.firstName2,
-            lp.midName2,
-            lp.lastName2,
-            lp.suffix2,
-          ].filter(Boolean).map((x) => String(x).trim()).filter(Boolean);
-          const combinedFullName = fullNameParts.join(" ");
-          const fullAddress = [m.addressLine1, m.addressLine2, m.city, m.state, m.postalCode]
-            .filter(Boolean)
-            .map((x) => String(x).trim())
-            .filter(Boolean)
-            .join(" ");
-          const nameAndAddress = [combinedFullName, fullAddress].filter(Boolean).join(" ");
-          const haystack = [
-            m.memberNumber,
-            m.firstName,
-            m.lastName,
-            combinedFullName,
-            nameAndAddress,
-            m.email,
-            m.phone,
-            m.addressLine1,
-            m.addressLine2,
-            fullAddress,
-            m.city,
-            m.state,
-            ...stateSynonyms(m.state),
-            m.postalCode,
-            m.notes,
-            ...noteHistoryTexts,
-            m.oilCompanyId?.name,
-            m.status,
-            ...legacyValues,
-          ];
-          if (!memberMatchesQuickSearch(haystack.map(String), q)) return false;
-        }
+        if (!memberRecordMatchesQuery(m, q)) return false;
       }
       return true;
     });

@@ -70,13 +70,14 @@ export function stateSynonyms(stored: string | null | undefined): string[] {
   return [trimmed];
 }
 
-/** If the query is a state abbreviation or state name, return the alternate form (otherwise null). */
+/**
+ * Expand a 2-letter state abbreviation to its full name (VA → Virginia).
+ * Full state names are not expanded the other way — "Virginia" is also a
+ * first name, and expanding it to VA made name search return zero members.
+ */
 export function expandStateQuery(query: string): string | null {
   const trimmed = query.trim();
-  if (!trimmed) return null;
+  if (!/^[A-Za-z]{2}$/.test(trimmed)) return null;
   const upper = trimmed.toUpperCase();
-  if (US_STATE_ABBR_TO_NAME[upper]) return US_STATE_ABBR_TO_NAME[upper];
-  const abbr = US_STATE_NAME_TO_ABBR[trimmed.toLowerCase()];
-  if (abbr) return abbr;
-  return null;
+  return US_STATE_ABBR_TO_NAME[upper] || null;
 }
