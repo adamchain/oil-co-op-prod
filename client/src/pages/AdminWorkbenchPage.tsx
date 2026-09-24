@@ -76,6 +76,18 @@ type Member = {
   membershipPlan?: string;
 };
 
+type SameNameRecord = {
+  _id: string;
+  memberNumber: string;
+  firstName: string;
+  lastName: string;
+  addressLine1: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  linkedPropertyCount: number;
+};
+
 type PropertyGroupItem = {
   _id: string;
   memberNumber: string;
@@ -516,6 +528,11 @@ export default function AdminWorkbenchPage() {
   const [deliveryHistoryOpen, setDeliveryHistoryOpen] = useState(false);
   const [lazyDeliveryRows, setLazyDeliveryRows] = useState<DeliveryHistoryRow[] | null>(null);
   const [propertyGroup, setPropertyGroup] = useState<PropertyGroupItem[]>([]);
+  const [sameNameRecords, setSameNameRecords] = useState<SameNameRecord[]>([]);
+  const [sameNameFinderOpen, setSameNameFinderOpen] = useState(false);
+  const [sameNameGroups, setSameNameGroups] = useState<Array<{ name: string; records: SameNameRecord[] }>>([]);
+  const [sameNameFinderLoading, setSameNameFinderLoading] = useState(false);
+  const [sameNameFinderError, setSameNameFinderError] = useState("");
   const [addingProperty, setAddingProperty] = useState(false);
   const [showAddProperty, setShowAddProperty] = useState(false);
   const emptyPropAddress = { addressLine1: "", addressLine2: "", city: "", state: "", postalCode: "" };
@@ -1174,6 +1191,7 @@ export default function AdminWorkbenchPage() {
 
   useEffect(() => {
     if (!token || !current) {
+      setSameNameRecords([]);
       setBilling([]);
       setCommunications([]);
       setReferral(null);
@@ -1242,6 +1260,9 @@ export default function AdminWorkbenchPage() {
     api<{ properties: PropertyGroupItem[] }>(`/api/admin/members/${current._id}/property-group`, { token })
       .then((r) => setPropertyGroup(r.properties || []))
       .catch(() => setPropertyGroup([]));
+    api<{ records: SameNameRecord[] }>(`/api/admin/members/${current._id}/same-name-addresses`, { token })
+      .then((r) => setSameNameRecords(r.records || []))
+      .catch(() => setSameNameRecords([]));
   }, [current?._id, token]);
 
   const stats = useMemo(() => {
@@ -1695,6 +1716,25 @@ export default function AdminWorkbenchPage() {
    * paid record — one annual renewal on the primary even with multiple properties.
    */
   // Open the Add Property form (owner shown read-only + a fresh address).
+  const openSameNameFinder = async () => {
+    if (!token) return;
+    setSameNameFinderOpen(true);
+    setSameNameFinderLoading(true);
+    setSameNameFinderError("");
+    try {
+      const res = await api<{ groups: Array<{ name: string; records: SameNameRecord[] }> }>(
+        "/api/admin/members/same-name-addresses",
+        { token }
+      );
+      setSameNameGroups(res.groups || []);
+    } catch (e) {
+      setSameNameGroups([]);
+      setSameNameFinderError(e instanceof Error ? e.message : "Could not load matching accounts");
+    } finally {
+      setSameNameFinderLoading(false);
+    }
+  };
+
   const openAddProperty = (opts?: { grabber?: boolean }) => {
     if (!current) return;
     setNewPropAddress(emptyPropAddress);
@@ -1837,6 +1877,7 @@ export default function AdminWorkbenchPage() {
       setShowAddProperty(false);
       setAdoptPropertyQuery("");
       setAdoptMatches([]);
+      setSameNameRecords((prev) => prev.filter((row) => row._id !== id));
       flashSaveToast("Property linked with grabber", true, 4000);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Could not link property";
@@ -2301,6 +2342,14 @@ export default function AdminWorkbenchPage() {
       <div className="admin-wb-actions">
         <button className="admin-wb-btn admin-wb-btn-primary" type="button" onClick={() => void addMember(false)}>Add Member</button>
         <button className="admin-wb-btn admin-wb-btn-secondary" type="button" onClick={() => void addMember(true)}>Add Prospect</button>
+        <button
+          className="admin-wb-btn admin-wb-btn-secondary"
+          type="button"
+          onClick={() => void openSameNameFinder()}
+          title="Find unlinked accounts that share a name but have different addresses"
+        >
+          Same name, different address
+        </button>
         <button
           className="admin-wb-btn admin-wb-btn-secondary"
           type="button"
@@ -2942,6 +2991,47 @@ export default function AdminWorkbenchPage() {
                 </div>
               ) : (
                 <div className="admin-meta">No linked properties on this record.</div>
+              )}
+              {sameNameRecords.length > 0 && (
+                <div className="admin-wb-same-name">
+                  <div className="admin-meta">Same name, different address — grab onto this membership</div>
+                  {sameNameRecords.filter((row) => !propertyGroup.some((p) => p._id === row._id)).map((row) => {
+                    const addr = [row.addressLine1, row.city, row.state].filter(Boolean).join(", ") || "No address";
+                    const blocked = row.linkedPropertyCount > 0;
+                    return (
+                      <div key={row._id} className="admin-wb-same-name-row">
+                        <button type="button" className="admin-wb-property-link" onClick={() => selectMemberById(row._id)}>
+                          <span className="admin-wb-property-link-label">{displayMemberId(row.memberNumber)}</span>
+                          <span className="admin-wb-property-link-addr">{addr}</span>
+                        </button>
+                        {blocked ? (
+                          <span className="admin-meta">Already a primary — open it and grab from there</span>
+                        ) : (
+                          <button
+                            type="button"
+                            className="admin-wb-btn admin-wb-btn-secondary"
+                            disabled={adoptingProperty}
+                            onClick={() =>
+                              void adoptExistingProperty({
+                                _id: row._id,
+                                firstName: row.firstName,
+                                lastName: row.lastName,
+                                memberNumber: row.memberNumber,
+                                addressLine1: row.addressLine1,
+                                city: row.city,
+                                state: row.state,
+                                email: "",
+                                status: "active",
+                              })
+                            }
+                          >
+                            Grab
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               )}
               <button
                 type="button"
@@ -4105,6 +4195,53 @@ export default function AdminWorkbenchPage() {
           setPaymentFindOpen(false);
         }}
       />
+
+      {sameNameFinderOpen && (
+        <div className="admin-modal-overlay" onClick={() => setSameNameFinderOpen(false)}>
+          <div className="admin-modal-panel admin-same-name-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-addprop-head">
+              <div>
+                <h2>Same name, different address</h2>
+                <p>Open the account that should stay the primary, then use Grab on the other addresses.</p>
+              </div>
+              <button type="button" className="admin-btn admin-btn-ghost" onClick={() => setSameNameFinderOpen(false)} aria-label="Close">✕</button>
+            </div>
+            {sameNameFinderError && <p className="admin-error">{sameNameFinderError}</p>}
+            {sameNameFinderLoading ? (
+              <p className="admin-meta">Searching membership…</p>
+            ) : sameNameGroups.length === 0 ? (
+              <p className="admin-meta">No unlinked accounts share a name at a different address.</p>
+            ) : (
+              <div className="admin-same-name-list">
+                {sameNameGroups.map((group) => (
+                  <section key={group.name} className="admin-same-name-group">
+                    <h3>{group.name}</h3>
+                    {group.records.map((row) => {
+                      const addr = [row.addressLine1, row.city, row.state, row.postalCode].filter(Boolean).join(", ") || "No address";
+                      return (
+                        <button
+                          key={row._id}
+                          type="button"
+                          className="admin-wb-property-link"
+                          onClick={() => {
+                            selectMemberById(row._id);
+                            setSameNameFinderOpen(false);
+                          }}
+                        >
+                          <span className="admin-wb-property-link-label">
+                            {row.linkedPropertyCount > 0 ? "Primary" : "Account"} · {displayMemberId(row.memberNumber)}
+                          </span>
+                          <span className="admin-wb-property-link-addr">{addr}</span>
+                        </button>
+                      );
+                    })}
+                  </section>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {showAddProperty && current && (() => {
         const ownerName = `${addPropertyOwner?.firstName ?? ""} ${addPropertyOwner?.lastName ?? ""}`.trim();

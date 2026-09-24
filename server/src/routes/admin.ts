@@ -651,6 +651,90 @@ router.get("/members", async (req, res) => {
   res.json({ members, ...(total != null ? { total } : {}) });
 });
 
+function normPersonName(first?: string | null, last?: string | null): string {
+  return `${String(first || "").trim()} ${String(last || "").trim()}`.replace(/\s+/g, " ").toLowerCase();
+}
+
+function normStreetAddress(addressLine1?: string | null, city?: string | null, postalCode?: string | null): string {
+  return [addressLine1, city, postalCode]
+    .map((p) => String(p || "").trim().replace(/\s+/g, " ").toLowerCase())
+    .join("|");
+}
+
+type SameNameRecord = {
+  _id: string;
+  memberNumber: string;
+  firstName: string;
+  lastName: string;
+  addressLine1: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  linkedPropertyCount: number;
+};
+
+/**
+ * Unlinked accounts that share a first + last name but sit at different addresses.
+ * Staff open the record that should stay primary, then grab the others.
+ */
+router.get("/members/same-name-addresses", async (_req, res) => {
+  const rows = await Member.find({
+    role: "member",
+    $or: [{ primaryMemberId: null }, { primaryMemberId: { $exists: false } }],
+  })
+    .select("firstName lastName memberNumber addressLine1 city state postalCode createdAt")
+    .lean();
+
+  const byName = new Map<string, typeof rows>();
+  for (const row of rows) {
+    const key = normPersonName(row.firstName, row.lastName);
+    if (!key || key === " ") continue;
+    const list = byName.get(key);
+    if (list) list.push(row);
+    else byName.set(key, [row]);
+  }
+
+  const groups: Array<{ name: string; records: SameNameRecord[] }> = [];
+  const candidateIds: mongoose.Types.ObjectId[] = [];
+  for (const list of byName.values()) {
+    if (list.length < 2) continue;
+    const addresses = new Set(list.map((r) => normStreetAddress(r.addressLine1, r.city, r.postalCode)));
+    if (addresses.size < 2) continue;
+    candidateIds.push(...list.map((r) => r._id as mongoose.Types.ObjectId));
+    groups.push({
+      name: `${list[0].firstName || ""} ${list[0].lastName || ""}`.replace(/\s+/g, " ").trim(),
+      records: list.map((r) => ({
+        _id: String(r._id),
+        memberNumber: r.memberNumber || "",
+        firstName: r.firstName || "",
+        lastName: r.lastName || "",
+        addressLine1: r.addressLine1 || "",
+        city: r.city || "",
+        state: r.state || "",
+        postalCode: r.postalCode || "",
+        linkedPropertyCount: 0,
+      })),
+    });
+  }
+
+  if (candidateIds.length) {
+    const childCounts = await Member.aggregate<{ _id: mongoose.Types.ObjectId; n: number }>([
+      { $match: { role: "member", primaryMemberId: { $in: candidateIds } } },
+      { $group: { _id: "$primaryMemberId", n: { $sum: 1 } } },
+    ]);
+    const countById = new Map(childCounts.map((c) => [String(c._id), c.n]));
+    for (const group of groups) {
+      for (const record of group.records) {
+        record.linkedPropertyCount = countById.get(record._id) || 0;
+      }
+      group.records.sort((a, b) => b.linkedPropertyCount - a.linkedPropertyCount || a.memberNumber.localeCompare(b.memberNumber));
+    }
+  }
+
+  groups.sort((a, b) => a.name.localeCompare(b.name));
+  res.json({ groups });
+});
+
 router.get("/members/:id", async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) {
     res.status(400).json({ error: "Invalid id" });
@@ -1236,6 +1320,75 @@ router.get("/members/:id/property-group", async (req, res) => {
   res.json({
     primaryMemberId: String(primaryId),
     properties: [serialize(primary), ...linked.map(serialize)],
+  });
+});
+
+/** Other unlinked accounts with this member's name at a different address. */
+router.get("/members/:id/same-name-addresses", async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const member = (await Member.findById(req.params.id)
+    .select("firstName lastName addressLine1 city postalCode role")
+    .lean()) as {
+    _id: mongoose.Types.ObjectId;
+    role?: string;
+    firstName?: string | null;
+    lastName?: string | null;
+    addressLine1?: string | null;
+    city?: string | null;
+    postalCode?: string | null;
+  } | null;
+  if (!member || member.role !== "member") {
+    res.status(404).json({ error: "Not found" });
+    return;
+  }
+  const name = normPersonName(member.firstName, member.lastName);
+  if (!name.trim()) {
+    res.json({ records: [] });
+    return;
+  }
+  const escapeRx = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const first = String(member.firstName || "").trim().replace(/\s+/g, " ");
+  const last = String(member.lastName || "").trim().replace(/\s+/g, " ");
+  const others = await Member.find({
+    role: "member",
+    _id: { $ne: member._id },
+    $or: [{ primaryMemberId: null }, { primaryMemberId: { $exists: false } }],
+    firstName: new RegExp(`^${escapeRx(first)}$`, "i"),
+    lastName: new RegExp(`^${escapeRx(last)}$`, "i"),
+  })
+    .select("firstName lastName memberNumber addressLine1 city state postalCode")
+    .limit(40)
+    .lean();
+
+  const mine = normStreetAddress(member.addressLine1, member.city, member.postalCode);
+  const different = others.filter(
+    (row) =>
+      normPersonName(row.firstName, row.lastName) === name &&
+      normStreetAddress(row.addressLine1, row.city, row.postalCode) !== mine
+  );
+  const ids = different.map((row) => row._id as mongoose.Types.ObjectId);
+  const childCounts = ids.length
+    ? await Member.aggregate<{ _id: mongoose.Types.ObjectId; n: number }>([
+        { $match: { role: "member", primaryMemberId: { $in: ids } } },
+        { $group: { _id: "$primaryMemberId", n: { $sum: 1 } } },
+      ])
+    : [];
+  const countById = new Map(childCounts.map((c) => [String(c._id), c.n]));
+  res.json({
+    records: different.map((row) => ({
+      _id: String(row._id),
+      memberNumber: row.memberNumber || "",
+      firstName: row.firstName || "",
+      lastName: row.lastName || "",
+      addressLine1: row.addressLine1 || "",
+      city: row.city || "",
+      state: row.state || "",
+      postalCode: row.postalCode || "",
+      linkedPropertyCount: countById.get(String(row._id)) || 0,
+    })),
   });
 });
 
