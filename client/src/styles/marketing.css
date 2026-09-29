@@ -2215,6 +2215,60 @@
   font-size: 0.95rem;
 }
 
+.mkt-review-slider {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.mkt-review-slider .mkt-savings-quote {
+  min-height: 16.5rem;
+}
+
+.mkt-review-slider-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.mkt-review-slider-nav .mkt-slide-dots {
+  margin-top: 0;
+}
+
+.mkt-review-slider-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.mkt-review-slider-btn:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.mkt-review-google {
+  align-self: center;
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+.mkt-review-google:hover {
+  text-decoration: underline;
+}
+
 /* Legacy trend chart styles (unused on homepage; kept for safety) */
 .mkt-trend {
   margin: 0;
@@ -2321,6 +2375,45 @@
   .mkt-why-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+}
+
+/* Forest-green side bars on text-heavy pages, to break up the white margins. */
+.mkt-page-rails {
+  border-left: clamp(18px, 4.5vw, 64px) solid #0b3b22;
+  border-right: clamp(18px, 4.5vw, 64px) solid #0b3b22;
+  min-height: 70vh;
+}
+
+.mkt-prices-intro {
+  text-align: center;
+  margin-bottom: 0.5rem;
+}
+
+.mkt-prices-intro .mkt-page-title,
+.mkt-prices-intro .mkt-prose,
+.mkt-prices-intro .mkt-prose p {
+  text-align: center;
+}
+
+.mkt-prices-intro .mkt-prose {
+  max-width: 40rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.mkt-prices-intro .mkt-prices-join {
+  display: flex;
+  justify-content: center;
+  margin: 0 0 1.5rem;
+}
+
+.mkt-story-photo {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 0 0 1.25rem;
+  border-radius: var(--radius-lg);
+  object-fit: cover;
 }
 
 /* —— FAQ page —— */
@@ -4114,7 +4207,43 @@
 .mkt-hero--price-above .mkt-hero-inner {
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
+}
+
+.mkt-hero--price-above .mkt-hero-inner h1 {
+  margin-top: 0;
+}
+
+.mkt-hero-aside {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.mkt-hero-aside .mkt-hero-price-hero {
+  margin: 0 0 0.85rem;
+}
+
+.mkt-hero-aside .mkt-hero-check {
+  margin-top: 0.15rem;
+  font-size: 1.22rem;
+  line-height: 1.35;
+}
+
+.mkt-hero-aside .mkt-hero-price-hero-link-wrap {
+  margin: 0.65rem 0 0 !important;
+}
+
+.mkt-hero-aside-link {
+  font-size: 1.08rem;
+}
+
+.mkt-hero-aside .mkt-hero-media {
+  width: 100%;
+  margin-top: 1.35rem;
+  align-self: stretch;
 }
 
 .mkt-hero-price-hero {

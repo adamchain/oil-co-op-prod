@@ -27,6 +27,7 @@ export const EDITABLE_IMAGES = [
   { path: "/site/house.jpg", label: "House photo (Home hero, Community)" },
   { path: "/site/family.jpg", label: "Family photo (Home, Services hero)" },
   { path: "/site/truck.jpg", label: "Delivery truck photo (Home hero)" },
+  { path: "/site/our-story.jpg", label: "Our Story photo" },
   { path: "/coop-logo.png", label: "Co-op logo (header & footer)" },
 ] as const;
 

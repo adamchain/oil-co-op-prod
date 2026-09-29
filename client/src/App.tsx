@@ -5,8 +5,6 @@ import MarketingLayout from "./layouts/MarketingLayout";
 import AdminLayout from "./layouts/AdminLayout";
 import PublicHomePage from "./public-site/PublicHomePage";
 import OurStoryPage from "./public-site/OurStoryPage";
-import MeetTeamPage from "./public-site/MeetTeamPage";
-import TestimonialsPage from "./public-site/TestimonialsPage";
 import FaqPage from "./public-site/FaqPage";
 import HeatingPricesPage from "./public-site/HeatingPricesPage";
 import ServicesPage from "./public-site/ServicesPage";
@@ -51,8 +49,8 @@ export default function App() {
         <Route element={<MarketingLayout />}>
           <Route path="/" element={<PublicHomePage />} />
           <Route path="/our-story" element={<OurStoryPage />} />
-          <Route path="/team" element={<MeetTeamPage />} />
-          <Route path="/testimonials" element={<TestimonialsPage />} />
+          <Route path="/team" element={<Navigate to="/" replace />} />
+          <Route path="/testimonials" element={<Navigate to="/" replace />} />
           <Route path="/faq" element={<FaqPage />} />
           <Route path="/heating-prices" element={<HeatingPricesPage />} />
           <Route path="/services" element={<ServicesPage />} />

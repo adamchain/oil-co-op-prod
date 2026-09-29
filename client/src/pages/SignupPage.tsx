@@ -63,9 +63,9 @@ const US_STATES = [
 ] as const;
 
 const MEMBERSHIP_PLANS: { id: MembershipPlan; label: string; price: string }[] = [
-  { id: "lowVolume", label: "Low Volume Oil Co-op Membership", price: "$20.00" },
-  { id: "senior", label: "Senior (55+) Oil Co-op Membership", price: "$25.00" },
   { id: "standard", label: "Standard Oil Co-op Membership", price: "$35.00" },
+  { id: "senior", label: "Senior (55+) Oil Co-op Membership", price: "$25.00" },
+  { id: "lowVolume", label: "Low Volume Oil Co-op Membership", price: "$20.00" },
 ];
 
 function YesNoField({
@@ -447,12 +447,12 @@ export default function SignupPage() {
               </p>
             </div>
             <div className="mkt-fee-row">
-              <span>Due today (processing fee):</span>
-              <strong>$10.00</strong>
-            </div>
-            <div className="mkt-fee-row">
               <span>Annual dues billed each June 1:</span>
               <strong>{planPrice}</strong>
+            </div>
+            <div className="mkt-fee-row">
+              <span>One time application fee:</span>
+              <strong>$10.00</strong>
             </div>
           </Section>
 
@@ -690,21 +690,20 @@ export default function SignupPage() {
               value={form.interestedInOil}
               onChange={(v) => set("interestedInOil", v)}
             />
-            <div className="mkt-field">
-              <label htmlFor="currentOilProvider">Current Oil Provider (optional)</label>
-              <input
-                id="currentOilProvider"
-                placeholder="Optional"
-                value={form.currentOilProvider}
-                onChange={(e) => set("currentOilProvider", e.target.value)}
-              />
-            </div>
             <YesNoField
               label="I would like to stay with my current oil provider if they participate in the Co-op"
               name="stayWithOilProvider"
               value={form.stayWithOilProvider}
               onChange={(v) => set("stayWithOilProvider", v)}
             />
+            <div className="mkt-field">
+              <label htmlFor="currentOilProvider">Current Oil Provider</label>
+              <input
+                id="currentOilProvider"
+                value={form.currentOilProvider}
+                onChange={(e) => set("currentOilProvider", e.target.value)}
+              />
+            </div>
 
             <YesNoField
               label="I'm interested in discounted propane deliveries"
@@ -712,21 +711,20 @@ export default function SignupPage() {
               value={form.interestedInPropane}
               onChange={(v) => set("interestedInPropane", v)}
             />
-            <div className="mkt-field">
-              <label htmlFor="currentPropaneProvider">Current Propane Provider (optional)</label>
-              <input
-                id="currentPropaneProvider"
-                placeholder="Optional"
-                value={form.currentPropaneProvider}
-                onChange={(e) => set("currentPropaneProvider", e.target.value)}
-              />
-            </div>
             <YesNoField
               label="I would like to stay with my current propane provider if they participate in the Co-op"
               name="stayWithPropaneProvider"
               value={form.stayWithPropaneProvider}
               onChange={(v) => set("stayWithPropaneProvider", v)}
             />
+            <div className="mkt-field">
+              <label htmlFor="currentPropaneProvider">Current Propane Provider</label>
+              <input
+                id="currentPropaneProvider"
+                value={form.currentPropaneProvider}
+                onChange={(e) => set("currentPropaneProvider", e.target.value)}
+              />
+            </div>
 
             <YesNoField
               label="I'm interested in FREE solar consultation for my home"
@@ -795,7 +793,7 @@ export default function SignupPage() {
               <div className="mkt-card-section">
                 <h3>Payment Information</h3>
                 <p>
-                  Your card will be charged the $10.00 processing fee now. Annual membership dues ({planPrice}) are
+                  Your card will be charged the $10.00 one-time application fee now. Annual membership dues ({planPrice}) are
                   billed each June 1.
                 </p>
                 <div className="mkt-field">
@@ -849,7 +847,7 @@ export default function SignupPage() {
               <div className="mkt-check-note">
                 <p>
                   <strong>Check payment:</strong> Your account will be created but marked as pending. Mail your
-                  processing fee and membership dues check to the office. Annual renewals will also require mailing a
+                  one-time application fee and membership dues check to the office. Annual renewals will also require mailing a
                   check each year.
                 </p>
               </div>

@@ -13,7 +13,7 @@ import { useSiteText } from "./content/SiteContentContext";
 
 /**
  * Citizen's Oil Co-op public marketing homepage.
- * Hero: Option B (price above headline) — selected 8/6/26 client notes.
+ * Hero: headline on the left, price and truck stacked on the right.
  */
 
 type CurrentOilPrice = {
@@ -67,13 +67,23 @@ function CheckLine() {
   );
 }
 
-/** Option B — large price stacked above the headline + media */
+/** Headline on the left; price, member line, and truck stacked on the right. */
 function HeroPriceAbove({ price }: { price: CurrentOilPrice | null }) {
   const t = useSiteText();
   return (
     <section className="mkt-hero mkt-hero--price-above">
       <div className="mkt-hero-bg" aria-hidden />
       <div className="mkt-hero-inner">
+        <h1>{t("home.heroHeadline")}</h1>
+        <p>{t("home.heroLead")}</p>
+        <div className="mkt-hero-actions">
+          <Link to="/signup" className="mkt-btn mkt-btn-primary mkt-btn-lg">
+            {t("home.heroJoinCta")}
+          </Link>
+          <HeroPhoneLink className="mkt-btn mkt-btn-ghost mkt-btn-lg mkt-hero-phone-btn" />
+        </div>
+      </div>
+      <div className="mkt-hero-aside">
         <div className="mkt-hero-price-hero" role="group" aria-label="Average heating oil price">
           <span className="mkt-hero-price-hero-value">
             {price ? formatPrice(price.coopPrice) : "—"}
@@ -86,28 +96,20 @@ function HeroPriceAbove({ price }: { price: CurrentOilPrice | null }) {
             </span>
           )}
         </div>
-        <h1>{t("home.heroHeadline")}</h1>
-        <p>{t("home.heroLead")}</p>
-        <div className="mkt-hero-actions">
-          <Link to="/signup" className="mkt-btn mkt-btn-primary mkt-btn-lg">
-            {t("home.heroJoinCta")}
-          </Link>
-          <HeroPhoneLink className="mkt-btn mkt-btn-ghost mkt-btn-lg mkt-hero-phone-btn" />
-        </div>
+        <CheckLine />
         <p className="mkt-hero-price-hero-link-wrap">
-          <Link to="/heating-prices" className="mkt-hero-price-link">
+          <Link to="/heating-prices" className="mkt-hero-price-link mkt-hero-aside-link">
             {t("home.heroPricingLink")}
           </Link>
         </p>
-        <CheckLine />
-      </div>
-      <div className="mkt-hero-media mkt-hero-media--compact">
-        <ImageSlot
-          src={siteImageUrl("/site/truck.jpg")}
-          alt="A heating-oil delivery truck at a member's home"
-          label="Photo: heating-oil delivery at a member's home"
-          className="mkt-img-slot--hero"
-        />
+        <div className="mkt-hero-media mkt-hero-media--compact">
+          <ImageSlot
+            src={siteImageUrl("/site/truck.jpg")}
+            alt="A heating-oil delivery truck at a member's home"
+            label="Photo: heating-oil delivery at a member's home"
+            className="mkt-img-slot--hero"
+          />
+        </div>
       </div>
     </section>
   );

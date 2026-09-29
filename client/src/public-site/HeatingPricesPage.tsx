@@ -111,19 +111,22 @@ export default function HeatingPricesPage() {
   const pageNumbers = Array.from({ length: Math.min(totalPages, 10) }, (_, i) => i + 1);
 
   return (
+    <div className="mkt-page-rails">
     <div className="mkt-panel mkt-faq-panel">
-      <h1 className="mkt-page-title">{t("heatingPrices.title")}</h1>
-      <div className="mkt-prose" style={{ marginBottom: "1.5rem" }}>
-        <p>{t("heatingPrices.intro1")}</p>
-        <p>{t("heatingPrices.intro2")}</p>
-        <p>{t("heatingPrices.intro3")}</p>
-      </div>
+      <div className="mkt-prices-intro">
+        <h1 className="mkt-page-title">{t("heatingPrices.title")}</h1>
+        <div className="mkt-prose" style={{ marginBottom: "1.5rem" }}>
+          <p>{t("heatingPrices.intro1")}</p>
+          <p>{t("heatingPrices.intro2")}</p>
+          <p>{t("heatingPrices.intro3")}</p>
+        </div>
 
-      <p style={{ marginBottom: "1.5rem" }}>
-        <Link to="/signup" className="mkt-btn mkt-btn-primary">
-          {t("heatingPrices.joinButton")}
-        </Link>
-      </p>
+        <p className="mkt-prices-join">
+          <Link to="/signup" className="mkt-btn mkt-btn-primary">
+            {t("heatingPrices.joinButton")}
+          </Link>
+        </p>
+      </div>
 
       <h2 className="mkt-faq-category-title">{t("heatingPrices.joinHeading")}</h2>
 
@@ -210,6 +213,7 @@ export default function HeatingPricesPage() {
         <p>{t("heatingPrices.footnote1")}</p>
         <p>{t("heatingPrices.footnote2")}</p>
       </div>
+    </div>
     </div>
   );
 }

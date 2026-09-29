@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { siteImageUrl } from "../api";
 import type { ContentGroup } from "./content/types";
 import { useSiteText } from "./content/SiteContentContext";
 
@@ -32,6 +33,11 @@ export default function OurStoryPage() {
   return (
     <div className="mkt-panel" style={{ maxWidth: "760px" }}>
       <h1 className="mkt-page-title">{t("ourStory.title")}</h1>
+      <img
+        src={siteImageUrl("/site/our-story.jpg")}
+        alt="Citizen's Oil Co-op staff with the team mascot at a community event"
+        className="mkt-story-photo"
+      />
       <p className="mkt-lead">{t("ourStory.lead")}</p>
       <div className="mkt-card-form">
         <p className="mkt-prose" style={{ margin: 0 }}>

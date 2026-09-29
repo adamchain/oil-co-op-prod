@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { siteImageUrl } from "../api";
 import type { ContentGroup } from "./content/types";
@@ -317,6 +318,30 @@ export const HOME_CONTENT: ContentGroup = {
     { key: "home.savingsQuote", label: "Savings quote", multiline: true, value: "“The reduced per-gallon cost helps our household budget — we keep telling friends about the program.”" },
     { key: "home.savingsQuoteName", label: "Savings quote name", value: "Mark & Alison Laucella" },
     { key: "home.savingsQuoteMeta", label: "Savings quote meta", value: "Middletown · members since 2007" },
+    {
+      key: "home.review2Text",
+      label: "Review slider quote 2",
+      multiline: true,
+      value:
+        "“My last oil tank fill up was 180 gallons. The Co-op saved me $147+ on one tank! (That savings alone pays for several years' membership fees.) The oil company I use through the Co-op has taken care of my oil and service needs for 10+ years and are fabulous! I use them for an electric supplier and propane as well. Solar is next. I'm a many year member and thrilled.”",
+    },
+    { key: "home.review2Name", label: "Review slider name 2", value: "Jeanne Hamilton" },
+    { key: "home.review2Meta", label: "Review slider meta 2", value: "Google review" },
+    {
+      key: "home.review3Text",
+      label: "Review slider quote 3",
+      multiline: true,
+      value:
+        "“I have saved so much money since joining the Citizen's Oil Co-op. The best part was I was able to maintain my relationship with the oil and service provider I had been with for years. When I called the co-op with questions their knowledgeable and friendly staff were able to answer quickly and efficiently.”",
+    },
+    { key: "home.review3Name", label: "Review slider name 3", value: "Rachel Cormier" },
+    { key: "home.review3Meta", label: "Review slider meta 3", value: "Google review" },
+    { key: "home.reviewsLink", label: "Google reviews link label", value: "See our Google reviews →" },
+    {
+      key: "home.reviewsUrl",
+      label: "Google reviews URL",
+      value: "https://www.google.com/maps/search/?api=1&query=Citizens%20Oil%20Co-op%20West%20Hartford%20CT",
+    },
 
     // WhyChooseSection
     { key: "home.whyEyebrow", label: "Why choose eyebrow", value: "Why members stay" },
@@ -956,14 +981,7 @@ export function SavingsSection() {
             </Link>
           </div>
 
-          <figure className="mkt-savings-quote">
-            <Stars />
-            <blockquote>{t("home.savingsQuote")}</blockquote>
-            <cite>
-              <strong>{t("home.savingsQuoteName")}</strong>
-              {t("home.savingsQuoteMeta")}
-            </cite>
-          </figure>
+          <ReviewSlider />
 
           <ImageSlot
             src={siteImageUrl("/site/family.jpg")}
@@ -1063,6 +1081,74 @@ export function WhyChooseSection() {
         </div>
       </div>
     </section>
+  );
+}
+
+const REVIEW_SLIDES = [
+  { textKey: "home.savingsQuote", nameKey: "home.savingsQuoteName", metaKey: "home.savingsQuoteMeta" },
+  { textKey: "home.review2Text", nameKey: "home.review2Name", metaKey: "home.review2Meta" },
+  { textKey: "home.review3Text", nameKey: "home.review3Name", metaKey: "home.review3Meta" },
+] as const;
+
+/** Center savings card: auto-advancing member reviews, with a link to Google. */
+function ReviewSlider() {
+  const t = useSiteText();
+  const [index, setIndex] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const count = REVIEW_SLIDES.length;
+
+  useEffect(() => {
+    if (paused) return;
+    const id = window.setInterval(() => {
+      setIndex((i) => (i + 1) % count);
+    }, 6500);
+    return () => window.clearInterval(id);
+  }, [paused, count, index]);
+
+  const go = (next: number) => setIndex(((next % count) + count) % count);
+  const slide = REVIEW_SLIDES[index];
+
+  return (
+    <div
+      className="mkt-review-slider"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocus={() => setPaused(true)}
+      onBlur={() => setPaused(false)}
+    >
+      <figure className="mkt-savings-quote" aria-live="polite">
+        <Stars />
+        <blockquote>{t(slide.textKey)}</blockquote>
+        <cite>
+          <strong>{t(slide.nameKey)}</strong>
+          {t(slide.metaKey)}
+        </cite>
+      </figure>
+      <div className="mkt-review-slider-nav">
+        <button type="button" className="mkt-review-slider-btn" aria-label="Previous review" onClick={() => go(index - 1)}>
+          ‹
+        </button>
+        <div className="mkt-slide-dots" role="tablist" aria-label="Reviews">
+          {REVIEW_SLIDES.map((item, i) => (
+            <button
+              key={item.nameKey}
+              type="button"
+              role="tab"
+              aria-selected={i === index}
+              aria-label={`Show review ${i + 1}`}
+              className={i === index ? "active" : undefined}
+              onClick={() => go(i)}
+            />
+          ))}
+        </div>
+        <button type="button" className="mkt-review-slider-btn" aria-label="Next review" onClick={() => go(index + 1)}>
+          ›
+        </button>
+      </div>
+      <a className="mkt-review-google" href={t("home.reviewsUrl")} target="_blank" rel="noopener noreferrer">
+        {t("home.reviewsLink")}
+      </a>
+    </div>
   );
 }
 

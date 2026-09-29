@@ -26,8 +26,6 @@ export const LAYOUT_CONTENT: ContentGroup = {
     { key: "layout.footerHeatingPrices", label: "Footer: Heating prices", value: "Heating prices" },
     { key: "layout.footerLinks", label: "Footer: Related links", value: "Related links" },
     { key: "layout.footerOurStory", label: "Footer: Our story", value: "Our story" },
-    { key: "layout.footerTeam", label: "Footer: Meet our team", value: "Meet our team" },
-    { key: "layout.footerTestimonials", label: "Footer: Testimonials", value: "Testimonials" },
     { key: "layout.footerEmail", label: "Footer email", value: "hutson@oilco-op.com" },
     { key: "layout.footerPhone", label: "Footer phone", value: "860-561-6011" },
     { key: "layout.footerFax", label: "Footer fax", value: "Fax 860-561-9588" },
@@ -190,12 +188,6 @@ export default function MarketingLayout() {
               </Link>
               <Link to="/our-story" onClick={close}>
                 {t("layout.footerOurStory")}
-              </Link>
-              <Link to="/team" onClick={close}>
-                {t("layout.footerTeam")}
-              </Link>
-              <Link to="/testimonials" onClick={close}>
-                {t("layout.footerTestimonials")}
               </Link>
               <a href="mailto:hutson@oilco-op.com">{t("layout.footerEmail")}</a>
               <a href="tel:8605616011">{t("layout.footerPhone")}</a>

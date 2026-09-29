@@ -4,8 +4,6 @@ import { HOME_CONTENT } from "../homeSections";
 import { SERVICES_CONTENT } from "../ServicesPage";
 import { HEATING_PRICES_CONTENT } from "../HeatingPricesPage";
 import { OUR_STORY_CONTENT } from "../OurStoryPage";
-import { MEET_TEAM_CONTENT } from "../MeetTeamPage";
-import { TESTIMONIALS_CONTENT } from "../TestimonialsPage";
 import { FAQ_CONTENT } from "../FaqPage";
 import { COMMUNITY_CONTENT } from "../CommunityPage";
 import { REFERRAL_CONTENT } from "../ReferralPage";
@@ -22,8 +20,6 @@ export const SITE_CONTENT_GROUPS: ContentGroup[] = [
   SERVICES_CONTENT,
   HEATING_PRICES_CONTENT,
   OUR_STORY_CONTENT,
-  MEET_TEAM_CONTENT,
-  TESTIMONIALS_CONTENT,
   FAQ_CONTENT,
   COMMUNITY_CONTENT,
   REFERRAL_CONTENT,

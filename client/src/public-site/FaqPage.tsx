@@ -622,6 +622,7 @@ function FaqDetails({ question, children }: { question: string; children: ReactN
 export default function FaqPage() {
   const t = useSiteText();
   return (
+    <div className="mkt-page-rails">
     <div className="mkt-panel mkt-faq-panel">
       <h1 className="mkt-page-title">{t("faq.title")}</h1>
       <p className="mkt-lead">{t("faq.lead")}</p>
@@ -657,6 +658,7 @@ export default function FaqPage() {
           {t("faq.cta.button")}
         </Link>
       </div>
+    </div>
     </div>
   );
 }
