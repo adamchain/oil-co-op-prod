@@ -1541,6 +1541,59 @@ async function nextMemberNumber(): Promise<string> {
   return `OC-${String((Number.isFinite(n) ? n : 1000) + 1).padStart(6, "0")}`;
 }
 
+
+/**
+ * Undo the grabber: turn a linked additional property back into its own paid
+ * membership. It comes off lifetime, drops off the primary's property list, and
+ * renews on its own from then on.
+ */
+router.post("/members/:id/unlink-property", async (req: AuthedRequest, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) {
+    res.status(400).json({ error: "Invalid id" });
+    return;
+  }
+  const member = await Member.findById(req.params.id);
+  if (!member || member.role !== "member") {
+    res.status(404).json({ error: "Member not found" });
+    return;
+  }
+  if (!member.primaryMemberId) {
+    res.status(400).json({ error: "This record is not a linked property" });
+    return;
+  }
+  const primaryId = member.primaryMemberId;
+
+  member.primaryMemberId = null;
+  member.lifetimeAnnualFeeWaived = false;
+  const lp =
+    typeof member.legacyProfile === "object" && member.legacyProfile
+      ? { ...(member.legacyProfile as Record<string, unknown>) }
+      : {};
+  lp.waiveFeeLifetime = false;
+  delete lp.linkedFromMemberNumber;
+  member.legacyProfile = lp;
+  member.markModified("legacyProfile");
+  await member.save();
+
+  const primary = await Member.findById(primaryId);
+  if (primary && Array.isArray(primary.properties)) {
+    const props = primary.properties as Array<{ linkedMemberId?: mongoose.Types.ObjectId | null }>;
+    const kept = props.filter((p) => !p.linkedMemberId || String(p.linkedMemberId) !== String(member._id));
+    if (kept.length !== props.length) {
+      primary.properties = kept as typeof primary.properties;
+      await primary.save();
+    }
+  }
+
+  await logActivity(
+    member._id,
+    "admin_property_unlinked",
+    { primaryMemberId: String(primaryId), adminId: req.userId },
+    new mongoose.Types.ObjectId(req.userId!)
+  );
+  res.json({ ok: true, member: member.toObject() });
+});
+
 router.post("/members/register", async (req: AuthedRequest, res) => {
   const parsed = registerMemberSchema.safeParse(req.body);
   if (!parsed.success) {

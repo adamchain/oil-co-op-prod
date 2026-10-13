@@ -1834,6 +1834,40 @@ export default function AdminWorkbenchPage() {
     }
   };
 
+  const unlinkProperty = async () => {
+    if (!token || !current?.primaryMemberId) return;
+    if (
+      !confirm(
+        "Unlink this property? It becomes its own membership again: it comes off lifetime and will be billed its own annual dues."
+      )
+    ) {
+      return;
+    }
+    try {
+      const res = await api<{ member: Member }>(`/api/admin/members/${current._id}/unlink-property`, {
+        method: "POST",
+        token,
+      });
+      const id = current._id;
+      setMembers((prev) =>
+        prev.map((m) =>
+          m._id === id
+            ? {
+                ...m,
+                primaryMemberId: null,
+                lifetimeAnnualFeeWaived: false,
+                legacyProfile: hydrateLegacyProfile({ ...(res.member?.legacyProfile || {}) } as Record<string, unknown>),
+              }
+            : m
+        )
+      );
+      setPropertyGroup([]);
+      setActionMessage("Property unlinked — it is now its own membership.");
+    } catch (e) {
+      setActionMessage(e instanceof Error ? e.message : "Could not unlink property.");
+    }
+  };
+
   const adoptExistingProperty = async (existing: Member) => {
     if (!token || !current) return;
     const label = `${existing.firstName} ${existing.lastName}`.trim() || existing.memberNumber || "this record";
@@ -2978,6 +3012,16 @@ export default function AdminWorkbenchPage() {
                 <div className="admin-meta" style={{ marginBottom: "0.35rem" }}>
                   One annual renewal on the primary membership
                 </div>
+                {current.primaryMemberId && (
+                  <button
+                    type="button"
+                    className="admin-wb-btn admin-wb-btn-secondary"
+                    style={{ marginBottom: "0.45rem" }}
+                    onClick={() => void unlinkProperty()}
+                  >
+                    Unlink property
+                  </button>
+                )}
                 </>
               )}
               {propertyGroup.length > 0 ? (
