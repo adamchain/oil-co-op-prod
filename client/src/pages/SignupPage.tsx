@@ -170,6 +170,11 @@ export default function SignupPage() {
     () => MEMBERSHIP_PLANS.find((p) => p.id === form.membershipPlan)?.price ?? "$35.00",
     [form.membershipPlan]
   );
+  // First-year dues + the one-time $10 application fee are both paid when joining.
+  const joinTotal = useMemo(
+    () => `$${(Number(planPrice.replace(/[^0-9.]/g, "")) + 10).toFixed(2)}`,
+    [planPrice]
+  );
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -453,6 +458,10 @@ export default function SignupPage() {
             <div className="mkt-fee-row">
               <span>One time application fee:</span>
               <strong>$10.00</strong>
+            </div>
+            <div className="mkt-fee-row">
+              <span>Total due when you join:</span>
+              <strong>{joinTotal}</strong>
             </div>
           </Section>
 
@@ -793,8 +802,8 @@ export default function SignupPage() {
               <div className="mkt-card-section">
                 <h3>Payment Information</h3>
                 <p>
-                  Your card will be charged the $10.00 one-time application fee now. Annual membership dues ({planPrice}) are
-                  billed each June 1.
+                  Your card will be charged {joinTotal} now: your first year of membership dues ({planPrice}) plus the
+                  $10.00 one-time application fee. After that, dues of {planPrice} renew each June 1.
                 </p>
                 <div className="mkt-field">
                   <label htmlFor="cardNumber">Card number</label>

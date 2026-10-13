@@ -22,6 +22,15 @@ export function nextJuneFirstAfterSignup(signupDate: Date): Date {
   return june1;
 }
 
+/**
+ * First renewal for a brand-new member: always June 1 of the year after they join.
+ * Joining Oct 2026 → June 1, 2027; joining Jan 2, 2027 → June 1, 2028 (the co-op
+ * rolls January–May joiners into the following heating season).
+ */
+export function firstRenewalAfterJoin(joinDate: Date): Date {
+  return new Date(Date.UTC(joinDate.getFullYear() + 1, 5, 1, 12, 0, 0));
+}
+
 /** After a June 1 annual bill, advance to next year's June 1. */
 export function followingJuneFirst(fromDate: Date): Date {
   const y = fromDate.getUTCFullYear();

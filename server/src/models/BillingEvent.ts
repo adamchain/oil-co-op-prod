@@ -33,6 +33,13 @@ const billingEventSchema = new Schema(
     entryType: { type: String, default: "" },
     /** Date the payment was actually made (falls back to createdAt for display). */
     paidDate: { type: Date, default: null },
+    /**
+     * Set on a waived referral line that pushed the member's next renewal out a year:
+     * the renewal date before the move, so deleting the line can put it back.
+     */
+    advancedRenewalFrom: { type: Date, default: null },
+    /** True when that referral line used up one of the member's earned referral credits. */
+    consumedReferralCredit: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

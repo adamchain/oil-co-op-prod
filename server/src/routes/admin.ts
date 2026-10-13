@@ -34,7 +34,7 @@ import { loadMemberEmailMergeData } from "../services/memberEmailMerge.js";
 import { ensureOilPrices } from "../services/oilPriceStore.js";
 import { ensureCommunityContent } from "../services/communityStore.js";
 import { computePriceDifference } from "../data/oilPriceSeed.js";
-import { nextJuneFirstAfterSignup } from "../utils/juneBilling.js";
+import { firstRenewalAfterJoin, followingJuneFirst, juneFirstYear, nextJuneFirstAfterSignup } from "../utils/juneBilling.js";
 import { expandStateQuery, US_STATE_ABBR_TO_NAME } from "../utils/stateAbbreviations.js";
 import { applyStructuredMemberFilters } from "../utils/memberListFilters.js";
 import { chargeCard } from "../services/authorizeNet.js";
@@ -1193,7 +1193,7 @@ router.post("/members/:id/properties", async (req: AuthedRequest, res) => {
     autoRenew: false,
     primaryMemberId: primaryId,
     lifetimeAnnualFeeWaived: true,
-    nextAnnualBillingDate: primary.nextAnnualBillingDate || nextJuneFirstAfterSignup(new Date()),
+    nextAnnualBillingDate: primary.nextAnnualBillingDate || firstRenewalAfterJoin(new Date()),
     legacyProfile: {
       midName1: primaryLp.midName1 || "",
       suffix1: primaryLp.suffix1 || "",
@@ -1551,6 +1551,7 @@ router.post("/members/register", async (req: AuthedRequest, res) => {
   const result = await registerMember(parsed.data, {
     signedUpVia: "phone",
     adminId: req.userId,
+    allowApplicationFeeWaiver: true,
   });
   if (!result.ok) {
     res.status(result.status).json({
@@ -1610,7 +1611,7 @@ router.post("/members", async (req: AuthedRequest, res) => {
     notes: payload.notes,
     paymentMethod: "check",
     autoRenew: false,
-    nextAnnualBillingDate: nextJuneFirstAfterSignup(new Date()),
+    nextAnnualBillingDate: firstRenewalAfterJoin(new Date()),
   });
 
   await logActivity(
@@ -1689,6 +1690,17 @@ function refreshedBilling(memberId: mongoose.Types.ObjectId) {
   return BillingEvent.find({ memberId }).sort({ createdAt: -1 }).limit(50).lean();
 }
 
+function renewalSummary(member: { nextAnnualBillingDate?: Date | null; referralWaiveCredits?: number | null }) {
+  return {
+    nextAnnualBillingDate: member.nextAnnualBillingDate ?? null,
+    referralWaiveCredits: member.referralWaiveCredits ?? 0,
+  };
+}
+
+function formatJuneFirst(d: Date): string {
+  return `June 1, ${d.getUTCFullYear()}`;
+}
+
 router.post("/members/:id/billing", async (req: AuthedRequest, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) {
     res.status(400).json({ error: "Invalid id" });
@@ -1708,6 +1720,25 @@ router.post("/members/:id/billing", async (req: AuthedRequest, res) => {
   const status = body.waived === "yes" ? "waived" : body.waived === "refund" ? "refund" : "succeeded";
   const paidDate = body.paidDate ? new Date(body.paidDate) : new Date();
 
+  // A waived referral line is a referral credit: skip the member's next renewal by
+  // moving it out one year (e.g. June 1, 2027 → June 1, 2028). Lifetime members never
+  // pay renewals, so their date is left alone.
+  let advancedRenewalFrom: Date | null = null;
+  let consumedReferralCredit = false;
+  let description = "Manual payment entry";
+  if (body.type === "referral" && status === "waived" && !member.lifetimeAnnualFeeWaived) {
+    advancedRenewalFrom = new Date(member.nextAnnualBillingDate);
+    member.nextAnnualBillingDate = followingJuneFirst(advancedRenewalFrom);
+    // Credits earned automatically at signup are applied here instead of on June 1,
+    // so the same referral can't waive two years.
+    if ((member.referralWaiveCredits || 0) > 0) {
+      member.referralWaiveCredits = (member.referralWaiveCredits || 0) - 1;
+      consumedReferralCredit = true;
+    }
+    await member.save();
+    description = `Referral credit — renewal moved from ${formatJuneFirst(advancedRenewalFrom)} to ${formatJuneFirst(member.nextAnnualBillingDate)}`;
+  }
+
   await BillingEvent.create({
     memberId: member._id,
     kind: body.type === "new" ? "registration" : body.type === "referral" ? "manual_adjustment" : "annual",
@@ -1719,18 +1750,28 @@ router.post("/members/:id/billing", async (req: AuthedRequest, res) => {
     checkNumber: body.checkNumber || "",
     entryType: body.type,
     paidDate: Number.isNaN(paidDate.getTime()) ? new Date() : paidDate,
-    description: "Manual payment entry",
+    description,
     processedByAdminId: req.userId,
+    advancedRenewalFrom,
+    consumedReferralCredit,
   });
 
   await logActivity(
     member._id,
     "admin_billing_manual_added",
-    { amountCents: body.amountCents, billingYear: body.billingYear, method: body.method, adminId: req.userId },
+    {
+      amountCents: body.amountCents,
+      billingYear: body.billingYear,
+      method: body.method,
+      adminId: req.userId,
+      ...(advancedRenewalFrom
+        ? { renewalMovedFrom: advancedRenewalFrom.toISOString(), renewalMovedTo: member.nextAnnualBillingDate.toISOString() }
+        : {}),
+    },
     new mongoose.Types.ObjectId(req.userId!)
   );
 
-  res.json({ ok: true, billing: await refreshedBilling(member._id) });
+  res.json({ ok: true, billing: await refreshedBilling(member._id), member: renewalSummary(member) });
 });
 
 router.delete("/members/:id/billing/:billingId", async (req: AuthedRequest, res) => {
@@ -1750,6 +1791,18 @@ router.delete("/members/:id/billing/:billingId", async (req: AuthedRequest, res)
   }
   await event.deleteOne();
 
+  // Deleting a referral credit line undoes the year it added to the renewal date.
+  if (event.advancedRenewalFrom) {
+    const current = new Date(member.nextAnnualBillingDate);
+    const earliest = new Date(event.advancedRenewalFrom);
+    const back = juneFirstYear(current.getUTCFullYear() - 1);
+    member.nextAnnualBillingDate = back.getTime() < earliest.getTime() ? earliest : back;
+    if (event.consumedReferralCredit) {
+      member.referralWaiveCredits = (member.referralWaiveCredits || 0) + 1;
+    }
+    await member.save();
+  }
+
   await logActivity(
     member._id,
     "admin_billing_line_deleted",
@@ -1757,7 +1810,7 @@ router.delete("/members/:id/billing/:billingId", async (req: AuthedRequest, res)
     new mongoose.Types.ObjectId(req.userId!)
   );
 
-  res.json({ ok: true, billing: await refreshedBilling(member._id) });
+  res.json({ ok: true, billing: await refreshedBilling(member._id), member: renewalSummary(member) });
 });
 
 router.delete("/members/:id", async (req: AuthedRequest, res) => {

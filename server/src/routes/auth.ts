@@ -133,8 +133,11 @@ router.post("/claim-add-property", async (req, res) => {
 });
 
 router.post("/registration-intent", async (req, res) => {
+  // New members pay first-year dues for their plan plus the one-time application fee.
+  const plan = resolveMembershipPlan({ membershipPlan: req.body?.membershipPlan });
+  const amountCents = MEMBERSHIP_PLAN_META[plan].annualCents + config.registrationFeeCents;
   if (!stripeEnabled) {
-    res.json({ mock: true, amountCents: config.registrationFeeCents });
+    res.json({ mock: true, amountCents });
     return;
   }
   const Stripe = (await import("stripe")).default;
@@ -144,17 +147,17 @@ router.post("/registration-intent", async (req, res) => {
       ? req.body.receiptEmail
       : undefined;
   const pi = await stripe.paymentIntents.create({
-    amount: config.registrationFeeCents,
+    amount: amountCents,
     currency: "usd",
     receipt_email: email,
-    description: "Co-op registration",
-    metadata: { type: "registration" },
+    description: "Co-op membership dues + application fee",
+    metadata: { type: "registration", membershipPlan: plan },
     automatic_payment_methods: { enabled: true },
   });
   res.json({
     clientSecret: pi.client_secret,
     paymentIntentId: pi.id,
-    amountCents: config.registrationFeeCents,
+    amountCents,
   });
 });
 

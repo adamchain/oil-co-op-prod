@@ -6,6 +6,17 @@ import { formatPhoneValue } from "../utils/phone";
 
 type OilCo = { _id: string; name: string };
 
+type PlanId = "standard" | "senior" | "lowVolume";
+
+const PLANS: { id: PlanId; label: string; cents: number }[] = [
+  { id: "standard", label: "Standard", cents: 3500 },
+  { id: "senior", label: "Senior (55+)", cents: 2500 },
+  { id: "lowVolume", label: "Low volume", cents: 2000 },
+];
+const APPLICATION_FEE_CENTS = 1000;
+
+const usd = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+
 const rowStyle = { display: "flex", flexWrap: "wrap" as const, alignItems: "end", gap: "0.35rem 0.7rem" };
 
 function formatCardNumber(value: string): string {
@@ -68,6 +79,8 @@ export default function AdminAddCustomerPage() {
     state: "",
     postalCode: "",
     paymentMethod: "card" as "card" | "check",
+    membershipPlan: "standard" as PlanId,
+    waiveApplicationFee: false,
     referrerToken: "",
     oilCompanyId: "",
     cardNumber: "",
@@ -116,6 +129,8 @@ export default function AdminAddCustomerPage() {
         state: form.state,
         postalCode: form.postalCode,
         paymentMethod: form.paymentMethod,
+        membershipPlan: form.membershipPlan,
+        waiveApplicationFee: form.waiveApplicationFee,
         referrerToken: form.referrerToken,
         oilCompanyId: form.oilCompanyId || null,
         ...(form.paymentMethod === "card" && {
@@ -161,6 +176,8 @@ export default function AdminAddCustomerPage() {
       state: "",
       postalCode: "",
       paymentMethod: "card",
+      membershipPlan: "standard",
+      waiveApplicationFee: false,
       referrerToken: "",
       oilCompanyId: "",
       cardNumber: "",
@@ -355,6 +372,39 @@ export default function AdminAddCustomerPage() {
                 <h2 className="admin-wb-panel-title">Payment</h2>
                 <div className="admin-form-grid-4">
                   <div className="admin-form-span-4" style={rowStyle}>
+                    <Field label="Membership" width="200px">
+                      <select
+                        className="admin-input"
+                        style={{ width: "100%" }}
+                        value={form.membershipPlan}
+                        onChange={(e) => setForm({ ...form, membershipPlan: e.target.value as PlanId })}
+                      >
+                        {PLANS.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.label} — {usd(p.cents)}/yr
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    <label style={{ display: "flex", alignItems: "center", gap: "0.35rem", paddingBottom: "0.3rem" }}>
+                      <input
+                        type="checkbox"
+                        checked={form.waiveApplicationFee}
+                        onChange={(e) => setForm({ ...form, waiveApplicationFee: e.target.checked })}
+                      />
+                      Waive $10 application fee
+                    </label>
+                    <span className="admin-meta" style={{ paddingBottom: "0.3rem" }}>
+                      Due at signup:{" "}
+                      <strong>
+                        {usd(
+                          (PLANS.find((p) => p.id === form.membershipPlan)?.cents ?? 3500) +
+                            (form.waiveApplicationFee ? 0 : APPLICATION_FEE_CENTS)
+                        )}
+                      </strong>
+                    </span>
+                  </div>
+                  <div className="admin-form-span-4" style={rowStyle}>
                     <Field label="Method" width="200px">
                       <select
                         className="admin-input"
@@ -417,7 +467,7 @@ export default function AdminAddCustomerPage() {
 
                   {form.paymentMethod === "check" && (
                     <p className="admin-add-customer-inline-note admin-form-span-4">
-                      Check: account pending until registration fee received; renewals by mail each year.
+                      Check: account pending until dues and application fee are received; renewals by mail each year.
                     </p>
                   )}
                 </div>

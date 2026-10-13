@@ -6,12 +6,13 @@ import { Member } from "../models/Member.js";
 import { BillingEvent } from "../models/BillingEvent.js";
 import { OilCompany } from "../models/OilCompany.js";
 import { config, stripeEnabled, authorizeNetEnabled } from "../config.js";
-import { nextJuneFirstAfterSignup } from "../utils/juneBilling.js";
+import { firstRenewalAfterJoin } from "../utils/juneBilling.js";
 import { applyReferralCredit, findReferrerByToken } from "../services/referrals.js";
 import { confirmPaymentIntent } from "../services/stripeBilling.js";
 import { createProfileAndCharge } from "../services/authorizeNet.js";
 import { logActivity } from "../services/activity.js";
 import { phoneDigits } from "../utils/phone.js";
+import { MEMBERSHIP_PLAN_META } from "../utils/membershipFees.js";
 
 export const registerMemberSchema = z.object({
   // Email is optional — a blank string is treated as "no email".
@@ -41,6 +42,8 @@ export const registerMemberSchema = z.object({
 
   // Join form fields (oilco-op.com/join)
   membershipPlan: z.enum(["standard", "senior", "lowVolume"]).optional().default("standard"),
+  /** Staff-only: waive the one-time application fee (veterans, first responders, promotions). */
+  waiveApplicationFee: z.boolean().optional().default(false),
   middleName: z.string().optional().default(""),
   sameMailingAddress: z.boolean().optional().default(true),
   mailingAddressLine1: z.string().optional().default(""),
@@ -70,6 +73,8 @@ export type RegisterMemberOptions = {
   signedUpVia?: "web" | "phone" | "admin";
   adminId?: string;
   notifyOilCompanyAssignment?: boolean;
+  /** Only staff signups may waive the application fee; web signups always pay it. */
+  allowApplicationFeeWaiver?: boolean;
 };
 
 export type RegisterMemberResult =
@@ -133,7 +138,13 @@ export async function registerMember(
     10
   );
   const signupDate = new Date();
-  const nextAnnual = nextJuneFirstAfterSignup(signupDate);
+  const nextAnnual = firstRenewalAfterJoin(signupDate);
+  const membershipPlan = body.membershipPlan || "standard";
+  // New members pay their first year's dues plus the one-time application fee at signup.
+  const duesCents = MEMBERSHIP_PLAN_META[membershipPlan].annualCents;
+  const applicationFeeWaived = Boolean(options.allowApplicationFeeWaiver && body.waiveApplicationFee);
+  const applicationFeeCents = applicationFeeWaived ? 0 : config.registrationFeeCents;
+  const joinTotalCents = duesCents + applicationFeeCents;
   const memberNumber = await nextMemberNumber();
 
   let referredByMemberId = undefined as undefined | mongoose.Types.ObjectId;
@@ -163,9 +174,11 @@ export async function registerMember(
         city: body.city,
         state: body.state,
         postalCode: body.postalCode,
-        amountCents: config.registrationFeeCents,
+        amountCents: joinTotalCents,
         invoiceNumber: `REG-${memberNumber}`,
-        description: "Co-op registration fee",
+        description: applicationFeeWaived
+          ? "Co-op membership dues (application fee waived)"
+          : "Co-op membership dues + application fee",
       });
 
       if (!authnetResult.ok) {
@@ -196,8 +209,8 @@ export async function registerMember(
             extra: { status: pi.status },
           };
         }
-        if (pi.amount !== config.registrationFeeCents) {
-          return { ok: false, status: 400, error: "Payment amount does not match registration fee" };
+        if (pi.amount !== joinTotalCents) {
+          return { ok: false, status: 400, error: "Payment amount does not match membership dues + application fee" };
         }
         stripePaymentIntentId = body.paymentIntentId;
         paymentStatus = "succeeded";
@@ -242,12 +255,14 @@ export async function registerMember(
       : [],
     paymentMethod: body.paymentMethod,
     autoRenew: body.paymentMethod === "card",
-    membershipPlan: body.membershipPlan || "standard",
+    membershipPlan,
     nextAnnualBillingDate: nextAnnual,
     oilCompanyId: oilCompanyObjectId,
     signedUpVia,
     referredByMemberId: referredByMemberId ?? null,
-    registrationFeePaidAt: paymentStatus === "succeeded" ? signupDate : null,
+    registrationFeePaidAt: paymentStatus === "succeeded" || applicationFeeWaived ? signupDate : null,
+    lastAnnualChargeAt: paymentStatus === "succeeded" ? signupDate : null,
+    lastAnnualChargeAmountCents: paymentStatus === "succeeded" ? duesCents : null,
     authnetCustomerProfileId,
     authnetPaymentProfileId,
     authnetCardLast4,
@@ -295,18 +310,39 @@ export async function registerMember(
     },
   });
 
-  await BillingEvent.create({
-    memberId: member._id,
-    kind: "registration",
-    amountCents: config.registrationFeeCents,
-    status: paymentStatus,
+  // One charge at signup, recorded as two payment-history lines: the application fee
+  // and the first year's dues.
+  const chargeRefs = {
     stripePaymentIntentId: stripePaymentIntentId || undefined,
     authnetTransactionId: authnetTransactionId || undefined,
     cardLast4: authnetCardLast4 || undefined,
+  };
+  await BillingEvent.create({
+    memberId: member._id,
+    kind: "registration",
+    amountCents: applicationFeeCents,
+    status: applicationFeeWaived ? "waived" : paymentStatus,
+    ...(applicationFeeWaived ? {} : chargeRefs),
+    entryType: "new",
+    billingYear: signupDate.getFullYear(),
+    description: applicationFeeWaived
+      ? "Application fee waived by staff"
+      : paymentStatus === "pending"
+        ? "Application fee (awaiting check payment)"
+        : "Application fee (charged at signup)",
+  });
+  await BillingEvent.create({
+    memberId: member._id,
+    kind: "annual",
+    amountCents: duesCents,
+    status: paymentStatus,
+    ...chargeRefs,
+    entryType: "new",
+    billingYear: signupDate.getFullYear(),
     description:
       paymentStatus === "pending"
-        ? "Registration fee (awaiting check payment)"
-        : "Registration fee (charged at signup)",
+        ? `${MEMBERSHIP_PLAN_META[membershipPlan].label} dues (awaiting check payment)`
+        : `${MEMBERSHIP_PLAN_META[membershipPlan].label} dues (charged at signup)`,
   });
 
   if (referredByMemberId) {
@@ -319,6 +355,8 @@ export async function registerMember(
     {
       memberNumber,
       nextAnnualBillingDate: nextAnnual.toISOString(),
+      joinTotalCents,
+      applicationFeeWaived,
       paymentProcessor: authnetTransactionId ? "authnet" : stripePaymentIntentId ? "stripe" : "none",
       signedUpVia,
       adminId: options.adminId,

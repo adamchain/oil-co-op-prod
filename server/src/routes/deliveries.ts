@@ -7,7 +7,7 @@ import { requireAuth, requireAdmin, type AuthedRequest } from "../middleware/aut
 import { Member } from "../models/Member.js";
 import { OilCompany } from "../models/OilCompany.js";
 import { logActivity } from "../services/activity.js";
-import { nextJuneFirstAfterSignup } from "../utils/juneBilling.js";
+import { firstRenewalAfterJoin } from "../utils/juneBilling.js";
 import {
   accountKeys,
   buildRow,
@@ -676,7 +676,7 @@ router.post("/import", async (req: AuthedRequest, res) => {
       paymentMethod: "check",
       autoRenew: false,
       signedUpVia: "admin",
-      nextAnnualBillingDate: nextJuneFirstAfterSignup(new Date()),
+      nextAnnualBillingDate: firstRenewalAfterJoin(new Date()),
       ...(oilCompanyId ? { oilCompanyId: new mongoose.Types.ObjectId(oilCompanyId) } : {}),
       legacyProfile,
     });

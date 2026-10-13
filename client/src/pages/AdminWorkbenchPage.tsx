@@ -104,6 +104,9 @@ type PropertyGroupItem = {
 
 type OilCompany = { _id: string; name: string; contactEmail?: string; contactPhone?: string; notes?: string; active?: boolean };
 type PropaneCompany = { name: string; count?: number };
+/** Renewal fields the server returns after a payment line changes them (e.g. a referral credit). */
+type RenewalSummary = { nextAnnualBillingDate?: string | null; referralWaiveCredits?: number };
+
 type BillingEvent = {
   _id: string;
   kind: string;
@@ -452,6 +455,17 @@ export default function AdminWorkbenchPage() {
   const suppressIndexResetRef = useRef(false);
   const [activeTab, setActiveTab] = useState<TabName>("Data Entry");
   const [members, setMembers] = useState<Member[]>([]);
+
+  function applyRenewalSummary(memberId: string, summary?: RenewalSummary) {
+    if (!summary) return;
+    setMembers((prev) =>
+      prev.map((m) =>
+        m._id === memberId
+          ? { ...m, nextAnnualBillingDate: summary.nextAnnualBillingDate ?? m.nextAnnualBillingDate }
+          : m
+      )
+    );
+  }
   const [filters, setFilters] = useState<MemberFilter[]>(() => decodeFilters(searchParams.get("filters") || ""));
   const [quickSearch, setQuickSearch] = useState<string>(() => searchParams.get("q") || "");
   const [worksheetSort, setWorksheetSort] = useState<{ key: string; dir: "asc" | "desc" }>({
@@ -3169,22 +3183,24 @@ export default function AdminWorkbenchPage() {
                 onAddPayment={
                   token
                     ? async (line) => {
-                        const r = await api<{ billing: BillingEvent[] }>(
+                        const r = await api<{ billing: BillingEvent[]; member?: RenewalSummary }>(
                           `/api/admin/members/${current._id}/billing`,
                           { method: "POST", token, body: JSON.stringify(line) }
                         );
                         setBilling(r.billing || []);
+                        applyRenewalSummary(current._id, r.member);
                       }
                     : undefined
                 }
                 onDeletePayment={
                   token
                     ? async (billingId) => {
-                        const r = await api<{ billing: BillingEvent[] }>(
+                        const r = await api<{ billing: BillingEvent[]; member?: RenewalSummary }>(
                           `/api/admin/members/${current._id}/billing/${billingId}`,
                           { method: "DELETE", token }
                         );
                         setBilling(r.billing || []);
+                        applyRenewalSummary(current._id, r.member);
                       }
                     : undefined
                 }
