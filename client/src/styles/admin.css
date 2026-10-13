@@ -321,6 +321,13 @@
   color: #15803d;
 }
 
+/* Renewal on hold — the yellow tab staff know from Sam's. */
+.admin-pill.hold {
+  background: #fde68a;
+  color: #78350f;
+  font-weight: 600;
+}
+
 .admin-stats {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));

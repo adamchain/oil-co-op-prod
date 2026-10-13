@@ -74,6 +74,16 @@ type Member = {
   authnetCardExpiry?: string;
   nextAnnualBillingDate?: string;
   membershipPlan?: string;
+  renewalOnHold?: boolean;
+  renewalHoldReason?: string;
+};
+
+const HOLD_REASON_LABELS: Record<string, string> = {
+  no_payment_method: "no payment method",
+  check: "awaiting check",
+  auto_renew_off: "auto-renew off",
+  card_expired: "card expired",
+  card_declined: "card declined",
 };
 
 type SameNameRecord = {
@@ -105,7 +115,12 @@ type PropertyGroupItem = {
 type OilCompany = { _id: string; name: string; contactEmail?: string; contactPhone?: string; notes?: string; active?: boolean };
 type PropaneCompany = { name: string; count?: number };
 /** Renewal fields the server returns after a payment line changes them (e.g. a referral credit). */
-type RenewalSummary = { nextAnnualBillingDate?: string | null; referralWaiveCredits?: number };
+type RenewalSummary = {
+  nextAnnualBillingDate?: string | null;
+  referralWaiveCredits?: number;
+  renewalOnHold?: boolean;
+  renewalHoldReason?: string;
+};
 
 type BillingEvent = {
   _id: string;
@@ -313,6 +328,8 @@ function memberFromApiPatch(prev: Member, raw: Record<string, unknown>, oilCos: 
     authnetCardExpiry: (raw.authnetCardExpiry as string | undefined) ?? prev.authnetCardExpiry,
     nextAnnualBillingDate: (raw.nextAnnualBillingDate as string | undefined) ?? prev.nextAnnualBillingDate,
     membershipPlan: (raw.membershipPlan as string | undefined) ?? prev.membershipPlan,
+    renewalOnHold: (raw.renewalOnHold as boolean | undefined) ?? prev.renewalOnHold,
+    renewalHoldReason: (raw.renewalHoldReason as string | undefined) ?? prev.renewalHoldReason,
   };
   const oid = raw.oilCompanyId;
   if (oid == null || oid === "") next.oilCompanyId = null;
@@ -461,7 +478,12 @@ export default function AdminWorkbenchPage() {
     setMembers((prev) =>
       prev.map((m) =>
         m._id === memberId
-          ? { ...m, nextAnnualBillingDate: summary.nextAnnualBillingDate ?? m.nextAnnualBillingDate }
+          ? {
+              ...m,
+              nextAnnualBillingDate: summary.nextAnnualBillingDate ?? m.nextAnnualBillingDate,
+              renewalOnHold: summary.renewalOnHold ?? m.renewalOnHold,
+              renewalHoldReason: summary.renewalHoldReason ?? m.renewalHoldReason,
+            }
           : m
       )
     );
@@ -2356,6 +2378,14 @@ export default function AdminWorkbenchPage() {
               : totalMemberCount != null ? totalMemberCount : filteredMembers.length
             ).toLocaleString()}
           </span>
+          {current?.renewalOnHold && (
+            <span className="admin-pill hold" title="Renewal on hold — record the renewal payment to clear it">
+              Renewal on hold
+              {current.renewalHoldReason && HOLD_REASON_LABELS[current.renewalHoldReason]
+                ? ` · ${HOLD_REASON_LABELS[current.renewalHoldReason]}`
+                : ""}
+            </span>
+          )}
         </div>
         <div className="admin-wb-header-right">
           <input

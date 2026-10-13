@@ -18,6 +18,7 @@ import {
 } from "../services/authorizeNet.js";
 import { logActivity } from "../services/activity.js";
 import { nextJuneFirstAfterSignup } from "../utils/juneBilling.js";
+import { clearRenewalHold } from "../services/renewals.js";
 
 const router = Router();
 
@@ -205,7 +206,9 @@ router.post("/link/:token/pay", async (req, res) => {
   if (paymentToken.kind === "annual") {
     member.lastAnnualChargeAt = new Date();
     member.lastAnnualChargeAmountCents = chargeResult.amountCents;
-    member.nextAnnualBillingDate = nextJuneFirstAfterSignup(new Date());
+    if (!clearRenewalHold(member)) {
+      member.nextAnnualBillingDate = nextJuneFirstAfterSignup(new Date());
+    }
     member.reminderSent30d = false;
     member.reminderSent7d = false;
     member.reminderSent1d = false;

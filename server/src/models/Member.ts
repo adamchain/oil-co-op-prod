@@ -120,6 +120,15 @@ const memberSchema = new Schema(
     /** Each referral adds one credit; one credit skips one June 1 annual charge. */
     referralWaiveCredits: { type: Number, default: 0 },
 
+    /**
+     * Renewal "on hold" (Sam's yellow tab): set when a renewal couldn't be collected —
+     * no payment method, awaiting check, expired or declined card. Cleared when staff
+     * record the payment; the renewal date stays on the missed June 1 until then.
+     */
+    renewalOnHold: { type: Boolean, default: false, index: true },
+    renewalHoldReason: { type: String, default: "" },
+    renewalHoldSince: { type: Date, default: null },
+
     registrationFeePaidAt: { type: Date, default: null },
     lastAnnualChargeAt: { type: Date, default: null },
     lastAnnualChargeAmountCents: { type: Number, default: null },

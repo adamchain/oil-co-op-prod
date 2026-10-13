@@ -28,6 +28,7 @@ import {
 import { logActivity } from "../services/activity.js";
 import { registerMember, registerMemberSchema } from "../services/memberRegistration.js";
 import { setMemberReferrer } from "../services/referrals.js";
+import { clearRenewalHold, runAnnualRenewal } from "../services/renewals.js";
 import { sendMemberEmail, sendPaymentLinkEmail } from "../services/mail.js";
 import { applyTemplateVariables, ensureEmailTemplates } from "../services/emailTemplateStore.js";
 import { loadMemberEmailMergeData } from "../services/memberEmailMerge.js";
@@ -1743,10 +1744,17 @@ function refreshedBilling(memberId: mongoose.Types.ObjectId) {
   return BillingEvent.find({ memberId }).sort({ createdAt: -1 }).limit(50).lean();
 }
 
-function renewalSummary(member: { nextAnnualBillingDate?: Date | null; referralWaiveCredits?: number | null }) {
+function renewalSummary(member: {
+  nextAnnualBillingDate?: Date | null;
+  referralWaiveCredits?: number | null;
+  renewalOnHold?: boolean | null;
+  renewalHoldReason?: string | null;
+}) {
   return {
     nextAnnualBillingDate: member.nextAnnualBillingDate ?? null,
     referralWaiveCredits: member.referralWaiveCredits ?? 0,
+    renewalOnHold: Boolean(member.renewalOnHold),
+    renewalHoldReason: member.renewalHoldReason || "",
   };
 }
 
@@ -1790,6 +1798,14 @@ router.post("/members/:id/billing", async (req: AuthedRequest, res) => {
     }
     await member.save();
     description = `Referral credit — renewal moved from ${formatJuneFirst(advancedRenewalFrom)} to ${formatJuneFirst(member.nextAnnualBillingDate)}`;
+  }
+
+  // Recording the missed renewal (paid or waived) takes the member off hold.
+  if (body.type === "renew" && (status === "succeeded" || status === "waived") && clearRenewalHold(member)) {
+    await member.save();
+    if (description === "Manual payment entry") {
+      description = `Renewal recorded — off hold; next renewal ${formatJuneFirst(member.nextAnnualBillingDate)}`;
+    }
   }
 
   await BillingEvent.create({
@@ -2124,7 +2140,7 @@ router.get("/renewals/dashboard", async (_req, res) => {
     .select(
       "memberNumber firstName lastName email status paymentMethod autoRenew " +
         "stripeDefaultPaymentMethodId authnetPaymentProfileId nextAnnualBillingDate lifetimeAnnualFeeWaived " +
-        "referralWaiveCredits oilCompanyId membershipPlan"
+        "referralWaiveCredits oilCompanyId membershipPlan renewalOnHold renewalHoldReason renewalHoldSince"
     )
     .lean()) as Array<Record<string, unknown>>;
 
@@ -2159,6 +2175,7 @@ router.get("/renewals/dashboard", async (_req, res) => {
     noCardOnFile: normalized.filter((m) => m.status === "active" && !Boolean(m.stripeDefaultPaymentMethodId)),
     payingByCheck: normalized.filter((m) => m.status === "active" && m.paymentMethod === "check"),
     expired: normalized.filter((m) => m.status === "expired"),
+    onHold: normalized.filter((m) => m.status === "active" && Boolean(m.renewalOnHold)),
     annualFeeWaived: normalized.filter(
       (m) => Boolean(m.lifetimeAnnualFeeWaived) || (typeof m.referralWaiveCredits === "number" && m.referralWaiveCredits > 0)
     ),
@@ -2372,7 +2389,9 @@ router.post("/members/:id/charge", async (req: AuthedRequest, res) => {
   if (body.kind === "annual") {
     member.lastAnnualChargeAt = new Date();
     member.lastAnnualChargeAmountCents = result.amountCents;
-    member.nextAnnualBillingDate = nextJuneFirstAfterSignup(new Date());
+    if (!clearRenewalHold(member)) {
+      member.nextAnnualBillingDate = nextJuneFirstAfterSignup(new Date());
+    }
   }
   if (body.kind === "registration") {
     member.registrationFeePaidAt = new Date();
@@ -3123,6 +3142,40 @@ router.delete("/community/events/:id", async (req: AuthedRequest, res) => {
     new mongoose.Types.ObjectId(req.userId!)
   );
   res.json({ ok: true });
+});
+
+/**
+ * Mock / manual renewal runs. Preview shows what a renewal on `date` would do to every
+ * member due that day without charging anyone; run actually performs it (charges cards
+ * on file through the configured processor — use the Authorize.Net sandbox for tests).
+ */
+const renewalRunSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+});
+
+router.post("/renewals/preview", async (req: AuthedRequest, res) => {
+  const parsed = renewalRunSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "date (YYYY-MM-DD) is required" });
+    return;
+  }
+  res.json(await runAnnualRenewal({ date: new Date(`${parsed.data.date}T12:00:00Z`), dryRun: true }));
+});
+
+router.post("/renewals/run", async (req: AuthedRequest, res) => {
+  const parsed = renewalRunSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "date (YYYY-MM-DD) is required" });
+    return;
+  }
+  const report = await runAnnualRenewal({ date: new Date(`${parsed.data.date}T12:00:00Z`) });
+  await logActivity(
+    new mongoose.Types.ObjectId(req.userId!),
+    "admin_renewal_run",
+    { date: parsed.data.date, total: report.total, counts: report.counts, adminId: req.userId },
+    new mongoose.Types.ObjectId(req.userId!)
+  );
+  res.json(report);
 });
 
 export default router;

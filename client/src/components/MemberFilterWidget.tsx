@@ -97,6 +97,7 @@ export const STATIC_FILTER_FIELDS: FilterFieldDef[] = [
     ],
   },
   { key: "referralCount", label: "Total Referred", type: "number", group: "Status" },
+  { key: "renewalOnHold", label: "Renewal On Hold", type: "boolean", group: "Status" },
 
   // Oil
   { key: "oilCompanyId._id", label: "Oil Company", type: "ref", group: "Oil" },
