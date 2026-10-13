@@ -2202,6 +2202,28 @@ button.admin-wb-panel-title.admin-wb-panel-toggle:hover {
   box-shadow: 0 24px 48px rgba(0, 0, 0, 0.12);
 }
 
+/* Small yes/no confirmation (e.g. changing a member's plan or lifetime flag). */
+.admin-modal-panel.admin-confirm-panel {
+  max-width: min(420px, 100%);
+  padding: 1.1rem 1.25rem;
+}
+
+.admin-confirm-panel h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+}
+
+.admin-confirm-panel p {
+  margin: 0 0 1rem;
+  color: rgba(0, 0, 0, 0.7);
+}
+
+.admin-confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
 .admin-modal-panel.admin-modal-panel-wide {
   max-width: min(1160px, 100%);
 }

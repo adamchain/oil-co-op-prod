@@ -258,7 +258,7 @@ function RenewalRunCard({ token, onRan }: { token: string | null; onRan: () => v
         <button type="button" className="admin-wb-btn admin-wb-btn-secondary" disabled={busy || !date} onClick={() => void go("preview")}>
           Preview
         </button>
-        <button type="button" className="admin-wb-btn" disabled={busy || !date} onClick={() => void go("run")}>
+        <button type="button" className="admin-wb-btn admin-wb-btn-primary" disabled={busy || !date} onClick={() => void go("run")}>
           Run renewal
         </button>
       </div>

@@ -16,6 +16,7 @@ import {
 import { memberRecordMatchesQuery } from "../utils/memberSearch";
 import { formatPhoneValue } from "../utils/phone";
 import { hydrateLegacyProfile } from "../utils/legacyProfile";
+import { MEMBERSHIP_PLAN_META, formatUsdFromCents, resolveMembershipPlan } from "../utils/membershipFees";
 import PaymentFindModal from "../components/PaymentFindModal";
 import { type InvoiceMember } from "../utils/invoice";
 import { downloadMembershipInvoicePdf } from "../utils/invoicePdf";
@@ -77,6 +78,8 @@ type Member = {
   renewalOnHold?: boolean;
   renewalHoldReason?: string;
 };
+
+type MembershipFlagKey = "standardMembership" | "seniorMember" | "lowVolume" | "waiveFeeLifetime";
 
 const HOLD_REASON_LABELS: Record<string, string> = {
   no_payment_method: "no payment method",
@@ -566,6 +569,13 @@ export default function AdminWorkbenchPage() {
   const [propertyGroup, setPropertyGroup] = useState<PropertyGroupItem[]>([]);
   const [sameNameRecords, setSameNameRecords] = useState<SameNameRecord[]>([]);
   const [sameNameFinderOpen, setSameNameFinderOpen] = useState(false);
+  /** Membership checkbox change waiting on the staff confirm modal. */
+  const [pendingMembershipChange, setPendingMembershipChange] = useState<{
+    key: MembershipFlagKey;
+    checked: boolean;
+    title: string;
+    message: string;
+  } | null>(null);
   const [sameNameGroups, setSameNameGroups] = useState<Array<{ name: string; records: SameNameRecord[] }>>([]);
   const [sameNameFinderLoading, setSameNameFinderLoading] = useState(false);
   const [sameNameFinderError, setSameNameFinderError] = useState("");
@@ -1724,6 +1734,50 @@ export default function AdminWorkbenchPage() {
     cursor: "pointer",
   });
 
+  // Changing the plan or lifetime flag changes what the member is billed, so ask first.
+  const requestMembershipChange = (key: MembershipFlagKey, checked: boolean) => {
+    const name = `${form.firstName || current?.firstName || ""} ${form.lastName || current?.lastName || ""}`.trim() || "this member";
+    const currentPlan = MEMBERSHIP_PLAN_META[resolveMembershipPlan({ membershipPlan: current?.membershipPlan, legacyProfile: form.legacyProfile })];
+    const nextRenewal = current?.nextAnnualBillingDate
+      ? new Date(current.nextAnnualBillingDate).toLocaleDateString(undefined, { timeZone: "UTC" })
+      : "their next June 1 renewal";
+    let title = "";
+    let message = "";
+    if (key === "waiveFeeLifetime") {
+      title = checked ? "Make lifetime member?" : "Remove lifetime membership?";
+      message = checked
+        ? `${name} will no longer be charged annual dues. Each year's renewal is recorded as a $0 line.`
+        : `${name} will be billed ${formatUsdFromCents(currentPlan.annualCents)} (${currentPlan.label}) starting at their next renewal on ${nextRenewal}.`;
+    } else {
+      const plan = MEMBERSHIP_PLAN_META[key === "seniorMember" ? "senior" : key === "lowVolume" ? "lowVolume" : "standard"];
+      if (checked) {
+        title = `Switch to ${plan.label}?`;
+        message = isLifetime
+          ? `${name} moves from ${currentPlan.label} to ${plan.label}. They are a lifetime member, so they still won't be charged.`
+          : `${name} moves from ${currentPlan.label} (${formatUsdFromCents(currentPlan.annualCents)}/yr) to ${plan.label} (${formatUsdFromCents(plan.annualCents)}/yr). Their renewal on ${nextRenewal} will be billed ${formatUsdFromCents(plan.annualCents)}.`;
+      } else {
+        title = `Uncheck ${plan.label}?`;
+        message = `With no plan checked, ${name} is billed at the Standard rate (${formatUsdFromCents(MEMBERSHIP_PLAN_META.standard.annualCents)}/yr). To change plans, check the new plan instead.`;
+      }
+    }
+    setPendingMembershipChange({ key, checked, title, message });
+  };
+
+  const confirmMembershipChange = () => {
+    if (!pendingMembershipChange) return;
+    setLegacy(pendingMembershipChange.key, pendingMembershipChange.checked);
+    setPendingMembershipChange(null);
+  };
+
+  useEffect(() => {
+    if (!pendingMembershipChange) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPendingMembershipChange(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [pendingMembershipChange]);
+
   const isSenior = legacyBool("seniorMember");
   const isLifetime = legacyBool("waiveFeeLifetime");
   const isWaived = legacyBool("waiveFeeSenior") || String(legacyValue("registrationPaymentStatus")).toLowerCase() === "waived";
@@ -2511,19 +2565,19 @@ export default function AdminWorkbenchPage() {
                     }}
                   >
                     <label style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.7rem", fontWeight: 600, whiteSpace: "nowrap" }}>
-                      <input type="checkbox" checked={legacyBool("standardMembership")} onChange={(e) => setLegacy("standardMembership", e.target.checked)} style={membershipCheckboxStyle(legacyBool("standardMembership"))} />
+                      <input type="checkbox" checked={legacyBool("standardMembership")} onChange={(e) => requestMembershipChange("standardMembership", e.target.checked)} style={membershipCheckboxStyle(legacyBool("standardMembership"))} />
                       Standard
                     </label>
                     <label style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.7rem", fontWeight: 600, whiteSpace: "nowrap" }}>
-                      <input type="checkbox" checked={legacyBool("seniorMember")} onChange={(e) => setLegacy("seniorMember", e.target.checked)} style={membershipCheckboxStyle(legacyBool("seniorMember"))} />
+                      <input type="checkbox" checked={legacyBool("seniorMember")} onChange={(e) => requestMembershipChange("seniorMember", e.target.checked)} style={membershipCheckboxStyle(legacyBool("seniorMember"))} />
                       Senior
                     </label>
                     <label style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.7rem", fontWeight: 600, whiteSpace: "nowrap" }}>
-                      <input type="checkbox" checked={legacyBool("lowVolume")} onChange={(e) => setLegacy("lowVolume", e.target.checked)} style={membershipCheckboxStyle(legacyBool("lowVolume"))} />
+                      <input type="checkbox" checked={legacyBool("lowVolume")} onChange={(e) => requestMembershipChange("lowVolume", e.target.checked)} style={membershipCheckboxStyle(legacyBool("lowVolume"))} />
                       Low Volume
                     </label>
                     <label style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.7rem", fontWeight: 600, whiteSpace: "nowrap" }}>
-                      <input type="checkbox" checked={legacyBool("waiveFeeLifetime")} onChange={(e) => setLegacy("waiveFeeLifetime", e.target.checked)} style={membershipCheckboxStyle(legacyBool("waiveFeeLifetime"))} />
+                      <input type="checkbox" checked={legacyBool("waiveFeeLifetime")} onChange={(e) => requestMembershipChange("waiveFeeLifetime", e.target.checked)} style={membershipCheckboxStyle(legacyBool("waiveFeeLifetime"))} />
                       Lifetime
                     </label>
                   </div>
@@ -4286,6 +4340,29 @@ export default function AdminWorkbenchPage() {
           setPaymentFindOpen(false);
         }}
       />
+
+      {pendingMembershipChange && (
+        <div className="admin-modal-overlay" onClick={() => setPendingMembershipChange(null)}>
+          <div
+            className="admin-modal-panel admin-confirm-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="membership-confirm-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="membership-confirm-title">{pendingMembershipChange.title}</h2>
+            <p>{pendingMembershipChange.message}</p>
+            <div className="admin-confirm-actions">
+              <button type="button" className="admin-wb-btn admin-wb-btn-secondary" onClick={() => setPendingMembershipChange(null)}>
+                Cancel
+              </button>
+              <button type="button" className="admin-wb-btn admin-wb-btn-primary" autoFocus onClick={confirmMembershipChange}>
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {sameNameFinderOpen && (
         <div className="admin-modal-overlay" onClick={() => setSameNameFinderOpen(false)}>
