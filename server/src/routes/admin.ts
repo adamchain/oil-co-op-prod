@@ -2391,8 +2391,9 @@ router.post("/members/:id/send-email", async (req: AuthedRequest, res) => {
 });
 
 /**
- * Bulk email — send the same message to many members at once (e.g. a renewal
- * blast to everyone who hasn't paid). Generic content only; no per-member merge.
+ * Bulk email — send the same template to many members at once (e.g. a renewal
+ * reminder to everyone who hasn't paid). Merge fields like {firstName} or {amount}
+ * are filled in per member, the same way a single send fills them in.
  * Members with no email or who have opted out are skipped and reported back.
  */
 const bulkEmailSchema = z.object({
@@ -2426,7 +2427,15 @@ router.post("/members/bulk-email", async (req: AuthedRequest, res) => {
       skipped++;
       continue;
     }
-    await sendMemberEmail(m._id as mongoose.Types.ObjectId, to, subject, body, html);
+    const memberId = m._id as mongoose.Types.ObjectId;
+    const data = await loadMemberEmailMergeData(memberId);
+    await sendMemberEmail(
+      memberId,
+      to,
+      applyTemplateVariables(subject, data),
+      applyTemplateVariables(body, data),
+      html ? applyTemplateVariables(html, data) : undefined
+    );
     sent++;
   }
 

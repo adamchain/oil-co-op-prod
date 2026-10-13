@@ -2246,7 +2246,8 @@ export default function AdminWorkbenchPage() {
     );
   };
 
-  // Send the same (generic) email to every recipient in the active audience.
+  // Send the same template to every recipient in the active audience; the server
+  // fills in each member's merge fields.
   const sendBulkEmail = async () => {
     if (!token) return;
     const recipients = bulkRecipients;
@@ -2265,7 +2266,7 @@ export default function AdminWorkbenchPage() {
     }
     const confirmed = window.confirm(
       `Send this email to ${withEmail.length} member${withEmail.length === 1 ? "" : "s"} in the current filter?\n\n` +
-        `This is a generic blast — no per-member details are merged. This cannot be undone.`
+        `Merge fields like {firstName} are filled in for each member. This cannot be undone.`
     );
     if (!confirmed) return;
     try {
