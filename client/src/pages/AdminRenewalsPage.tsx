@@ -99,6 +99,9 @@ export default function AdminRenewalsPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [memberNumberQ, setMemberNumberQ] = useState("");
+  const [nameQ, setNameQ] = useState("");
+  const [emailQ, setEmailQ] = useState("");
 
   function load() {
     if (!token) return;
@@ -137,7 +140,23 @@ export default function AdminRenewalsPage() {
 
   if (!data) return <p style={{ color: "var(--admin-muted)" }}>Loading…</p>;
 
-  const onHold = data.filters.onHold || [];
+  const searching = Boolean(memberNumberQ.trim() || nameQ.trim() || emailQ.trim());
+
+  function matchesMember(m: MemberRow) {
+    const num = memberNumberQ.trim().toLowerCase();
+    const nm = nameQ.trim().toLowerCase();
+    const em = emailQ.trim().toLowerCase();
+    if (num && !(m.memberNumber || "").toLowerCase().includes(num)) return false;
+    if (nm && !`${m.firstName} ${m.lastName}`.toLowerCase().includes(nm)) return false;
+    if (em && !(m.email || "").toLowerCase().includes(em)) return false;
+    return true;
+  }
+
+  const onHold = (data.filters.onHold || []).filter(matchesMember);
+  const autoRows = [...data.lanes.autoRenewLane]
+    .filter(matchesMember)
+    .sort((a, b) => Number(Boolean(b.authnetPaymentProfileId)) - Number(Boolean(a.authnetPaymentProfileId)));
+  const manualRows = data.lanes.manualRenewalLane.filter(matchesMember);
 
   return (
     <>
@@ -177,7 +196,9 @@ export default function AdminRenewalsPage() {
             </table>
           </div>
         ) : (
-          <p style={{ color: "var(--admin-muted)", margin: 0 }}>Nobody is on hold.</p>
+          <p style={{ color: "var(--admin-muted)", margin: 0 }}>
+            {searching ? "No one on hold matches." : "Nobody is on hold."}
+          </p>
         )}
       </div>
 
@@ -195,6 +216,58 @@ export default function AdminRenewalsPage() {
       {error && (
         <p style={{ color: "#b91c1c", fontSize: "0.875rem", margin: "0 0 1rem" }}>{error}</p>
       )}
+
+      <div className="admin-card">
+        <h2>Find a member</h2>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", alignItems: "end" }}>
+          <label style={{ display: "flex", flexDirection: "column", gap: "0.25rem", fontSize: "0.8rem" }}>
+            Member #
+            <input
+              type="search"
+              className="admin-input"
+              value={memberNumberQ}
+              onChange={(e) => setMemberNumberQ(e.target.value)}
+              placeholder="CT-16615"
+              style={{ minWidth: "140px" }}
+            />
+          </label>
+          <label style={{ display: "flex", flexDirection: "column", gap: "0.25rem", fontSize: "0.8rem" }}>
+            Name
+            <input
+              type="search"
+              className="admin-input"
+              value={nameQ}
+              onChange={(e) => setNameQ(e.target.value)}
+              placeholder="First or last name"
+              style={{ minWidth: "180px" }}
+            />
+          </label>
+          <label style={{ display: "flex", flexDirection: "column", gap: "0.25rem", fontSize: "0.8rem" }}>
+            Email
+            <input
+              type="search"
+              className="admin-input"
+              value={emailQ}
+              onChange={(e) => setEmailQ(e.target.value)}
+              placeholder="name@email.com"
+              style={{ minWidth: "200px" }}
+            />
+          </label>
+          {searching && (
+            <button
+              type="button"
+              className="admin-btn admin-btn-ghost"
+              onClick={() => {
+                setMemberNumberQ("");
+                setNameQ("");
+                setEmailQ("");
+              }}
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      </div>
 
       <div className="admin-stats">
         <div className="admin-stat">
@@ -216,20 +289,32 @@ export default function AdminRenewalsPage() {
       </div>
 
       <div className="admin-card">
-        <h2>Auto-Renew Lane</h2>
+        <h2>Auto-Renew Lane{searching ? ` (${autoRows.length})` : ""}</h2>
+        {searching && autoRows.length > 80 && (
+          <p style={{ color: "var(--admin-muted)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
+            Showing the first 80 matches. Narrow the search to see the rest.
+          </p>
+        )}
         <MemberTable
-          rows={[...data.lanes.autoRenewLane]
-            .sort((a, b) => Number(Boolean(b.authnetPaymentProfileId)) - Number(Boolean(a.authnetPaymentProfileId)))
-            .slice(0, 40)}
+          rows={searching ? autoRows.slice(0, 80) : autoRows.slice(0, 40)}
           onMockRenew={data.mockRenewalEnabled ? mockRenew : undefined}
           mockAuthnetOnly={Boolean(data.mockRenewalAuthnetOnly)}
           busyId={busyId}
+          emptyLabel={searching ? "No auto-renew members match." : undefined}
         />
       </div>
 
       <div className="admin-card">
-        <h2>Manual Renewal Lane</h2>
-        <MemberTable rows={data.lanes.manualRenewalLane.slice(0, 60)} />
+        <h2>Manual Renewal Lane{searching ? ` (${manualRows.length})` : ""}</h2>
+        {searching && manualRows.length > 80 && (
+          <p style={{ color: "var(--admin-muted)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
+            Showing the first 80 matches. Narrow the search to see the rest.
+          </p>
+        )}
+        <MemberTable
+          rows={searching ? manualRows.slice(0, 80) : manualRows.slice(0, 60)}
+          emptyLabel={searching ? "No manual-renewal members match." : undefined}
+        />
       </div>
     </>
   );
@@ -240,11 +325,13 @@ function MemberTable({
   onMockRenew,
   mockAuthnetOnly,
   busyId,
+  emptyLabel,
 }: {
   rows: MemberRow[];
   onMockRenew?: (m: MemberRow) => void;
   mockAuthnetOnly?: boolean;
   busyId?: string | null;
+  emptyLabel?: string;
 }) {
   function showMock(m: MemberRow) {
     if (!onMockRenew) return false;
@@ -252,6 +339,9 @@ function MemberTable({
     return true;
   }
   const anyMock = rows.some(showMock);
+  if (!rows.length && emptyLabel) {
+    return <p style={{ color: "var(--admin-muted)", margin: 0 }}>{emptyLabel}</p>;
+  }
   return (
     <div className="admin-table-wrap">
       <table className="admin-table">
