@@ -28,7 +28,7 @@ import {
 import { logActivity } from "../services/activity.js";
 import { registerMember, registerMemberSchema } from "../services/memberRegistration.js";
 import { setMemberReferrer } from "../services/referrals.js";
-import { clearRenewalHold, runAnnualRenewal } from "../services/renewals.js";
+import { clearRenewalHold, mockRenewalTestingEnabled, runAdminMockRenewal, runAnnualRenewal } from "../services/renewals.js";
 import { sendMemberEmail, sendPaymentLinkEmail } from "../services/mail.js";
 import { applyTemplateVariables, ensureEmailTemplates } from "../services/emailTemplateStore.js";
 import { loadMemberEmailMergeData } from "../services/memberEmailMerge.js";
@@ -2190,7 +2190,19 @@ router.get("/renewals/dashboard", async (_req, res) => {
     },
     lanes,
     filters,
+    mockRenewalEnabled: mockRenewalTestingEnabled(),
+    mockRenewalAuthnetOnly: authorizeNetEnabled && config.authorizeNet.env === "sandbox",
   });
+});
+
+/** Temporary: record one mock auto-renewal without waiting for June 1 or charging a card. */
+router.post("/renewals/mock/:id", async (req, res) => {
+  const result = await runAdminMockRenewal(req.params.id);
+  if (!result.ok) {
+    res.status(400).json({ error: result.error });
+    return;
+  }
+  res.json(result);
 });
 
 router.get("/communications", async (req, res) => {

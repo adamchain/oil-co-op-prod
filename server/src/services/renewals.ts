@@ -1,6 +1,7 @@
+import mongoose from "mongoose";
 import { Member } from "../models/Member.js";
 import { BillingEvent } from "../models/BillingEvent.js";
-import { stripeEnabled, authorizeNetEnabled } from "../config.js";
+import { config, stripeEnabled, authorizeNetEnabled } from "../config.js";
 import { followingJuneFirst } from "../utils/juneBilling.js";
 import { annualFeeCentsFor } from "../utils/membershipFees.js";
 import { chargeAnnualForCustomer } from "./stripeBilling.js";
@@ -315,4 +316,86 @@ export async function runAnnualRenewal(opts: { date: Date; dryRun?: boolean }): 
   for (const r of rows) counts[r.outcome] = (counts[r.outcome] || 0) + 1;
 
   return { dueDate: due.toISOString(), dryRun, total: rows.length, counts, rows };
+}
+
+/**
+ * Mock renew is for local dev and for production while Authorize.Net is still sandbox.
+ * A live Authorize.Net environment or a Stripe key turns it off.
+ */
+export function mockRenewalTestingEnabled(): boolean {
+  if (stripeEnabled) return false;
+  if (authorizeNetEnabled && config.authorizeNet.env !== "sandbox") return false;
+  return true;
+}
+
+/**
+ * Temporary admin test: record one simulated annual charge without contacting a processor.
+ * The date-based Run renewal still charges sandbox cards; this button does not.
+ */
+export async function runAdminMockRenewal(memberId: string): Promise<
+  | { ok: true; amountCents: number; billingYear: number; nextAnnualBillingDate: Date; memberNumber: string }
+  | { ok: false; error: string }
+> {
+  if (!mockRenewalTestingEnabled()) {
+    return {
+      ok: false,
+      error: "Mock renewal is disabled while Stripe is configured or Authorize.Net is set to production.",
+    };
+  }
+  if (!mongoose.isValidObjectId(memberId)) return { ok: false, error: "Invalid id" };
+
+  const m = await Member.findById(memberId);
+  if (!m || m.role !== "member") return { ok: false, error: "Member not found." };
+  if (m.status !== "active") return { ok: false, error: "Member is not active." };
+
+  const lp = (m.legacyProfile || {}) as { waiveFeeLifetime?: boolean };
+  const isLinkedProperty = Boolean(m.primaryMemberId);
+  const isLifetime = Boolean(m.lifetimeAnnualFeeWaived || lp.waiveFeeLifetime);
+  if (isLinkedProperty || isLifetime || (m.referralWaiveCredits || 0) > 0) {
+    return { ok: false, error: "This member would be waived on renewal, not mock-charged." };
+  }
+
+  const hasAuthnetCard = Boolean(m.authnetCustomerProfileId && m.authnetPaymentProfileId);
+  const hasStripeCard = Boolean(m.stripeCustomerId && m.stripeDefaultPaymentMethodId);
+  if (authorizeNetEnabled && config.authorizeNet.env === "sandbox" && !hasAuthnetCard) {
+    return {
+      ok: false,
+      error: "While Authorize.Net sandbox is on, mock renewal is only for members with a vaulted card.",
+    };
+  }
+  if (m.paymentMethod === "check" || !m.autoRenew || (!hasAuthnetCard && !hasStripeCard)) {
+    return { ok: false, error: "Mock renewal only applies to auto-renew members with a card on file." };
+  }
+
+  const due = m.nextAnnualBillingDate ? new Date(m.nextAnnualBillingDate) : new Date();
+  if (hasAuthnetCard && cardExpiredBy(m.authnetCardExpiry, due)) {
+    return { ok: false, error: "The card on file is expired, so this renewal would go on hold." };
+  }
+
+  const billingYear = due.getUTCFullYear();
+  const next = followingJuneFirst(due);
+  const amount = annualFeeCentsFor(m);
+  await BillingEvent.create({
+    memberId: m._id,
+    kind: "annual",
+    amountCents: amount,
+    status: "mock",
+    description: "Sandbox test: simulated annual charge (card not charged)",
+    cardLast4: m.authnetCardLast4 || "",
+    billingYear,
+  });
+  m.lastAnnualChargeAt = new Date();
+  m.lastAnnualChargeAmountCents = amount;
+  m.nextAnnualBillingDate = next;
+  m.renewalOnHold = false;
+  m.renewalHoldReason = "";
+  m.renewalHoldSince = null;
+  resetReminders(m);
+  await m.save();
+  await logActivity(m._id, "annual_charge_mock", {
+    amountCents: amount,
+    source: "admin_temp_button",
+    processor: "none",
+  });
+  return { ok: true, amountCents: amount, billingYear, nextAnnualBillingDate: next, memberNumber: m.memberNumber || "" };
 }

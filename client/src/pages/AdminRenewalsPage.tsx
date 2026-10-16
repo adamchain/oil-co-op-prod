@@ -14,6 +14,7 @@ type MemberRow = {
   daysUntilDue: number | null;
   renewalHoldReason?: string;
   renewalHoldSince?: string | null;
+  authnetPaymentProfileId?: string;
 };
 
 type RenewalOutcome =
@@ -81,16 +82,58 @@ type Dashboard = {
     manualRenewalLane: MemberRow[];
   };
   filters: Record<string, MemberRow[]>;
+  mockRenewalEnabled?: boolean;
+  mockRenewalAuthnetOnly?: boolean;
+};
+
+type MockResult = {
+  amountCents: number;
+  billingYear: number;
+  nextAnnualBillingDate: string;
+  memberNumber: string;
 };
 
 export default function AdminRenewalsPage() {
   const { token } = useAuth();
   const [data, setData] = useState<Dashboard | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  function load() {
     if (!token) return;
     api<Dashboard>("/api/admin/renewals/dashboard", { token }).then(setData);
+  }
+
+  useEffect(() => {
+    load();
   }, [token]);
+
+  async function mockRenew(m: MemberRow) {
+    if (!token) return;
+    const ok = window.confirm(
+      `Record a mock renewal for ${m.firstName} ${m.lastName} (${m.memberNumber || "no member #"})?\n\nThis marks the annual fee paid without charging a card and moves the next renewal to the following June 1.`
+    );
+    if (!ok) return;
+    setBusyId(m._id);
+    setNotice(null);
+    setError(null);
+    try {
+      const res = await api<MockResult>(`/api/admin/renewals/mock/${m._id}`, { method: "POST", token });
+      const next = new Date(res.nextAnnualBillingDate);
+      const nextLabel = Number.isNaN(next.getTime())
+        ? res.nextAnnualBillingDate
+        : next.toLocaleDateString(undefined, { timeZone: "UTC", month: "long", day: "numeric", year: "numeric" });
+      setNotice(
+        `Mock renewal recorded for ${res.memberNumber || m.memberNumber || "member"}: $${(res.amountCents / 100).toFixed(2)} for ${res.billingYear}. Next renewal ${nextLabel}.`
+      );
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Mock renewal failed");
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   if (!data) return <p style={{ color: "var(--admin-muted)" }}>Loading…</p>;
 
@@ -141,6 +184,17 @@ export default function AdminRenewalsPage() {
       <p style={{ color: "var(--admin-muted)", fontSize: "0.875rem", margin: "0 0 1rem" }}>
         Renewals Dashboard from the ops plan: auto-renew lane, manual lane, and key renewal filters.
       </p>
+      {data.mockRenewalEnabled && (
+        <p style={{ color: "var(--admin-muted)", fontSize: "0.875rem", margin: "0 0 1rem" }}>
+          Temporary test: Mock renew records a simulated annual charge and does not contact Authorize.Net. With sandbox keys on, the button is only on members who have a vaulted card. It turns off if Authorize.Net is switched to production.
+        </p>
+      )}
+      {notice && (
+        <p style={{ color: "var(--admin-text)", fontSize: "0.875rem", margin: "0 0 1rem" }}>{notice}</p>
+      )}
+      {error && (
+        <p style={{ color: "#b91c1c", fontSize: "0.875rem", margin: "0 0 1rem" }}>{error}</p>
+      )}
 
       <div className="admin-stats">
         <div className="admin-stat">
@@ -163,7 +217,14 @@ export default function AdminRenewalsPage() {
 
       <div className="admin-card">
         <h2>Auto-Renew Lane</h2>
-        <MemberTable rows={data.lanes.autoRenewLane.slice(0, 40)} />
+        <MemberTable
+          rows={[...data.lanes.autoRenewLane]
+            .sort((a, b) => Number(Boolean(b.authnetPaymentProfileId)) - Number(Boolean(a.authnetPaymentProfileId)))
+            .slice(0, 40)}
+          onMockRenew={data.mockRenewalEnabled ? mockRenew : undefined}
+          mockAuthnetOnly={Boolean(data.mockRenewalAuthnetOnly)}
+          busyId={busyId}
+        />
       </div>
 
       <div className="admin-card">
@@ -174,7 +235,23 @@ export default function AdminRenewalsPage() {
   );
 }
 
-function MemberTable({ rows }: { rows: MemberRow[] }) {
+function MemberTable({
+  rows,
+  onMockRenew,
+  mockAuthnetOnly,
+  busyId,
+}: {
+  rows: MemberRow[];
+  onMockRenew?: (m: MemberRow) => void;
+  mockAuthnetOnly?: boolean;
+  busyId?: string | null;
+}) {
+  function showMock(m: MemberRow) {
+    if (!onMockRenew) return false;
+    if (mockAuthnetOnly) return Boolean(m.authnetPaymentProfileId);
+    return true;
+  }
+  const anyMock = rows.some(showMock);
   return (
     <div className="admin-table-wrap">
       <table className="admin-table">
@@ -186,6 +263,7 @@ function MemberTable({ rows }: { rows: MemberRow[] }) {
             <th>Method</th>
             <th>Auto-renew</th>
             <th>Days to due</th>
+            {anyMock && <th></th>}
           </tr>
         </thead>
         <tbody>
@@ -199,6 +277,20 @@ function MemberTable({ rows }: { rows: MemberRow[] }) {
               <td>{m.paymentMethod}</td>
               <td>{m.autoRenew ? "Yes" : "No"}</td>
               <td>{m.daysUntilDue ?? "—"}</td>
+              {anyMock && (
+                <td>
+                  {showMock(m) && onMockRenew && (
+                    <button
+                      type="button"
+                      className="admin-btn admin-btn-xs"
+                      disabled={busyId === m._id}
+                      onClick={() => onMockRenew(m)}
+                    >
+                      {busyId === m._id ? "Working…" : "Mock renew"}
+                    </button>
+                  )}
+                </td>
+              )}
             </tr>
           ))}
         </tbody>
