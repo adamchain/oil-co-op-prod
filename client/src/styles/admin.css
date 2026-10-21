@@ -396,6 +396,27 @@
   color: var(--admin-muted);
 }
 
+.admin-stat.tone-green {
+  background: #f0fdf4;
+  border-color: #86efac;
+}
+.admin-stat.tone-green strong { color: #166534; }
+.admin-stat.tone-blue {
+  background: #eff6ff;
+  border-color: #93c5fd;
+}
+.admin-stat.tone-blue strong { color: #1d4ed8; }
+.admin-stat.tone-yellow {
+  background: #fefce8;
+  border-color: #fde047;
+}
+.admin-stat.tone-yellow strong { color: #a16207; }
+.admin-stat.tone-red {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+.admin-stat.tone-red strong { color: #b91c1c; }
+
 .admin-sidebar-toggle {
   display: none;
   flex-direction: column;

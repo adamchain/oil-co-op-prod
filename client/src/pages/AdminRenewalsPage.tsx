@@ -15,6 +15,12 @@ type MemberRow = {
   renewalHoldReason?: string;
   renewalHoldSince?: string | null;
   authnetPaymentProfileId?: string;
+  authnetCardLast4?: string;
+  authnetCardExpiry?: string;
+  amountCents?: number;
+  lifetime?: boolean;
+  paidCurrent?: boolean;
+  paymentFailed?: boolean;
 };
 
 type RenewalOutcome =
@@ -74,12 +80,21 @@ type Dashboard = {
   summary: {
     totalMembers: number;
     activeMembers: number;
+    lifetimeCount: number;
     autoRenewLaneCount: number;
     manualRenewalLaneCount: number;
+    successfullyProcessedCount: number;
+    paymentFailedCount: number;
+    onHoldCount: number;
+    currentBillingYear: number;
+    nextRenewalYear: number;
   };
   lanes: {
     autoRenewLane: MemberRow[];
     manualRenewalLane: MemberRow[];
+    successfullyProcessed: MemberRow[];
+    paymentFailed: MemberRow[];
+    onHold: MemberRow[];
   };
   filters: Record<string, MemberRow[]>;
   mockRenewalEnabled?: boolean;
@@ -152,58 +167,23 @@ export default function AdminRenewalsPage() {
     return true;
   }
 
-  const onHold = (data.filters.onHold || []).filter(matchesMember);
+  const failed = (data.lanes.paymentFailed || []).filter(matchesMember);
+  const onHold = (data.lanes.onHold || data.filters.onHold || []).filter(matchesMember);
   const autoRows = [...data.lanes.autoRenewLane]
     .filter(matchesMember)
     .sort((a, b) => Number(Boolean(b.authnetPaymentProfileId)) - Number(Boolean(a.authnetPaymentProfileId)));
   const manualRows = data.lanes.manualRenewalLane.filter(matchesMember);
+  const year = data.summary.currentBillingYear;
+  const nextYear = data.summary.nextRenewalYear;
 
   return (
     <>
       <RenewalRunCard token={token} onRan={() => token && api<Dashboard>("/api/admin/renewals/dashboard", { token }).then(setData)} />
 
-      <div className="admin-card">
-        <h2>On hold ({onHold.length})</h2>
-        <p style={{ color: "var(--admin-muted)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
-          Renewals that couldn't be collected. Record the payment (or waive it) on the member's payment history with
-          Type "Renew" to take them off hold.
-        </p>
-        {onHold.length ? (
-          <div className="admin-table-wrap">
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Member #</th>
-                  <th>Name</th>
-                  <th>Reason</th>
-                  <th>Since</th>
-                </tr>
-              </thead>
-              <tbody>
-                {onHold.map((m) => (
-                  <tr key={m._id}>
-                    <td>
-                      <a href={`/admin/workbench?member=${m._id}`}>{m.memberNumber || "—"}</a>
-                    </td>
-                    <td>
-                      {m.firstName} {m.lastName}
-                    </td>
-                    <td>{HOLD_REASON_LABELS[m.renewalHoldReason || ""] || m.renewalHoldReason || "—"}</td>
-                    <td>{m.renewalHoldSince ? new Date(m.renewalHoldSince).toLocaleDateString(undefined, { timeZone: "UTC" }) : "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p style={{ color: "var(--admin-muted)", margin: 0 }}>
-            {searching ? "No one on hold matches." : "Nobody is on hold."}
-          </p>
-        )}
-      </div>
-
       <p style={{ color: "var(--admin-muted)", fontSize: "0.875rem", margin: "0 0 1rem" }}>
-        Renewals Dashboard from the ops plan: auto-renew lane, manual lane, and key renewal filters.
+        Active members have an oil or propane account in service, or a membership paid for {year - 1} or {year}.
+        Lifetime members are included and are not charged. Auto-renew is who has a card on file for June 1, {nextYear}.
+        Manual is everyone else. After June 1, {year}, a failed card is “payment failed” and an unpaid manual member is on hold.
       </p>
       {data.mockRenewalEnabled && (
         <p style={{ color: "var(--admin-muted)", fontSize: "0.875rem", margin: "0 0 1rem" }}>
@@ -270,17 +250,37 @@ export default function AdminRenewalsPage() {
       </div>
 
       <div className="admin-stats">
-        <div className="admin-stat">
+        <div className="admin-stat tone-green">
           <strong>{data.summary.activeMembers}</strong>
           <span>Active members</span>
         </div>
-        <div className="admin-stat">
+        <div className="admin-stat tone-blue">
           <strong>{data.summary.autoRenewLaneCount}</strong>
-          <span>Auto-renew lane</span>
+          <span>Auto-renew · June 1, {nextYear}</span>
+        </div>
+        <div className="admin-stat tone-yellow">
+          <strong>{data.summary.manualRenewalLaneCount}</strong>
+          <span>Manual lane · June 1, {nextYear}</span>
         </div>
         <div className="admin-stat">
-          <strong>{data.summary.manualRenewalLaneCount}</strong>
-          <span>Manual lane</span>
+          <strong>{data.summary.lifetimeCount}</strong>
+          <span>Lifetime · not charged</span>
+        </div>
+      </div>
+
+      <h2 style={{ fontSize: "1rem", margin: "0.25rem 0 0.6rem" }}>Since June 1, {year}</h2>
+      <div className="admin-stats">
+        <div className="admin-stat tone-green">
+          <strong>{data.summary.successfullyProcessedCount}</strong>
+          <span>Successfully processed</span>
+        </div>
+        <div className="admin-stat tone-red">
+          <strong>{data.summary.paymentFailedCount}</strong>
+          <span>Payment failed</span>
+        </div>
+        <div className="admin-stat tone-yellow">
+          <strong>{data.summary.onHoldCount}</strong>
+          <span>On hold · manual past due</span>
         </div>
         <div className="admin-stat">
           <strong>{data.filters.renewingNext7Days?.length || 0}</strong>
@@ -289,7 +289,43 @@ export default function AdminRenewalsPage() {
       </div>
 
       <div className="admin-card">
+        <h2>Payment failed ({failed.length})</h2>
+        <p style={{ color: "var(--admin-muted)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
+          Auto-renew members whose {year} membership did not go through. They still need to update the card or pay.
+        </p>
+        {!searching && failed.length > 40 && (
+          <p style={{ color: "var(--admin-muted)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
+            Showing the first 40. Search to narrow the list.
+          </p>
+        )}
+        <MemberTable
+          rows={searching ? failed.slice(0, 80) : failed.slice(0, 40)}
+          showCard
+          emptyLabel={failed.length ? undefined : searching ? "No payment failures match." : "No failed payments for this renewal."}
+        />
+      </div>
+
+      <div className="admin-card">
+        <h2>On hold ({onHold.length})</h2>
+        <p style={{ color: "var(--admin-muted)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
+          Manual-lane members with no {year} payment. Record the payment on their history (type Renew) and they move to successfully processed.
+        </p>
+        {!searching && onHold.length > 40 && (
+          <p style={{ color: "var(--admin-muted)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
+            Showing the first 40. Search to narrow the list.
+          </p>
+        )}
+        <MemberTable
+          rows={searching ? onHold.slice(0, 80) : onHold.slice(0, 40)}
+          emptyLabel={onHold.length ? undefined : searching ? "No one on hold matches." : "Nobody in the manual lane is past due."}
+        />
+      </div>
+
+      <div className="admin-card">
         <h2>Auto-Renew Lane{searching ? ` (${autoRows.length})` : ""}</h2>
+        <p style={{ color: "var(--admin-muted)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
+          Card on file for the June 1, {nextYear} renewal. Amount is $35 standard, $25 senior, or $20 low volume.
+        </p>
         {searching && autoRows.length > 80 && (
           <p style={{ color: "var(--admin-muted)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
             Showing the first 80 matches. Narrow the search to see the rest.
@@ -300,12 +336,17 @@ export default function AdminRenewalsPage() {
           onMockRenew={data.mockRenewalEnabled ? mockRenew : undefined}
           mockAuthnetOnly={Boolean(data.mockRenewalAuthnetOnly)}
           busyId={busyId}
+          showCard
+          showAmount
           emptyLabel={searching ? "No auto-renew members match." : undefined}
         />
       </div>
 
       <div className="admin-card">
         <h2>Manual Renewal Lane{searching ? ` (${manualRows.length})` : ""}</h2>
+        <p style={{ color: "var(--admin-muted)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
+          No card on file. They are not charged on June 1; after that date, anyone still unpaid is on hold.
+        </p>
         {searching && manualRows.length > 80 && (
           <p style={{ color: "var(--admin-muted)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
             Showing the first 80 matches. Narrow the search to see the rest.
@@ -320,18 +361,30 @@ export default function AdminRenewalsPage() {
   );
 }
 
+function cardLabel(m: MemberRow): string {
+  const last4 = (m.authnetCardLast4 || "").trim();
+  const exp = (m.authnetCardExpiry || "").replace(/\D/g, "");
+  const expLabel = exp.length === 4 ? `${exp.slice(0, 2)}/${exp.slice(2)}` : "";
+  if (!last4 && !expLabel) return "—";
+  return [last4 ? `•••• ${last4}` : "", expLabel ? `exp ${expLabel}` : ""].filter(Boolean).join(" · ");
+}
+
 function MemberTable({
   rows,
   onMockRenew,
   mockAuthnetOnly,
   busyId,
   emptyLabel,
+  showCard,
+  showAmount,
 }: {
   rows: MemberRow[];
   onMockRenew?: (m: MemberRow) => void;
   mockAuthnetOnly?: boolean;
   busyId?: string | null;
   emptyLabel?: string;
+  showCard?: boolean;
+  showAmount?: boolean;
 }) {
   function showMock(m: MemberRow) {
     if (!onMockRenew) return false;
@@ -352,6 +405,8 @@ function MemberTable({
             <th>Email</th>
             <th>Method</th>
             <th>Auto-renew</th>
+            {showAmount && <th>Amount</th>}
+            {showCard && <th>Card on file</th>}
             <th>Days to due</th>
             {anyMock && <th></th>}
           </tr>
@@ -366,6 +421,8 @@ function MemberTable({
               <td>{m.email}</td>
               <td>{m.paymentMethod}</td>
               <td>{m.autoRenew ? "Yes" : "No"}</td>
+              {showAmount && <td>{usd(m.amountCents || 0)}</td>}
+              {showCard && <td>{cardLabel(m)}</td>}
               <td>{m.daysUntilDue ?? "—"}</td>
               {anyMock && (
                 <td>
@@ -429,8 +486,8 @@ function RenewalRunCard({ token, onRan }: { token: string | null; onRan: () => v
     <div className="admin-card">
       <h2>Run a renewal</h2>
       <p style={{ color: "var(--admin-muted)", fontSize: "0.85rem", margin: "0 0 0.6rem" }}>
-        Renewals run automatically every June 1. To test, set a few members' next renewal date to a test day, preview
-        it here, then run it.
+        June 1 only renews active oil, propane, and membership accounts. To test one person, set their next renewal to
+        another date, preview it here, then run it.
       </p>
       <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", alignItems: "center" }}>
         <label>

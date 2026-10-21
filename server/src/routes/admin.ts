@@ -29,6 +29,7 @@ import { logActivity } from "../services/activity.js";
 import { registerMember, registerMemberSchema } from "../services/memberRegistration.js";
 import { setMemberReferrer } from "../services/referrals.js";
 import { clearRenewalHold, mockRenewalTestingEnabled, runAdminMockRenewal, runAnnualRenewal } from "../services/renewals.js";
+import { classifyRenewalMember, renewalAmountCents, renewalCycle } from "../services/renewalLanes.js";
 import { sendMemberEmail, sendPaymentLinkEmail } from "../services/mail.js";
 import { applyTemplateVariables, ensureEmailTemplates } from "../services/emailTemplateStore.js";
 import { loadMemberEmailMergeData } from "../services/memberEmailMerge.js";
@@ -2135,58 +2136,117 @@ function dayDiff(target: Date, from: Date = new Date()): number {
 }
 
 router.get("/renewals/dashboard", async (_req, res) => {
-  const members = (await Member.find({ role: "member" })
-    .populate("oilCompanyId", "name")
-    .select(
-      "memberNumber firstName lastName email status paymentMethod autoRenew " +
-        "stripeDefaultPaymentMethodId authnetPaymentProfileId nextAnnualBillingDate lifetimeAnnualFeeWaived " +
-        "referralWaiveCredits oilCompanyId membershipPlan renewalOnHold renewalHoldReason renewalHoldSince"
-    )
-    .lean()) as Array<Record<string, unknown>>;
-
+  const cycle = renewalCycle();
   const today = new Date();
-  const normalized: any[] = members.map((mm: any) => {
-    const due = mm.nextAnnualBillingDate ? new Date(String(mm.nextAnnualBillingDate)) : null;
+  // legacyProfile is a Mixed path, so this projection is done in Mongo itself.
+  const members = await Member.aggregate([
+    { $match: { role: "member" } },
+    {
+      $project: {
+        memberNumber: 1,
+        firstName: 1,
+        lastName: 1,
+        email: 1,
+        status: 1,
+        paymentMethod: 1,
+        autoRenew: 1,
+        createdAt: 1,
+        signedUpVia: 1,
+        stripeDefaultPaymentMethodId: 1,
+        authnetPaymentProfileId: 1,
+        authnetCardLast4: 1,
+        authnetCardExpiry: 1,
+        nextAnnualBillingDate: 1,
+        lifetimeAnnualFeeWaived: 1,
+        primaryMemberId: 1,
+        membershipPlan: 1,
+        renewalOnHold: 1,
+        renewalHoldReason: 1,
+        renewalHoldSince: 1,
+        "legacyProfile.waiveFeeLifetime": 1,
+        "legacyProfile.importSource": 1,
+        "legacyProfile.oilWorkbenchStatus": 1,
+        "legacyProfile.propaneStatus": 1,
+        "legacyProfile.oilId": 1,
+        "legacyProfile.propaneId": 1,
+        "legacyProfile.workbenchMemberStatus": 1,
+        "legacyProfile.seniorMember": 1,
+        "legacyProfile.seniorFlag": 1,
+        "legacyProfile.lowVolume": 1,
+        "legacyProfile.standardMembership": 1,
+        "legacyProfile.paymentsHistory.billingYear": 1,
+        "legacyProfile.paymentsHistory.paymentMethod": 1,
+        "legacyProfile.deliveryHistoryRows.deliveryYear": 1,
+      },
+    },
+  ]);
+
+  const normalized = members.map((mm) => {
+    const due = mm.nextAnnualBillingDate ? new Date(mm.nextAnnualBillingDate) : null;
     const daysUntilDue = due ? dayDiff(due, today) : null;
-    const hasCard = Boolean(mm.authnetPaymentProfileId || mm.stripeDefaultPaymentMethodId);
+    const lane = classifyRenewalMember(mm, cycle);
+    const amountCents = lane.lifetime ? 0 : renewalAmountCents(mm);
     return {
-      ...mm,
+      _id: mm._id,
+      memberNumber: mm.memberNumber,
+      firstName: mm.firstName,
+      lastName: mm.lastName,
+      email: mm.email,
+      status: mm.status,
+      paymentMethod: mm.paymentMethod,
+      autoRenew: lane.autoRenew,
       daysUntilDue,
-      hasCard,
-      isAutoRenewLane: mm.paymentMethod === "card" && Boolean(mm.autoRenew) && hasCard,
-      isManualLane: mm.paymentMethod === "check" || !hasCard || !Boolean(mm.autoRenew),
+      renewalOnHold: mm.renewalOnHold,
+      renewalHoldReason: mm.renewalHoldReason,
+      renewalHoldSince: mm.renewalHoldSince,
+      authnetPaymentProfileId: mm.authnetPaymentProfileId,
+      authnetCardLast4: mm.authnetCardLast4,
+      authnetCardExpiry: mm.authnetCardExpiry,
+      membershipPlan: mm.membershipPlan,
+      amountCents,
+      lifetime: lane.lifetime,
+      isAutoRenewLane: lane.autoRenew,
+      isManualLane: lane.manual,
+      paidCurrent: lane.paidCurrent,
+      paymentFailed: lane.paymentFailed,
+      classifiedOnHold: lane.onHold,
     };
   });
 
+  const activeRows = normalized.filter(
+    (m) => m.lifetime || m.isAutoRenewLane || m.isManualLane || m.paidCurrent || m.paymentFailed || m.classifiedOnHold
+  );
+
   const lanes = {
-    autoRenewLane: normalized.filter((m) => m.isAutoRenewLane && m.status === "active"),
-    manualRenewalLane: normalized.filter((m) => m.isManualLane && m.status === "active"),
+    autoRenewLane: activeRows.filter((m) => m.isAutoRenewLane),
+    manualRenewalLane: activeRows.filter((m) => m.isManualLane),
+    successfullyProcessed: activeRows.filter((m) => m.paidCurrent),
+    paymentFailed: activeRows.filter((m) => m.paymentFailed),
+    onHold: activeRows.filter((m) => m.classifiedOnHold),
   };
 
   const filters = {
-    renewingNext30Days: normalized.filter(
-      (m) => m.status === "active" && m.daysUntilDue !== null && Number(m.daysUntilDue) >= 0 && Number(m.daysUntilDue) <= 30
+    renewingNext30Days: activeRows.filter(
+      (m) => m.daysUntilDue !== null && Number(m.daysUntilDue) >= 0 && Number(m.daysUntilDue) <= 30
     ),
-    renewingNext7Days: normalized.filter(
-      (m) => m.status === "active" && m.daysUntilDue !== null && Number(m.daysUntilDue) >= 0 && Number(m.daysUntilDue) <= 7
+    renewingNext7Days: activeRows.filter(
+      (m) => m.daysUntilDue !== null && Number(m.daysUntilDue) >= 0 && Number(m.daysUntilDue) <= 7
     ),
-    autoRenewing: normalized.filter((m) => m.status === "active" && m.isAutoRenewLane),
-    manualRenewalNeeded: normalized.filter((m) => m.status === "active" && m.isManualLane),
-    noCardOnFile: normalized.filter((m) => m.status === "active" && !Boolean(m.stripeDefaultPaymentMethodId)),
-    payingByCheck: normalized.filter((m) => m.status === "active" && m.paymentMethod === "check"),
-    expired: normalized.filter((m) => m.status === "expired"),
-    onHold: normalized.filter((m) => m.status === "active" && Boolean(m.renewalOnHold)),
-    annualFeeWaived: normalized.filter(
-      (m) => Boolean(m.lifetimeAnnualFeeWaived) || (typeof m.referralWaiveCredits === "number" && m.referralWaiveCredits > 0)
-    ),
+    onHold: lanes.onHold,
   };
 
   res.json({
     summary: {
-      totalMembers: normalized.length,
-      activeMembers: normalized.filter((m) => m.status === "active").length,
+      totalMembers: members.length,
+      activeMembers: activeRows.length,
+      lifetimeCount: activeRows.filter((m) => m.lifetime).length,
       autoRenewLaneCount: lanes.autoRenewLane.length,
       manualRenewalLaneCount: lanes.manualRenewalLane.length,
+      successfullyProcessedCount: lanes.successfullyProcessed.length,
+      paymentFailedCount: lanes.paymentFailed.length,
+      onHoldCount: lanes.onHold.length,
+      currentBillingYear: cycle.currentBillingYear,
+      nextRenewalYear: cycle.nextRenewalYear,
     },
     lanes,
     filters,
