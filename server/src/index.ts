@@ -117,6 +117,7 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 });
 
 // Bind on 0.0.0.0 so Railway/public proxy can reach the container (localhost-only breaks routing).
+// Watched by Railway so a push of the renewal-lane release redeploys this service.
 // Listen before DB connect so /api/health can respond while Mongo is still connecting.
 app.listen(config.port, "0.0.0.0", () => {
   console.info(
