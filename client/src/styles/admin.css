@@ -596,6 +596,52 @@
   padding: 0.4rem 0.55rem;
 }
 
+/* Renewal lane tabs — keep the long member lists behind one tab each. */
+.admin-lane-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin: 0 0 1rem;
+}
+
+.admin-lane-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.5rem 0.85rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  font-family: inherit;
+  border: 1px solid var(--admin-border);
+  border-radius: 8px;
+  background: var(--admin-surface);
+  color: var(--admin-text);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.admin-lane-tab:hover {
+  border-color: #1d4ed8;
+}
+
+.admin-lane-tab.active {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #fff;
+}
+
+.admin-lane-tab span {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.78rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.admin-lane-tab.active span {
+  background: rgba(255, 255, 255, 0.22);
+}
+
 .admin-actions-row {
   display: flex;
   gap: 0.5rem;

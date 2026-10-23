@@ -66,15 +66,9 @@ const OUTCOME_LABELS: Record<RenewalOutcome, string> = {
   hold_card_declined: "On hold — card declined",
 };
 
-const HOLD_REASON_LABELS: Record<string, string> = {
-  no_payment_method: "No payment method",
-  check: "Awaiting check",
-  auto_renew_off: "Auto-renew off",
-  card_expired: "Card expired",
-  card_declined: "Card declined",
-};
-
 const usd = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+
+type LaneTab = "auto" | "manual" | "failed" | "onHold";
 
 type Dashboard = {
   summary: {
@@ -117,6 +111,7 @@ export default function AdminRenewalsPage() {
   const [memberNumberQ, setMemberNumberQ] = useState("");
   const [nameQ, setNameQ] = useState("");
   const [emailQ, setEmailQ] = useState("");
+  const [tab, setTab] = useState<LaneTab>("auto");
 
   function load() {
     if (!token) return;
@@ -288,75 +283,122 @@ export default function AdminRenewalsPage() {
         </div>
       </div>
 
-      <div className="admin-card">
-        <h2>Payment failed ({failed.length})</h2>
-        <p style={{ color: "var(--admin-muted)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
-          Auto-renew members whose {year} membership did not go through. They still need to update the card or pay.
-        </p>
-        {!searching && failed.length > 40 && (
-          <p style={{ color: "var(--admin-muted)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
-            Showing the first 40. Search to narrow the list.
-          </p>
-        )}
-        <MemberTable
-          rows={searching ? failed.slice(0, 80) : failed.slice(0, 40)}
-          showCard
-          emptyLabel={failed.length ? undefined : searching ? "No payment failures match." : "No failed payments for this renewal."}
-        />
+      <div className="admin-lane-tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "auto"}
+          className={`admin-lane-tab${tab === "auto" ? " active" : ""}`}
+          onClick={() => setTab("auto")}
+        >
+          Auto-Renew Lane <span>{autoRows.length}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "manual"}
+          className={`admin-lane-tab${tab === "manual" ? " active" : ""}`}
+          onClick={() => setTab("manual")}
+        >
+          Manual Lane <span>{manualRows.length}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "failed"}
+          className={`admin-lane-tab${tab === "failed" ? " active" : ""}`}
+          onClick={() => setTab("failed")}
+        >
+          Payment failed <span>{failed.length}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "onHold"}
+          className={`admin-lane-tab${tab === "onHold" ? " active" : ""}`}
+          onClick={() => setTab("onHold")}
+        >
+          On hold <span>{onHold.length}</span>
+        </button>
       </div>
 
-      <div className="admin-card">
-        <h2>On hold ({onHold.length})</h2>
-        <p style={{ color: "var(--admin-muted)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
-          Manual-lane members with no {year} payment. Record the payment on their history (type Renew) and they move to successfully processed.
-        </p>
-        {!searching && onHold.length > 40 && (
+      {tab === "failed" && (
+        <div className="admin-card">
+          <h2>Payment failed ({failed.length})</h2>
           <p style={{ color: "var(--admin-muted)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
-            Showing the first 40. Search to narrow the list.
+            Auto-renew members whose {year} membership did not go through. They still need to update the card or pay.
           </p>
-        )}
-        <MemberTable
-          rows={searching ? onHold.slice(0, 80) : onHold.slice(0, 40)}
-          emptyLabel={onHold.length ? undefined : searching ? "No one on hold matches." : "Nobody in the manual lane is past due."}
-        />
-      </div>
+          {!searching && failed.length > 40 && (
+            <p style={{ color: "var(--admin-muted)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
+              Showing the first 40. Search to narrow the list.
+            </p>
+          )}
+          <MemberTable
+            rows={searching ? failed.slice(0, 80) : failed.slice(0, 40)}
+            showCard
+            emptyLabel={failed.length ? undefined : searching ? "No payment failures match." : "No failed payments for this renewal."}
+          />
+        </div>
+      )}
 
-      <div className="admin-card">
-        <h2>Auto-Renew Lane{searching ? ` (${autoRows.length})` : ""}</h2>
-        <p style={{ color: "var(--admin-muted)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
-          Card on file for the June 1, {nextYear} renewal. Amount is $35 standard, $25 senior, or $20 low volume.
-        </p>
-        {searching && autoRows.length > 80 && (
+      {tab === "onHold" && (
+        <div className="admin-card">
+          <h2>On hold ({onHold.length})</h2>
           <p style={{ color: "var(--admin-muted)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
-            Showing the first 80 matches. Narrow the search to see the rest.
+            Manual-lane members with no {year} payment. Record the payment on their history (type Renew) and they move to successfully processed.
           </p>
-        )}
-        <MemberTable
-          rows={searching ? autoRows.slice(0, 80) : autoRows.slice(0, 40)}
-          onMockRenew={data.mockRenewalEnabled ? mockRenew : undefined}
-          mockAuthnetOnly={Boolean(data.mockRenewalAuthnetOnly)}
-          busyId={busyId}
-          showCard
-          showAmount
-          emptyLabel={searching ? "No auto-renew members match." : undefined}
-        />
-      </div>
+          {!searching && onHold.length > 40 && (
+            <p style={{ color: "var(--admin-muted)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
+              Showing the first 40. Search to narrow the list.
+            </p>
+          )}
+          <MemberTable
+            rows={searching ? onHold.slice(0, 80) : onHold.slice(0, 40)}
+            emptyLabel={onHold.length ? undefined : searching ? "No one on hold matches." : "Nobody in the manual lane is past due."}
+          />
+        </div>
+      )}
 
-      <div className="admin-card">
-        <h2>Manual Renewal Lane{searching ? ` (${manualRows.length})` : ""}</h2>
-        <p style={{ color: "var(--admin-muted)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
-          No card on file. They are not charged on June 1; after that date, anyone still unpaid is on hold.
-        </p>
-        {searching && manualRows.length > 80 && (
+      {tab === "auto" && (
+        <div className="admin-card">
+          <h2>Auto-Renew Lane{searching ? ` (${autoRows.length})` : ""}</h2>
           <p style={{ color: "var(--admin-muted)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
-            Showing the first 80 matches. Narrow the search to see the rest.
+            Card on file for the June 1, {nextYear} renewal. Amount is $35 standard, $25 senior, or $20 low volume.
           </p>
-        )}
-        <MemberTable
-          rows={searching ? manualRows.slice(0, 80) : manualRows.slice(0, 60)}
-          emptyLabel={searching ? "No manual-renewal members match." : undefined}
-        />
-      </div>
+          {searching && autoRows.length > 80 && (
+            <p style={{ color: "var(--admin-muted)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
+              Showing the first 80 matches. Narrow the search to see the rest.
+            </p>
+          )}
+          <MemberTable
+            rows={searching ? autoRows.slice(0, 80) : autoRows.slice(0, 40)}
+            onMockRenew={data.mockRenewalEnabled ? mockRenew : undefined}
+            mockAuthnetOnly={Boolean(data.mockRenewalAuthnetOnly)}
+            busyId={busyId}
+            showCard
+            showAmount
+            emptyLabel={searching ? "No auto-renew members match." : undefined}
+          />
+        </div>
+      )}
+
+      {tab === "manual" && (
+        <div className="admin-card">
+          <h2>Manual Renewal Lane{searching ? ` (${manualRows.length})` : ""}</h2>
+          <p style={{ color: "var(--admin-muted)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
+            No card on file. They are not charged on June 1; after that date, anyone still unpaid is on hold.
+          </p>
+          {searching && manualRows.length > 80 && (
+            <p style={{ color: "var(--admin-muted)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
+              Showing the first 80 matches. Narrow the search to see the rest.
+            </p>
+          )}
+          <MemberTable
+            rows={searching ? manualRows.slice(0, 80) : manualRows.slice(0, 60)}
+            emptyLabel={searching ? "No manual-renewal members match." : undefined}
+          />
+        </div>
+      )}
     </>
   );
 }
