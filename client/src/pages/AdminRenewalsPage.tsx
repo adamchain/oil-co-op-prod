@@ -173,8 +173,6 @@ export default function AdminRenewalsPage() {
 
   return (
     <>
-      <RenewalRunCard token={token} onRan={() => token && api<Dashboard>("/api/admin/renewals/dashboard", { token }).then(setData)} />
-
       <p style={{ color: "var(--admin-muted)", fontSize: "0.875rem", margin: "0 0 1rem" }}>
         Active members have an oil or propane account in service, or a membership paid for {year - 1} or {year}.
         Lifetime members are included and are not charged. Auto-renew is who has a card on file for June 1, {nextYear}.
@@ -399,6 +397,8 @@ export default function AdminRenewalsPage() {
           />
         </div>
       )}
+
+      <RenewalRunCard token={token} onRan={() => token && api<Dashboard>("/api/admin/renewals/dashboard", { token }).then(setData)} />
     </>
   );
 }
