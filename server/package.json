@@ -8,6 +8,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "seed": "tsx src/scripts/seed.ts",
+    "unseed": "tsx src/scripts/unseed.ts",
     "set-admin": "tsx src/scripts/setAdminCredentials.ts",
     "disable-alerts": "tsx src/scripts/disableAllAlerts.ts",
     "reseed-templates": "tsx src/scripts/reseedEmailTemplates.ts",
