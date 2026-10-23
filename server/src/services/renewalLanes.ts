@@ -39,7 +39,10 @@ export type LaneMember = {
   autoRenew?: boolean;
   lifetimeAnnualFeeWaived?: boolean;
   primaryMemberId?: unknown;
+  authnetCustomerProfileId?: string;
   authnetPaymentProfileId?: string;
+  authnetCardExpiry?: string;
+  stripeCustomerId?: string;
   stripeDefaultPaymentMethodId?: string;
   createdAt?: Date | string | null;
   membershipPlan?: string;
@@ -111,6 +114,40 @@ function hasVaultedCard(m: LaneMember): boolean {
   return Boolean(text(m.authnetPaymentProfileId) || text(m.stripeDefaultPaymentMethodId));
 }
 
+/** Authorize.Net stores expiry as "MMYY"; a card is good through the last day of that month. */
+export function cardExpiredBy(expiry: string | null | undefined, on: Date): boolean {
+  const digits = String(expiry || "").replace(/\D/g, "");
+  if (digits.length !== 4) return false;
+  const month = Number(digits.slice(0, 2));
+  const year = 2000 + Number(digits.slice(2));
+  if (!month || month > 12) return false;
+  const firstOfNextMonth = Date.UTC(year, month, 1, 0, 0, 0);
+  return on.getTime() >= firstOfNextMonth;
+}
+
+/**
+ * Whether the renewal run (runAnnualRenewal in renewals.ts) would actually charge
+ * this member's card on `asOf`. This is the single source of truth for "auto-renew":
+ * the dashboard's auto-renew lane uses it so its count matches what Run a renewal
+ * charges. Keep this in lock-step with the on-hold gate in renewals.ts — a member
+ * charges iff they are NOT paying by check, have auto-renew on, hold a complete saved
+ * card token, and that card is not expired.
+ */
+export function willAutoCharge(m: LaneMember, asOf: Date): boolean {
+  if (text(m.paymentMethod).toLowerCase() === "check") return false;
+  if (m.autoRenew !== true) return false;
+  const hasAuthnetCard = Boolean(text(m.authnetCustomerProfileId) && text(m.authnetPaymentProfileId));
+  const hasStripeCard = Boolean(text(m.stripeCustomerId) && text(m.stripeDefaultPaymentMethodId));
+  if (!hasAuthnetCard && !hasStripeCard) return false;
+  if (hasAuthnetCard && cardExpiredBy(m.authnetCardExpiry, asOf)) return false;
+  return true;
+}
+
+/** June 1 (midday UTC) of the given year — the day the upcoming renewal charges. */
+function juneFirstOf(year: number): Date {
+  return new Date(Date.UTC(year, 5, 1, 12, 0, 0));
+}
+
 /** A saved card with auto-renew turned off is an opt-out. Imported records default autoRenew to false and have no vault, so that default is not an opt-out. */
 function optedOutOfAutoRenew(m: LaneMember): boolean {
   return m.autoRenew === false && hasVaultedCard(m);
@@ -163,17 +200,18 @@ export function classifyRenewalMember(m: LaneMember, cycle: RenewalCycle = renew
   const cardYears = paymentYears(lp, true);
   const payYears = paymentYears(lp, false);
   const optedOut = optedOutOfAutoRenew(m);
-  const vaulted = hasVaultedCard(m) && !optedOut;
-  const cardBothSeasons = cardYears.has(cycle.priorBillingYear) && cardYears.has(cycle.currentBillingYear);
-  const onFile = vaulted || cardBothSeasons;
+  // Auto-renew lane = exactly who the run will charge on the upcoming June 1, so the
+  // dashboard count matches "Will charge card". Members who historically paid by card
+  // but have no saved token (the migration backlog) fall to the manual lane.
+  const willCharge = willAutoCharge(m, juneFirstOf(cycle.nextRenewalYear));
   const wasAuto = !optedOut && (hasVaultedCard(m) || cardYears.has(cycle.priorBillingYear));
   const paidCurrent = payYears.has(cycle.currentBillingYear);
 
   return {
     activeService: true,
     lifetime: false,
-    autoRenew: onFile,
-    manual: !onFile,
+    autoRenew: willCharge,
+    manual: !willCharge,
     paidCurrent,
     paymentFailed: !paidCurrent && wasAuto,
     onHold: !paidCurrent && !wasAuto,

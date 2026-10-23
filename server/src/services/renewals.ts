@@ -7,7 +7,7 @@ import { annualFeeCentsFor } from "../utils/membershipFees.js";
 import { chargeAnnualForCustomer } from "./stripeBilling.js";
 import { chargeCustomerProfile } from "./authorizeNet.js";
 import { logActivity } from "./activity.js";
-import { isActiveServiceMember, renewalCycle } from "./renewalLanes.js";
+import { cardExpiredBy, isActiveServiceMember, renewalCycle } from "./renewalLanes.js";
 
 /**
  * Annual renewal engine. The June 1 cron runs it for that day; staff can also
@@ -69,17 +69,6 @@ function dayBounds(d: Date): { start: Date; end: Date; due: Date } {
     end: new Date(Date.UTC(y, m, day + 1, 0, 0, 0)),
     due: new Date(Date.UTC(y, m, day, 12, 0, 0)),
   };
-}
-
-/** Authorize.Net stores expiry as "MMYY"; a card is good through the last day of that month. */
-export function cardExpiredBy(expiry: string | null | undefined, on: Date): boolean {
-  const digits = String(expiry || "").replace(/\D/g, "");
-  if (digits.length !== 4) return false;
-  const month = Number(digits.slice(0, 2));
-  const year = 2000 + Number(digits.slice(2));
-  if (!month || month > 12) return false;
-  const firstOfNextMonth = Date.UTC(year, month, 1, 0, 0, 0);
-  return on.getTime() >= firstOfNextMonth;
 }
 
 type MemberDocLike = InstanceType<typeof Member>;
@@ -186,6 +175,9 @@ export async function runAnnualRenewal(opts: { date: Date; dryRun?: boolean }): 
     const hasAuthnetCard = Boolean(m.authnetCustomerProfileId && m.authnetPaymentProfileId);
     const hasStripeCard = Boolean(m.stripeCustomerId && m.stripeDefaultPaymentMethodId);
 
+    // These two gates (check/auto-renew/no-card, then expired card) are the inverse of
+    // willAutoCharge() in renewalLanes.ts, which the dashboard's auto-renew lane uses.
+    // Keep them in sync so the lane count matches what this run actually charges.
     // Paying by check, auto-renew off, or no card saved → on hold until staff record payment.
     if (m.paymentMethod === "check" || !m.autoRenew || (!hasAuthnetCard && !hasStripeCard)) {
       const reason =
