@@ -866,9 +866,8 @@ export default function AdminWorkbenchPage() {
       const q = quickSearch.trim();
       const params = new URLSearchParams({ slim: "1" });
       if (q) params.set("q", q);
-      // Send structured filters to Mongo so Oil Company / Town queries return
-      // the full match set (350+ Valiant members) instead of scanning the 200
-      // most recently loaded records on the client.
+      // Every structured filter is applied in Mongo so the result is the full
+      // match set, not the 200 most recently loaded records.
       const enc = encodeFilters(filters);
       if (enc) params.set("filters", enc);
       const needsFullScan = filters.some((f) => !serverHandlesFilter(f));
@@ -1125,8 +1124,8 @@ export default function AdminWorkbenchPage() {
   }, [token]);
 
   // Debounced server-side member fetch. Empty query + no filters → 200 most recent (instant).
-  // Oil company / town filters go to Mongo so the match set is complete (not the local 200).
-  // Other filters still fetch all members. Non-empty search uses a 350 ms debounce.
+  // Any structured filter is applied in Mongo so the match set is complete.
+  // Non-empty search uses a 350 ms debounce.
   useEffect(() => {
     if (!token) return;
     const q = quickSearch.trim();

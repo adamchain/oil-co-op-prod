@@ -528,11 +528,50 @@ router.get("/members", async (req, res) => {
   });
   const requestAll = String(req.query.all || "") === "1";
   const slim = String(req.query.slim || "") === "1";
-  let members = await Member.find(filter)
-    .sort({ createdAt: -1 })
-    .limit(qTrimmed || flag || requestAll || structuredApplied ? 20000 : 200)
-    .populate("oilCompanyId", "name")
-    .lean();
+  const listLimit = qTrimmed || flag || requestAll || structuredApplied ? 20000 : 200;
+  // Slim list loads (the workbench) drop delivery/payment history in the query.
+  // Those arrays are large enough that a filtered fetch of every match would
+  // time out and the UI would keep showing the unfiltered 200.
+  let members: any[];
+  if (slim) {
+    members = await Member.aggregate([
+      { $match: filter },
+      { $sort: { createdAt: -1 } },
+      { $limit: listLimit },
+      {
+        $unset: [
+          "passwordHash",
+          "notesHistory",
+          "legacyProfile.deliveryHistoryRows",
+          "legacyProfile.paymentsHistory",
+          "legacyProfile.programHistory",
+        ],
+      },
+      {
+        $lookup: {
+          from: OilCompany.collection.collectionName,
+          localField: "oilCompanyId",
+          foreignField: "_id",
+          pipeline: [{ $project: { name: 1 } }],
+          as: "_oilCo",
+        },
+      },
+      {
+        $set: {
+          oilCompanyId: {
+            $ifNull: [{ $arrayElemAt: ["$_oilCo", 0] }, "$oilCompanyId"],
+          },
+        },
+      },
+      { $unset: "_oilCo" },
+    ]);
+  } else {
+    members = await Member.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(listLimit)
+      .populate("oilCompanyId", "name")
+      .lean();
+  }
 
   // Strip large embedded arrays that aren't needed for the member list / workbench
   // browse view — they're fetched lazily per-member when actually needed.

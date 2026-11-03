@@ -489,15 +489,13 @@ export function encodeFilters(filters: MemberFilter[]): string {
   return JSON.stringify(filters.map(({ field, operator, value }) => [field, operator, value]));
 }
 
-/** Fields the members list API can apply in Mongo, so the workbench does not need to download every record. */
+/**
+ * Fields the members list API applies in Mongo. Every workbench filter is
+ * handled there so a search is not limited to the 200 most recent records.
+ * Keep this in sync with server/src/utils/memberListFilters.ts.
+ */
 export function serverHandlesFilter(filter: MemberFilter): boolean {
-  if (filter.field === "oilCompanyId._id") {
-    return ["is", "is_not", "is_empty", "is_not_empty"].includes(filter.operator);
-  }
-  if (filter.field === "city") {
-    return ["contains", "equals", "starts_with", "is_empty", "is_not_empty"].includes(filter.operator);
-  }
-  return false;
+  return STATIC_FILTER_FIELDS.some((field) => field.key === filter.field);
 }
 
 export function decodeFilters(encoded: string): MemberFilter[] {
