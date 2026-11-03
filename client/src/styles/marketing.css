@@ -2377,11 +2377,21 @@
   }
 }
 
-/* Forest-green side bars on text-heavy pages, to break up the white margins. */
+/* Side color on Savings and FAQ. The padding is the green margin: it grows
+   to fill whatever is left beside a 760px column, and stays a slim rail on
+   small screens. The green is the Join Now button's resting color. */
 .mkt-page-rails {
-  border-left: clamp(18px, 4.5vw, 64px) solid #0b3b22;
-  border-right: clamp(18px, 4.5vw, 64px) solid #0b3b22;
+  box-sizing: border-box;
   min-height: 70vh;
+  padding-inline: max(18px, calc((100% - 760px) / 2));
+  background: var(--color-accent);
+}
+
+.mkt-page-rails > .mkt-panel {
+  width: auto;
+  max-width: none;
+  margin: 0;
+  background: var(--color-surface);
 }
 
 .mkt-prices-intro {
