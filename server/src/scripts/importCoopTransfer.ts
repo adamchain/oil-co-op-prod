@@ -47,6 +47,7 @@ import {
   formatApproachPhone,
   parseApproachEmail,
   parseLegacyDate,
+  approachFuelStatus,
   parseLegacyYes,
   pickField,
   normalizeNoteText,
@@ -510,10 +511,7 @@ async function main() {
       propCoCode: r.PROPANE_CO || "",
       propaneCompanyName: codeToName.get(r.PROPANE_CO || "") || "",
       propaneId: r.PROPANE_ID || "",
-      propaneStatus: (() => {
-        const raw = (r.PROPANE_ME || "").trim().toUpperCase();
-        return ["ACTIVE","INACTIVE","PROSPECTIVE","RESIDENT","NO PROPANE"].includes(raw) ? raw : (raw ? raw : "UNKNOWN");
-      })(),
+      propaneStatus: approachFuelStatus(r.PROPANE_ME),
       propaneStartDate: parseLegacyDate(r.PROPANE_ST) || "",
       useBothNames: parseLegacyYes(r.USE_BOTH_N),
       deliveryHistory: parseLegacyYes(r.DELIVERY_H),
@@ -553,7 +551,9 @@ async function main() {
       // Approach truncates column names to 10 chars: CALL_BACK_DATE → "CALL_BACK_"
       callBackDate: parseLegacyDate(pickField(r, "CALL_BACK_", "CALL_BACK_D", "CALLBDATE", "CB_DATE", "CALL_BACK_DATE")) || "",
       workbenchMemberStatus: status.toUpperCase(),
-      oilWorkbenchStatus: status.toUpperCase(),
+      // OIL_MEMBER is the Approach oil-status radio. Membership active/dropped
+      // is a different field and must not be copied onto this one.
+      oilWorkbenchStatus: approachFuelStatus(pickField(r, "OIL_MEMBER", "OIL_MEMBE", "OIL_STATUS")),
       deliveryHistoryRows,
       paymentsHistory,
       programHistory,

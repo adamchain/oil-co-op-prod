@@ -38,6 +38,18 @@ export function parseLegacyYes(raw: string | undefined | null): boolean {
   return YES_VALUES.has(String(raw ?? "").trim().toLowerCase());
 }
 
+/**
+ * Approach fuel-status radios. OIL_MEMBER and PROPANE_ME store values like
+ * ACTIVE, INACTIVE, PROSPECTIVE, RESIDENT, NO OIL / NO PROPANE, UNKNOWN.
+ */
+export function approachFuelStatus(raw: string | undefined | null): string {
+  const value = String(raw ?? "").trim().toUpperCase().replace(/\s+/g, " ");
+  if (!value) return "UNKNOWN";
+  if (value === "NOOIL" || value === "NO-OIL") return "NO OIL";
+  if (value === "NOPROPANE" || value === "NO-PROPANE") return "NO PROPANE";
+  return value;
+}
+
 const EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
 
 /** Approach often stored "user@host.com - Opted Out" in the email column. */
