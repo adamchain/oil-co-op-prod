@@ -7,7 +7,7 @@ import { annualFeeCentsFor } from "../utils/membershipFees.js";
 import { chargeAnnualForCustomer } from "./stripeBilling.js";
 import { chargeCustomerProfile } from "./authorizeNet.js";
 import { logActivity } from "./activity.js";
-import { cardExpiredBy, isActiveServiceMember, renewalCycle } from "./renewalLanes.js";
+import { cardExpiredBy, isActiveServiceMember } from "./renewalLanes.js";
 
 /**
  * Annual renewal engine. The June 1 cron runs it for that day; staff can also
@@ -119,10 +119,9 @@ export async function runAnnualRenewal(opts: { date: Date; dryRun?: boolean }): 
   // June 1 bills the active book only. Historical records share that date from
   // the import, and a test date set on a specific member still runs.
   const juneFirst = due.getUTCMonth() === 5 && due.getUTCDate() === 1;
-  const cycle = renewalCycle(due);
 
   for (const m of members) {
-    if (juneFirst && !isActiveServiceMember(m, cycle)) continue;
+    if (juneFirst && !isActiveServiceMember(m)) continue;
     const amount = annualFeeCentsFor(m);
     const row: RenewalResultRow = {
       memberId: String(m._id),

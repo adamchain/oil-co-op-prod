@@ -174,8 +174,8 @@ export default function AdminRenewalsPage() {
   return (
     <>
       <p style={{ color: "var(--admin-muted)", fontSize: "0.875rem", margin: "0 0 1rem" }}>
-        Active members have an oil or propane account in service, or a membership paid for {year - 1} or {year}.
-        Lifetime members are included and are not charged. Auto-renew is who has a card on file for June 1, {nextYear}.
+        Active members have active oil status or active propane status.
+        Lifetime members in that group are included and are not charged. Auto-renew is who has a card on file for June 1, {nextYear}.
         Manual is everyone else. After June 1, {year}, a failed card is “payment failed” and an unpaid manual member is on hold.
       </p>
       {data.mockRenewalEnabled && (
@@ -528,7 +528,7 @@ function RenewalRunCard({ token, onRan }: { token: string | null; onRan: () => v
     <div className="admin-card">
       <h2>Run a renewal</h2>
       <p style={{ color: "var(--admin-muted)", fontSize: "0.85rem", margin: "0 0 0.6rem" }}>
-        June 1 only renews active oil, propane, and membership accounts. To test one person, set their next renewal to
+        June 1 only renews members with active oil or propane status. To test one person, set their next renewal to
         another date, preview it here, then run it.
       </p>
       <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", alignItems: "center" }}>

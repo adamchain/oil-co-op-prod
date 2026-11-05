@@ -3,13 +3,13 @@ import { annualFeeCentsFor } from "../utils/membershipFees.js";
 /**
  * Who belongs on the renewal lists.
  *
- * Active members are people using the co-op: an oil or propane account that is
- * still in service, or a membership that was paid in the last renewal or this
- * one. Lifetime members stay in that count and are not charged.
+ * Active members have active oil status or active propane status. Oil status
+ * is oilWorkbenchStatus, or workbenchMemberStatus when that oil field is blank.
+ * Lifetime members in that group stay in the count and are not charged.
  *
- * Auto-renew is the slice with a payment method on file (a card saved here, or
- * a card that was charged for both the prior June and the current June).
- * Everyone else in the active book is the manual lane.
+ * Auto-renew is the slice the June 1 run will actually charge (card on file,
+ * auto-renew on, card not expired, not paying by check). Everyone else in the
+ * active book is the manual lane.
  *
  * After June 1, auto-renew splits into paid vs payment failed, and the manual
  * lane that has not paid is on hold.
@@ -99,17 +99,6 @@ function paymentYears(lp: Record<string, unknown>, cardOnly: boolean): Set<numbe
   return years;
 }
 
-function maxDeliveryYear(lp: Record<string, unknown>): number {
-  const rows = Array.isArray(lp.deliveryHistoryRows) ? lp.deliveryHistoryRows : [];
-  let max = 0;
-  for (const row of rows) {
-    if (!row || typeof row !== "object") continue;
-    const year = billingYear((row as { deliveryYear?: unknown }).deliveryYear);
-    if (year != null && year > max) max = year;
-  }
-  return max;
-}
-
 function hasVaultedCard(m: LaneMember): boolean {
   return Boolean(text(m.authnetPaymentProfileId) || text(m.stripeDefaultPaymentMethodId));
 }
@@ -157,28 +146,19 @@ function isLifetime(m: LaneMember, lp: Record<string, unknown>): boolean {
   return Boolean(m.lifetimeAnnualFeeWaived || yes(lp.waiveFeeLifetime) || m.primaryMemberId);
 }
 
-export function isActiveServiceMember(m: LaneMember, cycle: RenewalCycle = renewalCycle()): boolean {
+/** Oil status shown in the workbench: the oil field, or member status when oil is blank. */
+function oilStatus(lp: Record<string, unknown>): string {
+  const oil = text(lp.oilWorkbenchStatus).toUpperCase();
+  if (oil) return oil;
+  return text(lp.workbenchMemberStatus).toUpperCase();
+}
+
+export function isActiveServiceMember(m: LaneMember): boolean {
   if (m.role && m.role !== "member") return false;
   const lp = (m.legacyProfile || {}) as Record<string, unknown>;
-  const workbench = text(lp.workbenchMemberStatus).toUpperCase();
-  if (m.status === "cancelled" || workbench === "CANCELLED") return false;
-
-  const payYears = paymentYears(lp, false);
-  const paidRecently = [...payYears].some((y) => y >= cycle.priorBillingYear);
-  const deliveredRecently = maxDeliveryYear(lp) >= cycle.priorBillingYear;
-  const oilActive = text(lp.oilWorkbenchStatus).toUpperCase() === "ACTIVE";
+  const oilActive = oilStatus(lp) === "ACTIVE";
   const propaneActive = text(lp.propaneStatus).toUpperCase() === "ACTIVE";
-  const fuelId = Boolean(text(lp.oilId) || text(lp.propaneId));
-  if (paidRecently || deliveredRecently || oilActive || propaneActive) return true;
-  if (isLifetime(m, lp) && fuelId) return true;
-
-  // Bulk imports share one createdAt, so only real signups use the join date.
-  if (m.status === "active" && !text(lp.importSource) && m.createdAt) {
-    const created = new Date(m.createdAt);
-    const seasonStart = Date.UTC(cycle.priorBillingYear, 5, 1);
-    if (!Number.isNaN(created.getTime()) && created.getTime() >= seasonStart) return true;
-  }
-  return false;
+  return oilActive || propaneActive;
 }
 
 export function classifyRenewalMember(m: LaneMember, cycle: RenewalCycle = renewalCycle()): RenewalClass {
@@ -191,7 +171,7 @@ export function classifyRenewalMember(m: LaneMember, cycle: RenewalCycle = renew
     paymentFailed: false,
     onHold: false,
   };
-  if (!isActiveServiceMember(m, cycle)) return empty;
+  if (!isActiveServiceMember(m)) return empty;
 
   const lp = (m.legacyProfile || {}) as Record<string, unknown>;
   const lifetime = isLifetime(m, lp);
