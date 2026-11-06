@@ -518,6 +518,7 @@ export default function AdminWorkbenchPage() {
   const [listError, setListError] = useState<string | null>(null);
   const [totalMemberCount, setTotalMemberCount] = useState<number | null>(null);
   const memberLoadSeq = useRef(0);
+  const memberLoadAbort = useRef<AbortController | null>(null);
   const [oilCompanies, setOilCompanies] = useState<OilCompany[]>([]);
   const [referralSources, setReferralSources] = useState<string[]>([...REFERRAL_SOURCE]);
   const [referralCustom, setReferralCustom] = useState("");
@@ -864,6 +865,9 @@ export default function AdminWorkbenchPage() {
   async function loadMembers() {
     if (!token) return;
     const seq = ++memberLoadSeq.current;
+    memberLoadAbort.current?.abort();
+    const abort = new AbortController();
+    memberLoadAbort.current = abort;
     setLoading(true);
     setListError(null);
     try {
@@ -878,7 +882,7 @@ export default function AdminWorkbenchPage() {
       if ((needsFullScan || filters.length > 0) && !q) params.set("all", "1");
       const { members: rows, total } = await api<{ members: Member[]; total?: number }>(
         `/api/admin/members?${params}`,
-        { token }
+        { token, signal: abort.signal }
       );
       if (seq !== memberLoadSeq.current) return;
       let nextRows = rows;
@@ -915,6 +919,7 @@ export default function AdminWorkbenchPage() {
       if (total != null) setTotalMemberCount(total);
     } catch (e) {
       if (seq !== memberLoadSeq.current) return;
+      if (e instanceof DOMException && e.name === "AbortError") return;
       setListError(e instanceof Error ? e.message : "Could not load members");
     } finally {
       if (seq === memberLoadSeq.current) setLoading(false);

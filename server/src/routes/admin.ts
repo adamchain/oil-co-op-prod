@@ -404,6 +404,7 @@ router.post("/email-templates/:key/test", async (req: AuthedRequest, res) => {
 });
 
 router.get("/members", async (req, res) => {
+  try {
   const q = (req.query.q as string) || "";
   const qTrimmed = q.trim();
   const status = req.query.status as string | undefined;
@@ -534,10 +535,11 @@ router.get("/members", async (req, res) => {
   // time out and the UI would keep showing the unfiltered 200.
   let members: any[];
   if (slim) {
+    // Drop the heavy arrays before sorting. The match set for a status filter
+    // is thousands of full member documents, and this cluster aborts a sort
+    // that exceeds 32MB — which left the browser pending forever.
     members = await Member.aggregate([
       { $match: filter },
-      { $sort: { createdAt: -1 } },
-      { $limit: listLimit },
       {
         $unset: [
           "passwordHash",
@@ -547,6 +549,8 @@ router.get("/members", async (req, res) => {
           "legacyProfile.programHistory",
         ],
       },
+      { $sort: { createdAt: -1 } },
+      { $limit: listLimit },
       {
         $lookup: {
           from: OilCompany.collection.collectionName,
@@ -564,7 +568,7 @@ router.get("/members", async (req, res) => {
         },
       },
       { $unset: "_oilCo" },
-    ]);
+    ]).allowDiskUse(true);
   } else {
     members = await Member.find(filter)
       .sort({ createdAt: -1 })
@@ -690,6 +694,10 @@ router.get("/members", async (req, res) => {
   const total = slim ? await Member.countDocuments({ role: "member" }) : undefined;
 
   res.json({ members, ...(total != null ? { total } : {}) });
+  } catch (err) {
+    console.error(err);
+    if (!res.headersSent) res.status(500).json({ error: "Could not load members" });
+  }
 });
 
 function normPersonName(first?: string | null, last?: string | null): string {
