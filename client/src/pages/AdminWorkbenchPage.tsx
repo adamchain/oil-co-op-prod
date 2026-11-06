@@ -515,7 +515,9 @@ export default function AdminWorkbenchPage() {
   }, [worksheetVisibleColumns]);
   const [index, setIndex] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [listError, setListError] = useState<string | null>(null);
   const [totalMemberCount, setTotalMemberCount] = useState<number | null>(null);
+  const memberLoadSeq = useRef(0);
   const [oilCompanies, setOilCompanies] = useState<OilCompany[]>([]);
   const [referralSources, setReferralSources] = useState<string[]>([...REFERRAL_SOURCE]);
   const [referralCustom, setReferralCustom] = useState("");
@@ -861,7 +863,9 @@ export default function AdminWorkbenchPage() {
 
   async function loadMembers() {
     if (!token) return;
+    const seq = ++memberLoadSeq.current;
     setLoading(true);
+    setListError(null);
     try {
       const q = quickSearch.trim();
       const params = new URLSearchParams({ slim: "1" });
@@ -871,21 +875,24 @@ export default function AdminWorkbenchPage() {
       const enc = encodeFilters(filters);
       if (enc) params.set("filters", enc);
       const needsFullScan = filters.some((f) => !serverHandlesFilter(f));
-      if (needsFullScan && !q) params.set("all", "1");
+      if ((needsFullScan || filters.length > 0) && !q) params.set("all", "1");
       const { members: rows, total } = await api<{ members: Member[]; total?: number }>(
         `/api/admin/members?${params}`,
         { token }
       );
+      if (seq !== memberLoadSeq.current) return;
       let nextRows = rows;
       const wanted = memberParam.trim();
       if (wanted && !nextRows.some((m) => m._id === wanted)) {
         try {
           const extra = await api<{ member: Member }>(`/api/admin/members/${wanted}`, { token });
+          if (seq !== memberLoadSeq.current) return;
           if (extra?.member?._id) nextRows = [extra.member, ...nextRows];
         } catch {
           /* member may have been deleted */
         }
       }
+      if (seq !== memberLoadSeq.current) return;
       setMembers((prev) => {
         // Completing "virgini" → "virginia" used to refetch as a state-only query
         // and replace name hits with []. Keep the current list when the server
@@ -906,8 +913,11 @@ export default function AdminWorkbenchPage() {
         }
       }
       if (total != null) setTotalMemberCount(total);
+    } catch (e) {
+      if (seq !== memberLoadSeq.current) return;
+      setListError(e instanceof Error ? e.message : "Could not load members");
     } finally {
-      setLoading(false);
+      if (seq === memberLoadSeq.current) setLoading(false);
     }
   }
 
@@ -1173,6 +1183,9 @@ export default function AdminWorkbenchPage() {
       return;
     }
     if (members.some((m) => m._id === memberParam)) {
+      // Wait until the filtered list has actually loaded. Clearing now would
+      // cancel that request and leave the previous 200-record page in place.
+      if (loading) return;
       // The record exists but is filtered out — clear filters to reveal it, and
       // suppress the index-reset that the filter change triggers so reconciliation
       // (which re-runs and lands on this member) isn't clobbered back to 0.
@@ -2426,10 +2439,14 @@ export default function AdminWorkbenchPage() {
             <button onClick={() => nav("last")} title="Last">&gt;|</button>
           </div>
           <span className="admin-wb-count">
-            Record {recordCount} of {(quickSearch.trim() || filters.length > 0
-              ? filteredMembers.length
-              : totalMemberCount != null ? totalMemberCount : filteredMembers.length
-            ).toLocaleString()}
+            {loading
+              ? "Loading members…"
+              : listError
+                ? listError
+                : `Record ${recordCount} of ${(quickSearch.trim() || filters.length > 0
+                    ? filteredMembers.length
+                    : totalMemberCount != null ? totalMemberCount : filteredMembers.length
+                  ).toLocaleString()}`}
           </span>
           {current?.renewalOnHold && (
             <span className="admin-pill hold" title="Renewal on hold — record the renewal payment to clear it">
@@ -3553,7 +3570,9 @@ export default function AdminWorkbenchPage() {
             <div className="admin-card admin-workbench-section">
               <h2>Members List</h2>
               <div className="admin-toolbar" style={{ marginBottom: "0.75rem" }}>
-                <span className="admin-meta">{filteredMembers.length} of {members.length} members</span>
+                <span className="admin-meta">
+                  {loading ? "Loading members…" : listError ? listError : `${filteredMembers.length} of ${members.length} members`}
+                </span>
                 <MemberFilterWidget
                   filters={filters}
                   onFiltersChange={applyFilters}
