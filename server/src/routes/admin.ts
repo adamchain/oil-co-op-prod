@@ -799,16 +799,16 @@ router.get("/members/same-name-addresses", async (_req, res) => {
 });
 
 /** One row per referred membership, preferring the primary record over a linked property. */
-function visibleReferralsMade<T extends { newMemberId?: { _id?: unknown; primaryMemberId?: unknown } | null }>(
-  rows: T[]
-): T[] {
+function visibleReferralsMade<T>(rows: T[]): T[] {
+  const memberOf = (row: T) =>
+    (row as { newMemberId?: { _id?: unknown; primaryMemberId?: unknown } | null }).newMemberId;
   const seen = new Set<string>();
   const kept = new Set<T>();
   const primariesFirst = [...rows].sort(
-    (a, b) => Number(Boolean(a.newMemberId?.primaryMemberId)) - Number(Boolean(b.newMemberId?.primaryMemberId))
+    (a, b) => Number(Boolean(memberOf(a)?.primaryMemberId)) - Number(Boolean(memberOf(b)?.primaryMemberId))
   );
   for (const row of primariesFirst) {
-    const member = row.newMemberId;
+    const member = memberOf(row);
     if (!member?._id) continue;
     const key = String(member.primaryMemberId || member._id);
     if (seen.has(key)) continue;

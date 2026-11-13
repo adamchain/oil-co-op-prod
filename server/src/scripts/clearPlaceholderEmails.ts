@@ -29,7 +29,7 @@ async function main() {
   if (apply) {
     const indexes = await Member.collection.indexes();
     const emailIndex = indexes.find((idx) => idx.key?.email === 1 && Object.keys(idx.key).length === 1);
-    if (emailIndex && !emailIndex.sparse) {
+    if (emailIndex && !emailIndex.sparse && emailIndex.name) {
       console.log(`Rebuilding ${emailIndex.name} as a sparse unique index.`);
       await Member.collection.dropIndex(emailIndex.name);
       await Member.collection.createIndex({ email: 1 }, { unique: true, sparse: true, name: "email_1" });
