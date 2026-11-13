@@ -1510,6 +1510,24 @@ export default function AdminWorkbenchPage() {
     [oilCompanies]
   );
 
+  /** Oil Co Code follows the linked company, or the Approach code (Ives → Ives Brothers) when the link was never saved. */
+  const oilCoSelectCompanyId = useMemo(() => {
+    if (form.oilCompanyId && workbenchOilCompanyRows.some(({ oc }) => oc._id === form.oilCompanyId)) {
+      return form.oilCompanyId;
+    }
+    const lp = form.legacyProfile || {};
+    const raw = String(lp.oilCoCode || lp.oilCoRaw || "").trim().toLowerCase();
+    const named = oilCompanyNameForCode(String(lp.oilCompanyName || lp.oilCoRaw || "")).trim().toLowerCase();
+    if (!raw && !named) return "";
+    for (const { oc, code } of workbenchOilCompanyRows) {
+      if (raw && code.toLowerCase() === raw) return oc._id;
+    }
+    for (const { oc } of workbenchOilCompanyRows) {
+      if (named && oc.name.trim().toLowerCase() === named) return oc._id;
+    }
+    return "";
+  }, [form.oilCompanyId, form.legacyProfile, workbenchOilCompanyRows]);
+
   /** Prop co dropdown value is oil company id; legacy still stores short code + company name. */
   const propCoSelectCompanyId = useMemo(() => {
     const lp = form.legacyProfile || {};
@@ -3066,7 +3084,7 @@ export default function AdminWorkbenchPage() {
                   Oil Co Code
                   <select
                     className="admin-input"
-                    value={form.oilCompanyId}
+                    value={oilCoSelectCompanyId}
                     onChange={(e) => {
                       const id = e.target.value;
                       setForm((f) => {
