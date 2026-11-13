@@ -16,6 +16,7 @@
     "import:coop-transfer": "tsx src/scripts/importCoopTransfer.ts",
     "dedupe:deliveries": "tsx src/scripts/dedupeDeliveryHistory.ts",
     "dedupe:notes": "tsx src/scripts/dedupeNotesHistory.ts",
+    "clear:placeholder-emails": "tsx src/scripts/clearPlaceholderEmails.ts",
     "create:oil-import-members": "tsx src/scripts/createOilImportMembers.ts",
     "backfill:referrals": "tsx src/scripts/backfillReferrals.ts"
   },

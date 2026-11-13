@@ -38,7 +38,7 @@ import { ensureCommunityContent } from "../services/communityStore.js";
 import { computePriceDifference } from "../data/oilPriceSeed.js";
 import { firstRenewalAfterJoin, followingJuneFirst, juneFirstYear, nextJuneFirstAfterSignup } from "../utils/juneBilling.js";
 import { expandStateQuery, US_STATE_ABBR_TO_NAME } from "../utils/stateAbbreviations.js";
-import { applyStructuredMemberFilters } from "../utils/memberListFilters.js";
+import { activeMemberClause, applyStructuredMemberFilters, isBlankContactEmail, loadReferralCounts } from "../utils/memberListFilters.js";
 import { chargeCard } from "../services/authorizeNet.js";
 import { storeCardOnFile, removeCardOnFile } from "../services/storeCardOnFile.js";
 import { annualFeeCentsFor, planFlags, syncMembershipPlanFields } from "../utils/membershipFees.js";
@@ -411,6 +411,10 @@ router.get("/members", async (req, res) => {
   const oilCompanyId = req.query.oilCompanyId as string | undefined;
   const signedUpVia = req.query.signedUpVia as string | undefined;
   const filter: Record<string, unknown> = { role: "member" };
+  const activeOnly = String(req.query.activeOnly || "") === "1";
+  if (activeOnly) {
+    filter.$and = [...((filter.$and as unknown[] | undefined) || []), activeMemberClause()];
+  }
   if (status && ["active", "expired", "cancelled"].includes(status)) {
     filter.status = status;
   }
@@ -540,6 +544,20 @@ router.get("/members", async (req, res) => {
     // that exceeds 32MB — which left the browser pending forever.
     members = await Member.aggregate([
       { $match: filter },
+      {
+        $set: {
+          deliveryHistoryHasRows: {
+            $eq: [
+              {
+                $type: {
+                  $arrayElemAt: [{ $ifNull: ["$legacyProfile.deliveryHistoryRows", []] }, 0],
+                },
+              },
+              "object",
+            ],
+          },
+        },
+      },
       {
         $unset: [
           "passwordHash",
@@ -677,21 +695,17 @@ router.get("/members", async (req, res) => {
     members = members.sort((a, b) => score(a) - score(b));
   }
 
-  // Attach each member's total number of referrals made (referrerMemberId === member._id),
-  // so the workbench can display, sort, and filter by "Total Referred".
-  const memberIds = members.map((m) => m._id);
-  const referralCounts = await Referral.aggregate<{ _id: mongoose.Types.ObjectId; count: number }>([
-    { $match: { referrerMemberId: { $in: memberIds } } },
-    { $group: { _id: "$referrerMemberId", count: { $sum: 1 } } },
-  ]);
-  const referralCountByMember = new Map(referralCounts.map((r) => [String(r._id), r.count]));
+  // Same count the Total Referred filter uses: one per membership, not per property row.
+  const referralCountByMember = await loadReferralCounts();
   for (const m of members) {
     (m as Record<string, unknown>).referralCount = referralCountByMember.get(String(m._id)) || 0;
   }
 
   // When slim mode is on (workbench initial load / search), return the true
   // total member count so the UI can display "Record N of M (X total)".
-  const total = slim ? await Member.countDocuments({ role: "member" }) : undefined;
+  const total = slim
+    ? await Member.countDocuments(activeOnly ? { role: "member", $and: [activeMemberClause()] } : { role: "member" })
+    : undefined;
 
   res.json({ members, ...(total != null ? { total } : {}) });
   } catch (err) {
@@ -784,6 +798,26 @@ router.get("/members/same-name-addresses", async (_req, res) => {
   res.json({ groups });
 });
 
+/** One row per referred membership, preferring the primary record over a linked property. */
+function visibleReferralsMade<T extends { newMemberId?: { _id?: unknown; primaryMemberId?: unknown } | null }>(
+  rows: T[]
+): T[] {
+  const seen = new Set<string>();
+  const kept = new Set<T>();
+  const primariesFirst = [...rows].sort(
+    (a, b) => Number(Boolean(a.newMemberId?.primaryMemberId)) - Number(Boolean(b.newMemberId?.primaryMemberId))
+  );
+  for (const row of primariesFirst) {
+    const member = row.newMemberId;
+    if (!member?._id) continue;
+    const key = String(member.primaryMemberId || member._id);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    kept.add(row);
+  }
+  return rows.filter((row) => kept.has(row));
+}
+
 router.get("/members/:id", async (req, res) => {
   if (!mongoose.isValidObjectId(req.params.id)) {
     res.status(400).json({ error: "Invalid id" });
@@ -803,7 +837,7 @@ router.get("/members/:id", async (req, res) => {
     Referral.findOne({ newMemberId: member._id }).populate("referrerMemberId", "firstName lastName email memberNumber legacyProfile.legacyId").lean(),
     Referral.find({ referrerMemberId: member._id })
       .sort({ creditedAt: -1 })
-      .populate("newMemberId", "firstName lastName email memberNumber legacyProfile.legacyId")
+      .populate("newMemberId", "firstName lastName email memberNumber primaryMemberId legacyProfile.legacyId")
       .lean(),
   ]);
 
@@ -825,7 +859,7 @@ router.get("/members/:id", async (req, res) => {
   );
 
   const billing = [...billingEvents, ...legacyPayments];
-  res.json({ member, billing, activity, communications, referral, referralsMade });
+  res.json({ member, billing, activity, communications, referral, referralsMade: visibleReferralsMade(referralsMade) });
 });
 
 // Admin correction: set / change / clear who referred this member.
@@ -871,10 +905,10 @@ router.put("/members/:id/referrer", async (req: AuthedRequest, res) => {
       .lean(),
     Referral.find({ referrerMemberId: memberId })
       .sort({ creditedAt: -1 })
-      .populate("newMemberId", "firstName lastName email memberNumber legacyProfile.legacyId")
+      .populate("newMemberId", "firstName lastName email memberNumber primaryMemberId legacyProfile.legacyId")
       .lean(),
   ]);
-  res.json({ referral, referralsMade });
+  res.json({ referral, referralsMade: visibleReferralsMade(referralsMade) });
 });
 
 // Admin correction: edit an existing referral's credited date.
@@ -916,9 +950,9 @@ router.patch("/referrals/:referralId", async (req: AuthedRequest, res) => {
   // Return the referrer's refreshed "referrals made" list for convenience.
   const referralsMade = await Referral.find({ referrerMemberId })
     .sort({ creditedAt: -1 })
-    .populate("newMemberId", "firstName lastName email memberNumber legacyProfile.legacyId")
+    .populate("newMemberId", "firstName lastName email memberNumber primaryMemberId legacyProfile.legacyId")
     .lean();
-  res.json({ referral, referralsMade });
+  res.json({ referral, referralsMade: visibleReferralsMade(referralsMade) });
 });
 
 router.get("/members/:id/email-merge-data", async (req, res) => {
@@ -2610,7 +2644,7 @@ router.post("/members/bulk-email", async (req: AuthedRequest, res) => {
   for (const m of members) {
     const optedOut = Boolean((m.legacyProfile as Record<string, unknown> | undefined)?.emailOptOut);
     const to = String(m.email || "").trim();
-    if (!to || optedOut) {
+    if (isBlankContactEmail(to) || optedOut) {
       skipped++;
       continue;
     }

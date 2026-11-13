@@ -17,8 +17,9 @@
  *
  * Remigration: re-running with --apply is the supported way to reload after
  * mapping fixes. Existing members are updated in place (not duplicated).
- * Emails: placeholder @import.oilcoop.local addresses are replaced when a
- * real Approach email exists. Notes: contact rows matching NOTE are skipped
+ * Emails: members with no Approach address are stored with no email. A real
+ * Approach address replaces a leftover ct-…@import.oilcoop.local placeholder,
+ * and a placeholder with no real address is removed. Notes: contact rows matching NOTE are skipped
  * and already-imported notes are not pushed again. Deliveries: merged by
  * date+fuel+gallons so duplicates collapse. NRD flags are overwritten from
  * the transfer files.
@@ -90,10 +91,7 @@ function toObj(headers: string[], row: string[]): Record<string, string> {
 // ---------------------------------------------------------------------------
 // Normalisation helpers
 // ---------------------------------------------------------------------------
-function syntheticEmail(id: string, first: string, last: string): string {
-  const slug = `${first}.${last}`.toLowerCase().replace(/[^a-z0-9.]/g, "").slice(0, 40) || "member";
-  return `ct-${id}-${slug}@import.oilcoop.local`;
-}
+const CT_PLACEHOLDER_EMAIL = /^ct-[^@\s]+@import\.oilcoop\.local$/i;
 
 // Delivery month parser: "03-MARCH" → "03" or "MARCH" → "03"
 const MONTH_NAMES: Record<string, string> = {
@@ -420,7 +418,7 @@ async function main() {
     const firstName = r.F_NAME_1 || "Unknown";
     const lastName  = r.L_NAME_1 || id;
     const parsedEmail = parseApproachEmail(pickField(r, "E_MAIL", "EMAIL", "E-MAIL", "EMAIL_1", "EMAILADDR"));
-    const email = parsedEmail.email || syntheticEmail(id, firstName, lastName);
+    const email = parsedEmail.email || "";
     const phone = r.PHONE_1 ? formatApproachPhone(r.ACODE_1, r.PHONE_1) : (r.PHONE_2 ? formatApproachPhone(r.ACODE_2, r.PHONE_2) : "");
     const phone2 = r.PHONE_2 ? formatApproachPhone(r.ACODE_2, r.PHONE_2) : "";
     const phone3 = pickField(r, "PHONE_3", "PHONE3") ? formatApproachPhone(pickField(r, "ACODE_3", "ACODE3"), pickField(r, "PHONE_3", "PHONE3")) : "";
@@ -570,6 +568,7 @@ async function main() {
         const existingIsPlaceholder = existingEmail.includes("@import.") || existingEmail.endsWith(".local");
         const parsed = (parsedEmail.email || "").toLowerCase();
         let nextEmail = existing.email as string | undefined;
+        let unsetPlaceholderEmail = false;
         if (parsed && parsed !== existingEmail && (existingIsPlaceholder || !existingEmail)) {
           if (usedEmails.has(parsed)) {
             emailCollisions++;
@@ -578,6 +577,10 @@ async function main() {
             if (existingEmail) usedEmails.delete(existingEmail);
             usedEmails.add(parsed);
           }
+        } else if (!parsed && CT_PLACEHOLDER_EMAIL.test(existingEmail)) {
+          unsetPlaceholderEmail = true;
+          usedEmails.delete(existingEmail);
+          nextEmail = undefined;
         }
         const existingHistory = Array.isArray(existing.notesHistory) ? existing.notesHistory : [];
         const existingKeys = new Set(
@@ -608,19 +611,19 @@ async function main() {
         if (nextEmail && String(nextEmail).toLowerCase() !== existingEmail) {
           $set.email = nextEmail;
         }
-        try {
-          await Member.updateOne({ memberNumber }, {
+        const writeMember = () =>
+          Member.updateOne({ memberNumber }, {
             $set,
+            ...(unsetPlaceholderEmail ? { $unset: { email: "" } } : {}),
             ...(historyAdds.length ? { $push: { notesHistory: { $each: historyAdds } } } : {}),
           });
+        try {
+          await writeMember();
         } catch (e: any) {
           if (e?.code !== 11000) throw e;
           emailCollisions++;
           delete $set.email;
-          await Member.updateOne({ memberNumber }, {
-            $set,
-            ...(historyAdds.length ? { $push: { notesHistory: { $each: historyAdds } } } : {}),
-          });
+          await writeMember();
         }
         if (nextEmail) usedEmails.add(String(nextEmail).toLowerCase());
       }
@@ -628,19 +631,17 @@ async function main() {
       continue;
     }
 
-    // Avoid email uniqueness collisions (in DB and within this import run)
+    // A duplicate real address is left blank. Do not invent a ct-…@import.oilcoop.local address.
     let finalEmail = email;
-    if (usedEmails.has(finalEmail)) {
+    if (finalEmail && usedEmails.has(finalEmail)) {
       emailCollisions++;
-      finalEmail = syntheticEmail(id, firstName, lastName);
-      // If the synthetic also collides (rare), append the id to make it unique
-      if (usedEmails.has(finalEmail)) finalEmail = `ct-${id}@import.oilcoop.local`;
+      finalEmail = "";
     }
-    usedEmails.add(finalEmail);
+    if (finalEmail) usedEmails.add(finalEmail);
 
     batch.push({
       memberNumber,
-      email: finalEmail,
+      ...(finalEmail ? { email: finalEmail } : {}),
       passwordHash: defaultHash,
       firstName,
       lastName,

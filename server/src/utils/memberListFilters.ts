@@ -32,6 +32,22 @@ function escapeRx(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/**
+ * Members search treats as active: oil status Active (a blank oil status shows
+ * as Active) or propane status Active.
+ */
+export function activeMemberClause(): Record<string, unknown> {
+  return {
+    $or: [
+      { "legacyProfile.oilWorkbenchStatus": { $regex: /^ACTIVE$/i } },
+      { "legacyProfile.oilWorkbenchStatus": null },
+      { "legacyProfile.oilWorkbenchStatus": "" },
+      { "legacyProfile.oilWorkbenchStatus": { $regex: /^\s+$/ } },
+      { "legacyProfile.propaneStatus": { $regex: /^ACTIVE$/i } },
+    ],
+  };
+}
+
 function pushAnd(filter: Record<string, unknown>, clause: Record<string, unknown>) {
   filter.$and = [...((filter.$and as unknown[] | undefined) || []), clause];
 }
@@ -236,8 +252,48 @@ function blankClause(path: string): Record<string, unknown> {
     $or: [
       { [path]: { $exists: false } },
       { [path]: null },
-      { [path]: { $type: "string", $regex: /^\s*$/ } },
+      { [path]: "" },
+      { [path]: { $type: "string", $regex: /^\s+$/ } },
     ],
+  };
+}
+
+/**
+ * Imports stored a unique fake address when Approach had no email
+ * (`…@import.oilcoop.local`, `…@oilcoop.local`). Those are not contact emails.
+ */
+export function isBlankContactEmail(value: unknown): boolean {
+  if (value == null) return true;
+  const text = String(value).trim().toLowerCase();
+  if (!text) return true;
+  return text.includes("@import.") || text.endsWith(".local");
+}
+
+/** Missing, whitespace, and import placeholders. $expr so a sparse unique index cannot hide them. */
+function emailEmptyClause(): Record<string, unknown> {
+  return {
+    $expr: {
+      $let: {
+        vars: {
+          raw: {
+            $toLower: {
+              $trim: {
+                input: {
+                  $convert: { input: "$email", to: "string", onError: "", onNull: "" },
+                },
+              },
+            },
+          },
+        },
+        in: {
+          $or: [
+            { $eq: ["$$raw", ""] },
+            { $regexMatch: { input: "$$raw", regex: "@import\\." } },
+            { $regexMatch: { input: "$$raw", regex: "\\.local$" } },
+          ],
+        },
+      },
+    },
   };
 }
 
@@ -254,6 +310,10 @@ function textRegex(operator: string, raw: string): RegExp {
 
 /** Match the workbench's first-non-blank resolution across alias keys. */
 function resolvedTextClause(paths: string[], operator: string, value: string): Record<string, unknown> | null {
+  if (paths.length === 1 && paths[0] === "email" && (operator === "is_empty" || operator === "is_not_empty")) {
+    const empty = emailEmptyClause();
+    return operator === "is_empty" ? empty : { $nor: [empty] };
+  }
   if (operator === "is_empty") return { $and: paths.map((path) => blankClause(path)) };
   if (operator === "is_not_empty") return { $or: paths.map((path) => presentClause(path)) };
   const raw = value.trim();
@@ -511,21 +571,62 @@ function countMatches(count: number, operator: string, target: number): boolean 
   return false;
 }
 
+/**
+ * Referrals credited to each member.
+ * One membership counts once: duplicate referral rows and extra property
+ * records under the same primary are not extra referrals.
+ */
+export async function loadReferralCounts(): Promise<Map<string, number>> {
+  const rows = await Referral.aggregate<{ _id: mongoose.Types.ObjectId | null; count: number }>([
+    {
+      $lookup: {
+        from: Member.collection.collectionName,
+        let: { newId: "$newMemberId" },
+        pipeline: [
+          { $match: { $expr: { $eq: ["$_id", "$$newId"] } } },
+          { $project: { _id: 1, primaryMemberId: 1, role: 1 } },
+        ],
+        as: "newMember",
+      },
+    },
+    { $unwind: "$newMember" },
+    { $match: { "newMember.role": "member" } },
+    {
+      $addFields: {
+        primaryId: { $ifNull: ["$newMember.primaryMemberId", "$newMember._id"] },
+      },
+    },
+    { $match: { $expr: { $ne: ["$primaryId", "$referrerMemberId"] } } },
+    {
+      $group: {
+        _id: "$referrerMemberId",
+        primaries: { $addToSet: "$primaryId" },
+      },
+    },
+    { $project: { count: { $size: "$primaries" } } },
+  ]);
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    if (!row._id) continue;
+    counts.set(String(row._id), row.count);
+  }
+  return counts;
+}
+
 async function referralCountClause(operator: string, value: string): Promise<Record<string, unknown> | null> {
   const raw = value.trim();
   if (!raw) return null;
   const target = Number(raw);
   if (!Number.isFinite(target)) return null;
   if (!["equals", "gt", "gte", "lt", "lte"].includes(operator)) return null;
-  const grouped = await Referral.aggregate<{ _id: mongoose.Types.ObjectId; count: number }>([
-    { $group: { _id: "$referrerMemberId", count: { $sum: 1 } } },
-  ]);
+  const counts = await loadReferralCounts();
+  const idsFor = (keep: (count: number) => boolean) =>
+    [...counts.entries()].filter(([, count]) => keep(count)).map(([id]) => new mongoose.Types.ObjectId(id));
   if (countMatches(0, operator, target)) {
-    const excluded = grouped.filter((row) => !countMatches(row.count, operator, target)).map((row) => row._id);
+    const excluded = idsFor((count) => !countMatches(count, operator, target));
     return excluded.length ? { _id: { $nin: excluded } } : null;
   }
-  const included = grouped.filter((row) => countMatches(row.count, operator, target)).map((row) => row._id);
-  return { _id: { $in: included } };
+  return { _id: { $in: idsFor((count) => countMatches(count, operator, target)) } };
 }
 
 async function clauseForFilter(filter: EncodedMemberFilter): Promise<Record<string, unknown> | null> {
@@ -533,8 +634,12 @@ async function clauseForFilter(filter: EncodedMemberFilter): Promise<Record<stri
   if (TEXT_FIELDS.has(field)) return resolvedTextClause(TEXT_PATHS[field] || [field], operator, value);
   if (ENUM_FIELDS.has(field)) return enumClause(field, operator, value);
   if (BOOL_FIELDS[field]) {
-    const truthy = boolTrueClause(field);
-    if (!truthy) return null;
+    const flag = boolTrueClause(field);
+    if (!flag) return null;
+    const truthy =
+      field === "legacyProfile.deliveryHistory"
+        ? { $or: [flag, { "legacyProfile.deliveryHistoryRows.0": { $exists: true } }] }
+        : flag;
     if (operator === "is_true") return truthy;
     if (operator === "is_false") return { $nor: [truthy] };
     return null;

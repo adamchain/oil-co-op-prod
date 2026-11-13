@@ -10,6 +10,7 @@ import {
   decodeFilters,
   encodeFilters,
   evaluateFilter,
+  isBlankContactEmail,
   serverHandlesFilter,
   type MemberFilter,
 } from "../components/MemberFilterWidget";
@@ -70,6 +71,8 @@ type Member = {
   lifetimeAnnualFeeWaived?: boolean;
   legacyProfile?: Record<string, unknown>;
   referralCount?: number;
+  /** Set by the slim member list: at least one delivery-history row is stored. */
+  deliveryHistoryHasRows?: boolean;
   authnetCardLast4?: string;
   authnetPaymentProfileId?: string;
   authnetCardExpiry?: string;
@@ -208,6 +211,14 @@ type BackupHistoryEntry = {
   location: string;
   sizeBytes: number;
 };
+
+/** Oil status Active (blank shows as Active) or propane status Active. */
+function isActiveOilMember(m: { legacyProfile?: Record<string, unknown> | null }): boolean {
+  const lp = (m.legacyProfile || {}) as Record<string, unknown>;
+  const oil = String(lp.oilWorkbenchStatus ?? "").trim();
+  const propane = String(lp.propaneStatus ?? "").trim();
+  return oil === "" || oil.toUpperCase() === "ACTIVE" || propane.toUpperCase() === "ACTIVE";
+}
 
 function defaultWorkbenchMemberStatus(m: Member): string {
   const lp = (m.legacyProfile || {}) as Record<string, unknown>;
@@ -412,7 +423,7 @@ const WORKSHEET_COLUMNS: WorksheetColumn[] = [
   { key: "phone", label: "Phone 1", group: "Contact", get: (m) => m.phone || "" },
   { key: "phone2", label: "Phone 2", group: "Contact", get: (m) => lpStr(m, "phone2") },
   { key: "phone3", label: "Phone 3", group: "Contact", get: (m) => lpStr(m, "phone3") },
-  { key: "email", label: "Email", group: "Contact", get: (m) => m.email || "" },
+  { key: "email", label: "Email", group: "Contact", get: (m) => (isBlankContactEmail(m.email) ? "" : m.email || "") },
   { key: "email2", label: "Email 2", group: "Contact", get: (m) => lpStr(m, "email2") },
   { key: "emailOptOut", label: "Opted Out", group: "Contact", get: (m) => lpStr(m, "emailOptOut") },
 
@@ -872,7 +883,7 @@ export default function AdminWorkbenchPage() {
     setListError(null);
     try {
       const q = quickSearch.trim();
-      const params = new URLSearchParams({ slim: "1" });
+      const params = new URLSearchParams({ slim: "1", activeOnly: "1" });
       if (q) params.set("q", q);
       // Every structured filter is applied in Mongo so the result is the full
       // match set, not the 200 most recently loaded records.
@@ -1162,6 +1173,7 @@ export default function AdminWorkbenchPage() {
   const filteredMembers = useMemo(() => {
     const q = quickSearch.trim().toLowerCase();
     return members.filter((m) => {
+      if ((q || filters.length > 0) && !isActiveOilMember(m)) return false;
       if (filters.length > 0) {
         const allFiltersMatch = filters.every((f) => {
           const def = filterFields.find((x) => x.key === f.field);
@@ -1191,6 +1203,8 @@ export default function AdminWorkbenchPage() {
       // Wait until the filtered list has actually loaded. Clearing now would
       // cancel that request and leave the previous 200-record page in place.
       if (loading) return;
+      const opened = members.find((m) => m._id === memberParam);
+      if (opened && !isActiveOilMember(opened) && (quickSearch.trim() || filters.length > 0)) return;
       // The record exists but is filtered out — clear filters to reveal it, and
       // suppress the index-reset that the filter change triggers so reconciliation
       // (which re-runs and lands on this member) isn't clobbered back to 0.
@@ -1267,12 +1281,16 @@ export default function AdminWorkbenchPage() {
     if (typeof lp.workbenchMemberStatus !== "string" || !lp.workbenchMemberStatus) {
       lp.workbenchMemberStatus = defaultWorkbenchMemberStatus({ ...current, legacyProfile: lp });
     }
+    const storedDeliveryHistory = lp.deliveryHistory === true;
+    const storedDeliveryRows = Array.isArray(lp.deliveryHistoryRows) ? lp.deliveryHistoryRows.length : 0;
+    const hasDeliveryRows = Boolean(current.deliveryHistoryHasRows) || storedDeliveryRows >= 1;
+    if (hasDeliveryRows) lp.deliveryHistory = true;
     if (typeof lp.phone2 === "string" && lp.phone2) lp.phone2 = formatPhoneValue(lp.phone2);
     if (typeof lp.phone3 === "string" && lp.phone3) lp.phone3 = formatPhoneValue(lp.phone3);
     const nextForm: WorkbenchFormState = {
       firstName: current.firstName || "",
       lastName: current.lastName || "",
-      email: current.email || "",
+      email: isBlankContactEmail(current.email) ? "" : current.email || "",
       phone: formatPhoneValue(current.phone || ""),
       addressLine1: current.addressLine1 || "",
       addressLine2: current.addressLine2 || "",
@@ -1288,6 +1306,27 @@ export default function AdminWorkbenchPage() {
     formRef.current = nextForm;
     setForm(nextForm);
     setSaveTick((t) => t + 1);
+    if (hasDeliveryRows && !storedDeliveryHistory) {
+      const memberId = current._id;
+      setMembers((prev) =>
+        prev.map((m) =>
+          m._id === memberId
+            ? {
+                ...m,
+                deliveryHistoryHasRows: true,
+                legacyProfile: { ...(m.legacyProfile || {}), deliveryHistory: true },
+              }
+            : m
+        )
+      );
+      void api(`/api/admin/members/${memberId}`, {
+        method: "PATCH",
+        token,
+        body: JSON.stringify({ legacyProfile: { deliveryHistory: true } }),
+      }).catch(() => {
+        /* The box stays checked for this visit even if the save does not land. */
+      });
+    }
     if (pendingAddressFocusRef.current) {
       pendingAddressFocusRef.current = false;
       window.setTimeout(() => address1Ref.current?.focus(), 80);
@@ -1365,7 +1404,7 @@ export default function AdminWorkbenchPage() {
   }, [mailTemplateKey, emailTemplates]);
 
   useEffect(() => {
-    setMailToEmail(current?.email || "");
+    setMailToEmail(isBlankContactEmail(current?.email) ? "" : current?.email || "");
   }, [current?.email]);
 
   useEffect(() => {
@@ -1672,7 +1711,22 @@ export default function AdminWorkbenchPage() {
     setForm((prev) => {
       const lp = { ...(prev.legacyProfile || {}) } as Record<string, unknown>;
       lp.deliveryHistoryRows = rows;
+      if (rows.length >= 1) lp.deliveryHistory = true;
       const next = { ...prev, legacyProfile: lp };
+      const memberId = formAppliesToMemberIdRef.current;
+      if (rows.length >= 1 && memberId) {
+        setMembers((list) =>
+          list.map((m) =>
+            m._id === memberId
+              ? {
+                  ...m,
+                  deliveryHistoryHasRows: true,
+                  legacyProfile: { ...(m.legacyProfile || {}), deliveryHistory: true },
+                }
+              : m
+          )
+        );
+      }
       formRef.current = next;
       baselineSerializedRef.current = serializeWorkbenchForm(next);
       return next;
@@ -2378,7 +2432,7 @@ export default function AdminWorkbenchPage() {
   const sendBulkEmail = async () => {
     if (!token) return;
     const recipients = bulkRecipients;
-    const withEmail = recipients.filter((m) => String(m.email || "").trim());
+    const withEmail = recipients.filter((m) => !isBlankContactEmail(m.email));
     if (recipients.length === 0) {
       setActionMessage("No members in the current filter to email.");
       return;

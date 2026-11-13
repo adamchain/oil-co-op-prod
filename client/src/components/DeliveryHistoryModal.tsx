@@ -153,7 +153,9 @@ export default function DeliveryHistoryModal({
       propaneCompanyName: String(lp.propaneCompanyName || ""),
       propaneId: String(lp.propaneId || ""),
       propaneStatus: String(lp.propaneStatus || "UNKNOWN"),
-      deliveryHistory: Boolean(lp.deliveryHistory),
+      deliveryHistory:
+        Boolean(lp.deliveryHistory) ||
+        Boolean((findSelectedMember as { deliveryHistoryHasRows?: boolean }).deliveryHistoryHasRows),
       delinquent: Boolean(lp.delinquent),
       notPaidCurrentYr: Boolean(lp.notPaidCurrentYr),
       nrdOil: Boolean(lp.nrdOil),
@@ -183,7 +185,7 @@ export default function DeliveryHistoryModal({
       ...prev,
       nrdOil: displayedMember.nrdOil,
       nrdProp: displayedMember.nrdProp,
-      deliveryHistory: displayedMember.deliveryHistory,
+      deliveryHistory: Boolean(displayedMember.deliveryHistory) || displayedDeliveries.length > 0,
       delinquent: displayedMember.delinquent,
       notPaidCurrentYr: displayedMember.notPaidCurrentYr,
     }));
@@ -194,6 +196,7 @@ export default function DeliveryHistoryModal({
     displayedMember?.deliveryHistory,
     displayedMember?.delinquent,
     displayedMember?.notPaidCurrentYr,
+    displayedDeliveries.length,
   ]);
 
   // Reset find selection / row override when the modal closes or the underlying member changes.

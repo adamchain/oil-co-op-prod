@@ -50,7 +50,9 @@ function writeRows(member: any, rows: DeliveryRow[]) {
     string,
     unknown
   >;
-  member.legacyProfile = { ...lp, deliveryHistoryRows: sortRowsDesc(rows) };
+  const next: Record<string, unknown> = { ...lp, deliveryHistoryRows: sortRowsDesc(rows) };
+  if (rows.length >= 1) next.deliveryHistory = true;
+  member.legacyProfile = next;
   member.markModified("legacyProfile");
 }
 

@@ -319,6 +319,13 @@ function isEmptyValue(v: unknown): boolean {
   return false;
 }
 
+/** Same rule as the member-list query: blank, whitespace, or an import placeholder. */
+export function isBlankContactEmail(value: unknown): boolean {
+  if (isEmptyValue(value)) return true;
+  const text = String(value).trim().toLowerCase();
+  return text.includes("@import.") || text.endsWith(".local");
+}
+
 function asTimestamp(v: unknown): number | null {
   if (v === null || v === undefined || v === "") return null;
   if (typeof v === "number") return v;
@@ -357,6 +364,12 @@ export function evaluateFilter(
   if (filter.field === "legacyProfile.oilWorkbenchStatus" && isEmptyValue(raw)) {
     raw = getValueAtPath(member, "legacyProfile.workbenchMemberStatus");
   }
+  if (filter.field === "legacyProfile.deliveryHistory") {
+    const rows = getValueAtPath(member, "legacyProfile.deliveryHistoryRows");
+    if (member.deliveryHistoryHasRows === true || (Array.isArray(rows) && rows.length > 0)) {
+      raw = true;
+    }
+  }
   if (filter.field === "oilCompanyId._id") {
     const { id, names, codes } = oilCompanyIdentity(member);
     raw = id || names[0] || codes[0] || "";
@@ -369,7 +382,7 @@ export function evaluateFilter(
     const target = (filter.value || "").toLowerCase().trim();
     return cities.some((v) => matchesText(v, filter.operator, target));
   }
-  const empty = isEmptyValue(raw);
+  const empty = filter.field === "email" ? isBlankContactEmail(raw) : isEmptyValue(raw);
 
   if (filter.operator === "is_empty") return empty;
   if (filter.operator === "is_not_empty") return !empty;
