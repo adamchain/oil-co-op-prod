@@ -12,17 +12,21 @@ type DeliveryHistoryRow = {
   fuelType: "OIL" | "PROPANE";
   gallons: number;
   source?: "manual" | "import" | "legacy";
+  oilCompany?: string;
+  propaneCompany?: string;
 };
 
 export type DeliveryRowDraft = {
   dateDelivered: string;
   fuelType: "OIL" | "PROPANE";
   gallons: number;
+  oilCompany?: string;
+  propaneCompany?: string;
 };
 
 type DeliveryMemberSnapshot = {
   memberNumber?: string;
-  createdAt?: string;
+  newMemberDt?: string;
   firstName?: string;
   lastName?: string;
   oilCoCode?: string;
@@ -40,7 +44,7 @@ type DeliveryMemberSnapshot = {
   nrdProp?: boolean;
 };
 
-export type DeliveryMemberPatch = Partial<Omit<DeliveryMemberSnapshot, "memberNumber" | "createdAt">>;
+export type DeliveryMemberPatch = Partial<Omit<DeliveryMemberSnapshot, "memberNumber" | "newMemberDt">>;
 
 export type DeliveryHistoryModalProps = {
   open: boolean;
@@ -125,7 +129,18 @@ export default function DeliveryHistoryModal({
         const gallons = Number(rec.gallons);
         if (!dateDelivered || !Number.isFinite(deliveryYear) || !Number.isFinite(gallons)) return null;
         if (fuelType !== "OIL" && fuelType !== "PROPANE") return null;
-        return { dateDelivered, deliveryYear, fuelType, gallons };
+        const oilCompany = String(rec.oilCompany || "").trim();
+        const propaneCompany = String(rec.propaneCompany || "").trim();
+        const id = typeof rec._id === "string" ? rec._id : undefined;
+        return {
+          ...(id ? { _id: id } : {}),
+          dateDelivered,
+          deliveryYear,
+          fuelType: fuelType as "OIL" | "PROPANE",
+          gallons,
+          ...(oilCompany ? { oilCompany } : {}),
+          ...(propaneCompany ? { propaneCompany } : {}),
+        };
       })
       .filter((v): v is DeliveryHistoryRow => Boolean(v));
   };
@@ -142,7 +157,7 @@ export default function DeliveryHistoryModal({
     const lp = (findSelectedMember.legacyProfile || {}) as Record<string, unknown>;
     return {
       memberNumber: findSelectedMember.memberNumber || "",
-      createdAt: undefined,
+      newMemberDt: String(lp.newMemberDt || ""),
       firstName: findSelectedMember.firstName || "",
       lastName: findSelectedMember.lastName || "",
       oilCoCode: String(lp.oilCoCode || ""),
@@ -169,6 +184,27 @@ export default function DeliveryHistoryModal({
     }
     return rowsOverride ?? deliveries;
   }, [findSelectedMember, deliveries, rowsOverride]);
+
+  const firstDeliveryDate = useMemo(() => {
+    let first = "";
+    for (const row of displayedDeliveries) {
+      const day = row.dateDelivered.slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) continue;
+      if (!first || day < first) first = day;
+    }
+    return first;
+  }, [displayedDeliveries]);
+
+  const formatMonthDayYear = (raw: string) => {
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(raw.trim());
+    if (!match) return raw;
+    return `${Number(match[2])}/${Number(match[3])}/${match[1]}`;
+  };
+
+  const companyOnRow = (row: DeliveryHistoryRow) => ({
+    oil: row.oilCompany || (row.fuelType === "OIL" ? displayedMember?.oilCompanyName || "" : ""),
+    propane: row.propaneCompany || (row.fuelType === "PROPANE" ? displayedMember?.propaneCompanyName || "" : ""),
+  });
 
   // Editing only flows through to the workbench when we're viewing the original member.
   const editable = Boolean(onMemberPatch) && !isViewingFind;
@@ -290,10 +326,14 @@ export default function DeliveryHistoryModal({
       setRowError("Gallons must be a non-negative number");
       return null;
     }
+    const oilCompany = rowDraft.fuelType === "OIL" ? (displayedMember?.oilCompanyName || "").trim() : "";
+    const propaneCompany = rowDraft.fuelType === "PROPANE" ? (displayedMember?.propaneCompanyName || "").trim() : "";
     return {
       dateDelivered: `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`,
       fuelType: rowDraft.fuelType,
       gallons: g,
+      ...(oilCompany ? { oilCompany } : {}),
+      ...(propaneCompany ? { propaneCompany } : {}),
     };
   };
 
@@ -420,7 +460,7 @@ export default function DeliveryHistoryModal({
                 <input
                   className="admin-input"
                   readOnly
-                  value={draft.createdAt ? new Date(draft.createdAt).toLocaleDateString() : ""}
+                  value={formatMonthDayYear(firstDeliveryDate || draft.newMemberDt || "")}
                   placeholder="MM/DD/YYYY"
                 />
               </div>
@@ -612,6 +652,8 @@ export default function DeliveryHistoryModal({
                     <th>Year</th>
                     <th>Type</th>
                     <th>Gallons</th>
+                    <th>Oil company</th>
+                    <th>Propane company</th>
                     {rowsEditable && <th aria-label="Actions" style={{ width: "1%", whiteSpace: "nowrap" }} />}
                   </tr>
                 </thead>
@@ -621,6 +663,8 @@ export default function DeliveryHistoryModal({
                       draft={rowDraft}
                       setDraft={setRowDraft}
                       monthNames={monthNames}
+                      oilCompany={displayedMember?.oilCompanyName || ""}
+                      propaneCompany={displayedMember?.propaneCompanyName || ""}
                       onSave={handleSaveRow}
                       onCancel={cancelRowEdit}
                       busy={rowBusy}
@@ -628,7 +672,7 @@ export default function DeliveryHistoryModal({
                   )}
                   {displayedDeliveries.length === 0 && !adding ? (
                     <tr>
-                      <td colSpan={rowsEditable ? 5 : 4} className="admin-modal-table-empty">
+                      <td colSpan={rowsEditable ? 7 : 6} className="admin-modal-table-empty">
                         No deliveries loaded yet.
                       </td>
                     </tr>
@@ -642,6 +686,8 @@ export default function DeliveryHistoryModal({
                             draft={rowDraft}
                             setDraft={setRowDraft}
                             monthNames={monthNames}
+                            oilCompany={displayedMember?.oilCompanyName || ""}
+                            propaneCompany={displayedMember?.propaneCompanyName || ""}
                             onSave={handleSaveRow}
                             onCancel={cancelRowEdit}
                             busy={rowBusy}
@@ -651,12 +697,15 @@ export default function DeliveryHistoryModal({
                       const monthIdx = Number(row.dateDelivered.slice(5, 7)) - 1;
                       const monthLabel = monthIdx >= 0 && monthIdx < 12 ? monthNames[monthIdx] : formatDeliveryDate(row.dateDelivered);
                       const year = row.dateDelivered.slice(0, 4);
+                      const companies = companyOnRow(row);
                       return (
                         <tr key={row._id || `${row.dateDelivered}-${row.deliveryYear}-${idx}`}>
                           <td>{monthLabel}</td>
                           <td>{year}</td>
                           <td>{row.fuelType}</td>
                           <td>{row.gallons.toFixed(1)}</td>
+                          <td>{companies.oil}</td>
+                          <td>{companies.propane}</td>
                           {rowsEditable && (
                             <td>
                               <div className="admin-modal-row-actions">
@@ -725,12 +774,14 @@ type DeliveryEditorRowProps = {
   draft: { year: string; month: string; day: string; fuelType: "OIL" | "PROPANE"; gallons: string };
   setDraft: (next: DeliveryEditorRowProps["draft"]) => void;
   monthNames: string[];
+  oilCompany: string;
+  propaneCompany: string;
   onSave: () => void;
   onCancel: () => void;
   busy: boolean;
 };
 
-function DeliveryEditorRow({ draft, setDraft, monthNames, onSave, onCancel, busy }: DeliveryEditorRowProps) {
+function DeliveryEditorRow({ draft, setDraft, monthNames, oilCompany, propaneCompany, onSave, onCancel, busy }: DeliveryEditorRowProps) {
   const update = (next: Partial<DeliveryEditorRowProps["draft"]>) => setDraft({ ...draft, ...next });
   return (
     <tr className="admin-modal-row-editing">
@@ -779,6 +830,8 @@ function DeliveryEditorRow({ draft, setDraft, monthNames, onSave, onCancel, busy
           disabled={busy}
         />
       </td>
+      <td>{draft.fuelType === "OIL" ? oilCompany : ""}</td>
+      <td>{draft.fuelType === "PROPANE" ? propaneCompany : ""}</td>
       <td>
         <div className="admin-modal-row-actions">
           <button

@@ -559,7 +559,18 @@ function dateClause(field: string, operator: string, value: string): Record<stri
   if (!op) return null;
   const key = resolvedDateKey(paths);
   if (!key) return null;
-  return { $expr: { [op]: [key, target] } };
+  // A missing or unparseable date is null, and MongoDB treats null as less than
+  // every number. Without this guard, "before" matches every blank date.
+  return {
+    $expr: {
+      $let: {
+        vars: { day: key },
+        in: {
+          $and: [{ $ne: ["$$day", null] }, { [op]: ["$$day", target] }],
+        },
+      },
+    },
+  };
 }
 
 function countMatches(count: number, operator: string, target: number): boolean {

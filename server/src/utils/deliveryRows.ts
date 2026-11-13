@@ -25,6 +25,8 @@ export const deliveryRowInputSchema = z.object({
   gallons: z.number().finite().nonnegative(),
   source: z.enum(["manual", "import", "legacy"]).optional(),
   importBatchId: z.string().trim().optional(),
+  oilCompany: z.string().trim().optional(),
+  propaneCompany: z.string().trim().optional(),
 });
 
 export type DeliveryRowInput = z.infer<typeof deliveryRowInputSchema>;
@@ -37,6 +39,8 @@ export type DeliveryRow = {
   gallons: number;
   source: "manual" | "import" | "legacy";
   importBatchId?: string;
+  oilCompany?: string;
+  propaneCompany?: string;
 };
 
 /**
@@ -68,6 +72,8 @@ export function normalizeRows(raw: unknown): DeliveryRow[] {
     const idRaw = typeof r._id === "string" && r._id.trim() ? r._id.trim() : crypto.randomUUID();
     const importBatchIdRaw =
       typeof r.importBatchId === "string" && r.importBatchId.trim() ? r.importBatchId.trim() : undefined;
+    const oilCompany = typeof r.oilCompany === "string" ? r.oilCompany.trim() : "";
+    const propaneCompany = typeof r.propaneCompany === "string" ? r.propaneCompany.trim() : "";
     out.push({
       _id: idRaw,
       dateDelivered,
@@ -76,6 +82,8 @@ export function normalizeRows(raw: unknown): DeliveryRow[] {
       gallons,
       source,
       ...(importBatchIdRaw ? { importBatchId: importBatchIdRaw } : {}),
+      ...(oilCompany ? { oilCompany } : {}),
+      ...(propaneCompany ? { propaneCompany } : {}),
     });
   }
   return out;
@@ -120,6 +128,8 @@ export function buildRow(input: DeliveryRowInput, defaults?: { source?: Delivery
   const yearFromDate = Number(input.dateDelivered.slice(0, 4));
   const id = input._id?.trim() || crypto.randomUUID();
   const source = input.source ?? defaults?.source ?? "manual";
+  const oilCompany = input.oilCompany?.trim() || "";
+  const propaneCompany = input.propaneCompany?.trim() || "";
   return {
     _id: id,
     dateDelivered: input.dateDelivered,
@@ -128,6 +138,8 @@ export function buildRow(input: DeliveryRowInput, defaults?: { source?: Delivery
     gallons: input.gallons,
     source,
     ...(input.importBatchId ? { importBatchId: input.importBatchId } : {}),
+    ...(oilCompany ? { oilCompany } : {}),
+    ...(propaneCompany ? { propaneCompany } : {}),
   };
 }
 

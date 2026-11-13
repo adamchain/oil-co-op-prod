@@ -202,7 +202,19 @@ type DeliveryHistoryRow = {
   fuelType: "OIL" | "PROPANE";
   gallons: number;
   source?: "manual" | "import" | "legacy";
+  oilCompany?: string;
+  propaneCompany?: string;
 };
+
+function earliestDeliveryDay(rows: { dateDelivered: string }[]): string {
+  let first = "";
+  for (const row of rows) {
+    const day = String(row.dateDelivered || "").slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) continue;
+    if (!first || day < first) first = day;
+  }
+  return first;
+}
 
 type BackupHistoryEntry = {
   id: string;
@@ -1520,7 +1532,7 @@ export default function AdminWorkbenchPage() {
   const deliveryModalMember = useMemo(
     () => ({
       memberNumber: current?.memberNumber || String(form.legacyProfile.legacyId || ""),
-      createdAt: current?.createdAt,
+      newMemberDt: String(form.legacyProfile.newMemberDt || ""),
       firstName: form.firstName,
       lastName: form.lastName,
       oilCoCode: oilCoCode(selectedOilCompanyRecord?.notes),
@@ -1537,7 +1549,7 @@ export default function AdminWorkbenchPage() {
       nrdOil: Boolean(form.legacyProfile.nrdOil),
       nrdProp: Boolean(form.legacyProfile.nrdProp),
     }),
-    [current?.memberNumber, current?.createdAt, form, selectedOilCompanyRecord?.notes, selectedOilCompanyName]
+    [current?.memberNumber, form, selectedOilCompanyRecord?.notes, selectedOilCompanyName]
   );
 
   const formIsDirty = useMemo(
@@ -1772,6 +1784,18 @@ export default function AdminWorkbenchPage() {
       }
       return { ...f, legacyProfile: nextLegacy };
     });
+
+  // New Member Date follows the earliest delivery. Opening the history, or
+  // adding and removing a row, writes that day back onto the member.
+  useEffect(() => {
+    if (!deliveryHistoryOpen || !current || !lazyDeliveryRows?.length) return;
+    if (formAppliesToMemberIdRef.current !== current._id) return;
+    const first = earliestDeliveryDay(lazyDeliveryRows);
+    if (!first) return;
+    const stored = String(formRef.current.legacyProfile.newMemberDt || "").slice(0, 10);
+    if (stored === first) return;
+    setLegacy("newMemberDt", first);
+  }, [deliveryHistoryOpen, lazyDeliveryRows, current?._id]);
 
   // Toggling Call Back persists immediately rather than waiting for the
   // debounced autosave — otherwise navigating to the Callbacks page or

@@ -326,19 +326,31 @@ export function isBlankContactEmail(value: unknown): boolean {
   return text.includes("@import.") || text.endsWith(".local");
 }
 
-function asTimestamp(v: unknown): number | null {
-  if (v === null || v === undefined || v === "") return null;
-  if (typeof v === "number") return v;
-  if (v instanceof Date) return v.getTime();
-  const s = String(v);
-  const ts = Date.parse(s);
-  return Number.isNaN(ts) ? null : ts;
-}
-
-function startOfLocalDay(ts: number): number {
-  const d = new Date(ts);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
+/** Calendar day as YYYY-MM-DD. Date-only strings stay on that day in every timezone. */
+function calendarDay(v: unknown): string {
+  if (v == null || v === "") return "";
+  if (v instanceof Date && !Number.isNaN(v.getTime())) {
+    const y = v.getFullYear();
+    const m = String(v.getMonth() + 1).padStart(2, "0");
+    const d = String(v.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+  const s = String(v).trim();
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  const slash = s.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})$/);
+  if (slash) {
+    const month = Number(slash[1]);
+    const day = Number(slash[2]);
+    let year = Number(slash[3]);
+    if (year < 100) year += year >= 50 ? 1900 : 2000;
+    if (month < 1 || month > 12 || day < 1 || day > 31 || year < 1900 || year > 2200) return "";
+    return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  }
+  const parsed = new Date(s);
+  if (Number.isNaN(parsed.getTime())) return "";
+  const y = parsed.getFullYear();
+  if (y < 1900 || y > 2200) return "";
+  return `${String(y).padStart(4, "0")}-${String(parsed.getMonth() + 1).padStart(2, "0")}-${String(parsed.getDate()).padStart(2, "0")}`;
 }
 
 function asFilterBool(raw: unknown): boolean {
@@ -470,16 +482,13 @@ export function evaluateFilter(
       return false;
     }
     case "date": {
-      const target = filter.value;
+      const target = calendarDay(filter.value);
       if (!target) return true;
-      const valueTs = asTimestamp(raw);
-      const targetTs = asTimestamp(target);
-      if (valueTs === null || targetTs === null) return false;
-      const valueDay = startOfLocalDay(valueTs);
-      const targetDay = startOfLocalDay(targetTs);
-      if (filter.operator === "on") return valueDay === targetDay;
-      if (filter.operator === "before") return valueDay < targetDay;
-      if (filter.operator === "after") return valueDay > targetDay;
+      const value = calendarDay(raw);
+      if (!value) return false;
+      if (filter.operator === "on") return value === target;
+      if (filter.operator === "before") return value < target;
+      if (filter.operator === "after") return value > target;
       return false;
     }
   }

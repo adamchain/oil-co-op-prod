@@ -2298,9 +2298,10 @@ button.admin-wb-panel-title.admin-wb-panel-toggle:hover {
 /* Dense variant for history modals that need legacy-like compactness. */
 .admin-modal-panel.admin-modal-panel-compact {
   padding: 0.7rem 0.8rem;
-  max-width: min(1120px, 100%);
-  height: min(90vh, 720px);
-  max-height: min(90vh, 720px);
+  width: calc(100vw - 1.5rem);
+  max-width: calc(100vw - 1.5rem);
+  height: calc(100vh - 1.5rem);
+  max-height: calc(100vh - 1.5rem);
   border-radius: 10px;
   display: flex;
   flex-direction: column;

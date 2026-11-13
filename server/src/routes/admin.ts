@@ -539,13 +539,14 @@ router.get("/members", async (req, res) => {
   // time out and the UI would keep showing the unfiltered 200.
   let members: any[];
   if (slim) {
-    // Drop the heavy arrays before sorting. The match set for a status filter
-    // is thousands of full member documents, and this cluster aborts a sort
-    // that exceeds 32MB — which left the browser pending forever.
-    members = await Member.aggregate([
+    // Sort only the id and the delivery flag. Sorting full member documents,
+    // delivery history included, exceeds this cluster's 32MB sort limit and
+    // the filter request fails, so the workbench keeps the previous list.
+    const ranked = await Member.aggregate<{ _id: mongoose.Types.ObjectId; deliveryHistoryHasRows?: boolean }>([
       { $match: filter },
       {
-        $set: {
+        $project: {
+          createdAt: 1,
           deliveryHistoryHasRows: {
             $eq: [
               {
@@ -558,35 +559,48 @@ router.get("/members", async (req, res) => {
           },
         },
       },
-      {
-        $unset: [
-          "passwordHash",
-          "notesHistory",
-          "legacyProfile.deliveryHistoryRows",
-          "legacyProfile.paymentsHistory",
-          "legacyProfile.programHistory",
-        ],
-      },
       { $sort: { createdAt: -1 } },
       { $limit: listLimit },
-      {
-        $lookup: {
-          from: OilCompany.collection.collectionName,
-          localField: "oilCompanyId",
-          foreignField: "_id",
-          pipeline: [{ $project: { name: 1 } }],
-          as: "_oilCo",
+    ]).allowDiskUse(true);
+    const ids = ranked.map((row) => row._id);
+    if (!ids.length) {
+      members = [];
+    } else {
+      const hasRows = new Map(ranked.map((row) => [String(row._id), row.deliveryHistoryHasRows === true]));
+      const docs = await Member.aggregate([
+        { $match: { _id: { $in: ids } } },
+        {
+          $unset: [
+            "passwordHash",
+            "notesHistory",
+            "legacyProfile.deliveryHistoryRows",
+            "legacyProfile.paymentsHistory",
+            "legacyProfile.programHistory",
+          ],
         },
-      },
-      {
-        $set: {
-          oilCompanyId: {
-            $ifNull: [{ $arrayElemAt: ["$_oilCo", 0] }, "$oilCompanyId"],
+        {
+          $lookup: {
+            from: OilCompany.collection.collectionName,
+            localField: "oilCompanyId",
+            foreignField: "_id",
+            pipeline: [{ $project: { name: 1 } }],
+            as: "_oilCo",
           },
         },
-      },
-      { $unset: "_oilCo" },
-    ]).allowDiskUse(true);
+        {
+          $set: {
+            oilCompanyId: {
+              $ifNull: [{ $arrayElemAt: ["$_oilCo", 0] }, "$oilCompanyId"],
+            },
+          },
+        },
+        { $unset: "_oilCo" },
+      ]);
+      const order = new Map(ids.map((id, index) => [String(id), index]));
+      members = docs
+        .map((doc) => ({ ...doc, deliveryHistoryHasRows: hasRows.get(String(doc._id)) === true }))
+        .sort((a, b) => (order.get(String(a._id)) ?? 0) - (order.get(String(b._id)) ?? 0));
+    }
   } else {
     members = await Member.find(filter)
       .sort({ createdAt: -1 })
