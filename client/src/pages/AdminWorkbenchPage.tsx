@@ -1542,8 +1542,10 @@ export default function AdminWorkbenchPage() {
         oilCompanyNameForCode(String(form.legacyProfile.oilCompanyName || form.legacyProfile.oilCoRaw || "")),
       oilId: String(form.legacyProfile.oilId || ""),
       oilStatus: String(form.legacyProfile.oilWorkbenchStatus || form.legacyProfile.workbenchMemberStatus || "UNKNOWN"),
-      propCoCode: String(form.legacyProfile.propCoCode || ""),
-      propaneCompanyName: String(form.legacyProfile.propaneCompanyName || ""),
+      propCoCode: String(form.legacyProfile.propCoCode || form.legacyProfile.propaneCoRaw || ""),
+      propaneCompanyName: oilCompanyNameForCode(
+        String(form.legacyProfile.propaneCompanyName || form.legacyProfile.propaneCoRaw || form.legacyProfile.propCoCode || "")
+      ),
       propaneId: String(form.legacyProfile.propaneId || ""),
       propaneStatus: String(form.legacyProfile.propaneStatus || "UNKNOWN"),
       deliveryHistory: Boolean(form.legacyProfile.deliveryHistory),

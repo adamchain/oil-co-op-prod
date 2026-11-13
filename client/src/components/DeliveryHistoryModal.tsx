@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import DeliveryFindModal, { type DeliveryFindMember } from "./DeliveryFindModal";
+import { oilCompanyNameForCode } from "../utils/oilCompanyCodes";
 
 const OIL_STATUS = ["ACTIVE", "PROSPECTIVE", "NO OIL", "INACTIVE", "RESIDENT", "UNKNOWN"] as const;
 const PROP_STATUS = ["ACTIVE", "NO PROPANE", "RESIDENT", "INACTIVE", "PROSPECTIVE", "UNKNOWN"] as const;
@@ -160,12 +161,12 @@ export default function DeliveryHistoryModal({
       newMemberDt: String(lp.newMemberDt || ""),
       firstName: findSelectedMember.firstName || "",
       lastName: findSelectedMember.lastName || "",
-      oilCoCode: String(lp.oilCoCode || ""),
-      oilCompanyName: String(lp.oilCompanyName || ""),
+      oilCoCode: String(lp.oilCoCode || lp.oilCoRaw || ""),
+      oilCompanyName: oilCompanyNameForCode(String(lp.oilCompanyName || lp.oilCoRaw || "")),
       oilId: String(lp.oilId || ""),
       oilStatus: String(lp.oilWorkbenchStatus || lp.workbenchMemberStatus || "UNKNOWN"),
-      propCoCode: String(lp.propCoCode || ""),
-      propaneCompanyName: String(lp.propaneCompanyName || ""),
+      propCoCode: String(lp.propCoCode || lp.propaneCoRaw || ""),
+      propaneCompanyName: oilCompanyNameForCode(String(lp.propaneCompanyName || lp.propaneCoRaw || lp.propCoCode || "")),
       propaneId: String(lp.propaneId || ""),
       propaneStatus: String(lp.propaneStatus || "UNKNOWN"),
       deliveryHistory:
@@ -203,7 +204,7 @@ export default function DeliveryHistoryModal({
 
   const companyOnRow = (row: DeliveryHistoryRow) => ({
     oil: row.oilCompany || (row.fuelType === "OIL" ? displayedMember?.oilCompanyName || "" : ""),
-    propane: row.propaneCompany || (row.fuelType === "PROPANE" ? displayedMember?.propaneCompanyName || "" : ""),
+    propane: row.propaneCompany || displayedMember?.propaneCompanyName || "",
   });
 
   // Editing only flows through to the workbench when we're viewing the original member.
@@ -831,7 +832,7 @@ function DeliveryEditorRow({ draft, setDraft, monthNames, oilCompany, propaneCom
         />
       </td>
       <td>{draft.fuelType === "OIL" ? oilCompany : ""}</td>
-      <td>{draft.fuelType === "PROPANE" ? propaneCompany : ""}</td>
+      <td>{propaneCompany}</td>
       <td>
         <div className="admin-modal-row-actions">
           <button
