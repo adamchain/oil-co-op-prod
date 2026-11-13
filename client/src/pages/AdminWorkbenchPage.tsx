@@ -17,6 +17,7 @@ import {
 import { memberRecordMatchesQuery } from "../utils/memberSearch";
 import { formatPhoneValue } from "../utils/phone";
 import { hydrateLegacyProfile } from "../utils/legacyProfile";
+import { oilCompanyNameForCode } from "../utils/oilCompanyCodes";
 import { MEMBERSHIP_PLAN_META, formatUsdFromCents, resolveMembershipPlan } from "../utils/membershipFees";
 import PaymentFindModal from "../components/PaymentFindModal";
 import { type InvoiceMember } from "../utils/invoice";
@@ -1535,8 +1536,10 @@ export default function AdminWorkbenchPage() {
       newMemberDt: String(form.legacyProfile.newMemberDt || ""),
       firstName: form.firstName,
       lastName: form.lastName,
-      oilCoCode: oilCoCode(selectedOilCompanyRecord?.notes),
-      oilCompanyName: selectedOilCompanyName,
+      oilCoCode: oilCoCode(selectedOilCompanyRecord?.notes) || String(form.legacyProfile.oilCoCode || form.legacyProfile.oilCoRaw || ""),
+      oilCompanyName:
+        selectedOilCompanyName ||
+        oilCompanyNameForCode(String(form.legacyProfile.oilCompanyName || form.legacyProfile.oilCoRaw || "")),
       oilId: String(form.legacyProfile.oilId || ""),
       oilStatus: String(form.legacyProfile.oilWorkbenchStatus || form.legacyProfile.workbenchMemberStatus || "UNKNOWN"),
       propCoCode: String(form.legacyProfile.propCoCode || ""),

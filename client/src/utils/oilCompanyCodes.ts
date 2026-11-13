@@ -38,6 +38,14 @@ export function namesLooselyMatch(a: string, b: string): boolean {
   return left.includes(right) || right.includes(left);
 }
 
+/** Approach stored a short code such as "Ives" or "IVES" where the workbench shows the company name. */
+export function oilCompanyNameForCode(codeOrName: string): string {
+  const raw = codeOrName.trim();
+  if (!raw) return "";
+  const hit = OIL_COMPANY_CODE_NAMES.find((row) => row.code.toLowerCase() === raw.toLowerCase());
+  return hit?.name || raw;
+}
+
 export function oilCompanyCodeFromNotes(notes?: string): string {
   return String(notes || "").match(/\bCode:\s*([A-Za-z0-9]+)/i)?.[1]?.trim() || "";
 }

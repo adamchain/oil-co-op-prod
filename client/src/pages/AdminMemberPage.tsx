@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
 import DeliveryHistoryModal from "../components/DeliveryHistoryModal";
+import { oilCompanyNameForCode } from "../utils/oilCompanyCodes";
 import { useAuth } from "../authContext";
 
 type OilCo = { _id: string; name: string };
@@ -380,11 +381,13 @@ export default function AdminMemberPage() {
         onClose={() => setDeliveryHistoryOpen(false)}
         member={{
           memberNumber: m.memberNumber,
-          createdAt: undefined,
+          newMemberDt: String(lp.newMemberDt || ""),
           firstName: m.firstName,
           lastName: m.lastName,
-          oilCoCode: String(lp.oilCoCode || ""),
-          oilCompanyName: typeof m.oilCompanyId === "object" && m.oilCompanyId ? m.oilCompanyId.name : selectedOilCo?.name || "",
+          oilCoCode: String(lp.oilCoCode || lp.oilCoRaw || ""),
+          oilCompanyName:
+            (typeof m.oilCompanyId === "object" && m.oilCompanyId ? m.oilCompanyId.name : selectedOilCo?.name || "") ||
+            oilCompanyNameForCode(String(lp.oilCompanyName || lp.oilCoRaw || "")),
           oilId: String(lp.oilId || ""),
           oilStatus: String(lp.oilWorkbenchStatus || lp.workbenchMemberStatus || "UNKNOWN"),
           propCoCode: String(lp.propCoCode || ""),
