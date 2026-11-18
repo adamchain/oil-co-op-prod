@@ -153,14 +153,16 @@ type ReferralPerson = {
 };
 
 /**
- * Show just the sequential ID number (the Approach ID, e.g. "15857"), stripping any
- * leading company-code prefix like "IVES-15857" → "15857". Members switch companies,
- * so the company code should never be part of the displayed ID. Values without a
- * clean "LETTERS-<digits>" shape (e.g. "OC-3XED-035A" or a bare "15857") pass through.
+ * Show just the Approach ID (e.g. "15857"), stripping a company prefix like
+ * "IVES-15857". OC-###### is this system's own number and is left intact so it
+ * cannot be mistaken for an Approach ID.
  */
 export const displayMemberId = (raw?: string | null): string => {
   const s = (raw || "").trim();
   if (!s) return "—";
+  // OC-###### is assigned by this system. Stripping it made OC-001005 look like
+  // Approach member 1005, who is a different person.
+  if (/^OC-/i.test(s)) return s;
   const m = s.match(/^[A-Za-z]+[-\s_]?(\d+)$/);
   return m ? m[1] : s;
 };
@@ -896,7 +898,9 @@ export default function AdminWorkbenchPage() {
     setListError(null);
     try {
       const q = quickSearch.trim();
-      const params = new URLSearchParams({ slim: "1", activeOnly: "1" });
+      const params = new URLSearchParams({ slim: "1" });
+      // A typed search covers every member. Browsing and structured filters stay on the active set.
+      if (!q) params.set("activeOnly", "1");
       if (q) params.set("q", q);
       // Every structured filter is applied in Mongo so the result is the full
       // match set, not the 200 most recently loaded records.
@@ -1186,7 +1190,7 @@ export default function AdminWorkbenchPage() {
   const filteredMembers = useMemo(() => {
     const q = quickSearch.trim().toLowerCase();
     return members.filter((m) => {
-      if ((q || filters.length > 0) && !isActiveOilMember(m)) return false;
+      if (filters.length > 0 && !q && !isActiveOilMember(m)) return false;
       if (filters.length > 0) {
         const allFiltersMatch = filters.every((f) => {
           const def = filterFields.find((x) => x.key === f.field);
@@ -1217,7 +1221,7 @@ export default function AdminWorkbenchPage() {
       // cancel that request and leave the previous 200-record page in place.
       if (loading) return;
       const opened = members.find((m) => m._id === memberParam);
-      if (opened && !isActiveOilMember(opened) && (quickSearch.trim() || filters.length > 0)) return;
+      if (opened && !isActiveOilMember(opened) && filters.length > 0 && !quickSearch.trim()) return;
       // The record exists but is filtered out — clear filters to reveal it, and
       // suppress the index-reset that the filter change triggers so reconciliation
       // (which re-runs and lands on this member) isn't clobbered back to 0.
