@@ -899,8 +899,7 @@ export default function AdminWorkbenchPage() {
     try {
       const q = quickSearch.trim();
       const params = new URLSearchParams({ slim: "1" });
-      // A typed search covers every member. Browsing and structured filters stay on the active set.
-      if (!q) params.set("activeOnly", "1");
+      // Browse, search, and filters include every member, active or not.
       if (q) params.set("q", q);
       // Every structured filter is applied in Mongo so the result is the full
       // match set, not the 200 most recently loaded records.
@@ -1166,9 +1165,9 @@ export default function AdminWorkbenchPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  // Debounced server-side member fetch. Empty query + no filters → 200 most recent (instant).
+  // Debounced server-side member fetch. Empty query + no filters → 200 most recent of every member.
   // Any structured filter is applied in Mongo so the match set is complete.
-  // Non-empty search uses a 350 ms debounce.
+  // Non-empty search uses a 350 ms debounce and covers active and inactive members.
   useEffect(() => {
     if (!token) return;
     const q = quickSearch.trim();

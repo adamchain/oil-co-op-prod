@@ -323,7 +323,18 @@ function isEmptyValue(v: unknown): boolean {
 export function isBlankContactEmail(value: unknown): boolean {
   if (isEmptyValue(value)) return true;
   const text = String(value).trim().toLowerCase();
-  return text.includes("@import.") || text.endsWith(".local");
+  if (/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i.test(text) && !text.endsWith(".local") && !text.includes("@import.")) {
+    return false;
+  }
+  return text.includes("@import.") || text.endsWith(".local") || !text;
+}
+
+/** Login email is unique, so a shared Approach address may live only on emailRaw or email 2. */
+function memberHasNoContactEmail(member: Record<string, unknown>): boolean {
+  const lp = member.legacyProfile && typeof member.legacyProfile === "object"
+    ? (member.legacyProfile as Record<string, unknown>)
+    : {};
+  return [member.email, lp.email2, lp.emailRaw].every((value) => isBlankContactEmail(value));
 }
 
 /** Calendar day as YYYY-MM-DD. Date-only strings stay on that day in every timezone. */
@@ -394,7 +405,7 @@ export function evaluateFilter(
     const target = (filter.value || "").toLowerCase().trim();
     return cities.some((v) => matchesText(v, filter.operator, target));
   }
-  const empty = filter.field === "email" ? isBlankContactEmail(raw) : isEmptyValue(raw);
+  const empty = filter.field === "email" ? memberHasNoContactEmail(member) : isEmptyValue(raw);
 
   if (filter.operator === "is_empty") return empty;
   if (filter.operator === "is_not_empty") return !empty;

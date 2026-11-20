@@ -269,30 +269,52 @@ export function isBlankContactEmail(value: unknown): boolean {
   return text.includes("@import.") || text.endsWith(".local");
 }
 
-/** Missing, whitespace, and import placeholders. $expr so a sparse unique index cannot hide them. */
-function emailEmptyClause(): Record<string, unknown> {
+/** Blank, whitespace, or an import placeholder. A real address anywhere in the value counts. */
+function contactEmailBlankExpr(path: string): Record<string, unknown> {
   return {
-    $expr: {
-      $let: {
-        vars: {
-          raw: {
-            $toLower: {
-              $trim: {
-                input: {
-                  $convert: { input: "$email", to: "string", onError: "", onNull: "" },
-                },
+    $let: {
+      vars: {
+        raw: {
+          $toLower: {
+            $trim: {
+              input: {
+                $convert: { input: path, to: "string", onError: "", onNull: "" },
               },
             },
           },
         },
+      },
         in: {
           $or: [
             { $eq: ["$$raw", ""] },
-            { $regexMatch: { input: "$$raw", regex: "@import\\." } },
-            { $regexMatch: { input: "$$raw", regex: "\\.local$" } },
+            {
+              $not: {
+                $and: [
+                  { $regexMatch: { input: "$$raw", regex: "[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,}" } },
+                  { $not: { $regexMatch: { input: "$$raw", regex: "@import\\." } } },
+                  { $not: { $regexMatch: { input: "$$raw", regex: "\\.local$" } } },
+                ],
+              },
+            },
           ],
         },
-      },
+    },
+  };
+}
+
+/**
+ * No contact email on the member. The login email is unique, so a shared
+ * Approach address is kept on emailRaw when another record already uses it.
+ * That saved address still means the member has an email.
+ */
+function emailEmptyClause(): Record<string, unknown> {
+  return {
+    $expr: {
+      $and: [
+        contactEmailBlankExpr("$email"),
+        contactEmailBlankExpr("$legacyProfile.email2"),
+        contactEmailBlankExpr("$legacyProfile.emailRaw"),
+      ],
     },
   };
 }
