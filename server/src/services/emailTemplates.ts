@@ -399,7 +399,7 @@ export function paymentSuccessHtml(
   billingYear: number
 ): string {
   return `
-    <p>Thank you! Your annual membership payment has been processed successfully.</p>
+    <p>Thank you for your payment. Your membership payment has been processed successfully.</p>
     <table style="background-color: ${ORG.brandGreenLight}; border-radius: 6px; padding: 16px; margin: 16px 0; width: 100%;">
       <tr><td style="padding: 8px 0;"><strong>Amount:</strong></td><td style="padding: 8px 0;">${escapeHtml(amount)}</td></tr>
       <tr><td style="padding: 8px 0;"><strong>Card:</strong></td><td style="padding: 8px 0;">****${escapeHtml(cardLast4)}</td></tr>
@@ -410,14 +410,12 @@ export function paymentSuccessHtml(
   `.trim();
 }
 
-export function paymentFailedHtml(_firstName: string, amount: string, reason?: string): string {
+export function paymentFailedHtml(firstName: string, amount: string, reason?: string): string {
   return `
-    <p>We were unable to process your annual membership payment of <strong>${escapeHtml(amount)}</strong>.</p>
-    ${reason ? `<p style="color: #dc2626;"><strong>Reason:</strong> ${escapeHtml(reason)}</p>` : ""}
-    <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 16px; margin: 16px 0;">
-      <p style="margin: 0; color: #991b1b;"><strong>Please update your payment method</strong></p>
-      <p style="margin: 8px 0 0; color: #991b1b;">Call our office to update your card on file or arrange an alternative payment method.</p>
-    </div>
+    <p>${escapeHtml(firstName)}, your account is set up to auto-renew, but the payment method on file did not go through.</p>
+    <p>The membership amount was <strong>${escapeHtml(amount)}</strong>.</p>
+    ${reason ? `<p><strong>Reason:</strong> ${escapeHtml(reason)}</p>` : ""}
+    <p>Please sign in to your member portal and update your payment method.</p>
   `.trim();
 }
 

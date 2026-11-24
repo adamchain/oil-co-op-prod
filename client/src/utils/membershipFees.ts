@@ -23,6 +23,26 @@ export function planFlags(plan: MembershipPlanId) {
   };
 }
 
+/** June 1 starts the membership year. Before that date, the current year is the previous June. */
+export function currentBillingYear(now = new Date()): number {
+  const y = now.getUTCFullYear();
+  const passed = now.getUTCMonth() > 5 || (now.getUTCMonth() === 5 && now.getUTCDate() >= 1);
+  return passed ? y : y - 1;
+}
+
+const PAID_MEMBERSHIP_STATUS = new Set(["succeeded", "waived", "paid", "mock"]);
+
+export function membershipPaidForYear(
+  billing: Array<{ billingYear?: number; status?: string; kind?: string }>,
+  year: number
+): boolean {
+  return billing.some((row) => {
+    if (row.billingYear !== year) return false;
+    if (row.kind === "registration") return false;
+    return PAID_MEMBERSHIP_STATUS.has(String(row.status || ""));
+  });
+}
+
 export function resolveMembershipPlan(input: {
   membershipPlan?: unknown;
   legacyProfile?: unknown;

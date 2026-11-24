@@ -46,19 +46,45 @@ const TEMPLATE_DEFINITIONS: Record<EmailTemplateKey, TemplateDefinition> = {
   },
   paymentSuccess: {
     name: "Payment Success",
-    description: "Receipt after a successful payment",
-    subject: "Payment received - Oil Co-op membership",
-    variables: ["amount", "transactionId", "cardLast4", "billingYear"],
-    html: "<p>Thank you! We received your annual membership payment of <strong>{amount}</strong>.</p><p>Card: ****{cardLast4} | Transaction: {transactionId} | Billing Year: {billingYear}</p>",
-    text: "Thank you! We received your annual membership payment of {amount}.\n\nCard: ****{cardLast4}. Transaction: {transactionId}. Billing Year: {billingYear}.",
+    description: "Sent automatically when an auto-renew membership payment goes through",
+    subject: "Thank you for your payment",
+    variables: ["firstName", "amount", "transactionId", "cardLast4", "billingYear"],
+    html:
+      "<p>Thank you for your payment, {firstName}. Your membership payment of <strong>{amount}</strong> for {billingYear} was successful.</p>" +
+      "<p>Card: ****{cardLast4}<br>Transaction: {transactionId}</p>",
+    text:
+      "Thank you for your payment, {firstName}. Your membership payment of {amount} for {billingYear} was successful.\n\n" +
+      "Card: ****{cardLast4}\nTransaction: {transactionId}",
   },
   paymentFailed: {
     name: "Payment Failed",
-    description: "Notice that a payment could not be processed",
-    subject: "Payment failed - Action required",
-    variables: ["amount", "reason"],
-    html: "<p>We were unable to process your annual membership payment of <strong>{amount}</strong>.</p><p>Reason: {reason}</p><p>Please call our office to update your card on file or arrange an alternative payment method.</p>",
-    text: "We were unable to process your annual membership payment of {amount}.\n\nReason: {reason}\n\nPlease call our office to update your card on file or arrange an alternative payment method.",
+    description: "Sent automatically when an auto-renew card does not go through",
+    subject: "Your auto-renew payment did not go through",
+    variables: ["firstName", "amount", "reason", "portalUrl"],
+    html:
+      "<p>{firstName}, your account is set up to auto-renew, but the payment method on file did not go through" +
+      "{reason}.</p>" +
+      "<p>The membership amount was <strong>{amount}</strong>. Please sign in to your portal and update your payment method: " +
+      "<a href=\"{portalUrl}\">{portalUrl}</a></p>",
+    text:
+      "{firstName}, your account is set up to auto-renew, but the payment method on file did not go through{reason}.\n\n" +
+      "The membership amount was {amount}. Please sign in to your portal and update your payment method: {portalUrl}",
+  },
+  manualRenewal: {
+    name: "Manual renewal",
+    description: "No card on file — invite to auto-renew or make a one-time payment",
+    subject: "Your Oil Co-op membership renewal",
+    variables: ["firstName", "amount", "portalUrl", "paymentUrl"],
+    html:
+      "<p>{firstName}, you do not have a payment method saved for auto-renew.</p>" +
+      "<p>If you would like to sign up for auto-renew, save your payment method in your portal: " +
+      "<a href=\"{portalUrl}\">{portalUrl}</a></p>" +
+      "<p>If you would like to make a one-time payment of <strong>{amount}</strong> and not save the card, you can do that here: " +
+      "<a href=\"{paymentUrl}\">{paymentUrl}</a></p>",
+    text:
+      "{firstName}, you do not have a payment method saved for auto-renew.\n\n" +
+      "If you would like to sign up for auto-renew, save your payment method in your portal: {portalUrl}\n\n" +
+      "If you would like to make a one-time payment of {amount} and not save the card, you can do that here: {paymentUrl}",
   },
   paymentLink: {
     name: "Payment Link",
@@ -208,20 +234,37 @@ export function getTemplateDefinitions() {
   return TEMPLATE_DEFINITIONS;
 }
 
+/** Subjects we shipped before the renewal-email rewrite. Replace those rows once so unedited copies pick up the new wording. */
+const REPLACE_UNEDITED_SUBJECT: Partial<Record<string, string>> = {
+  paymentSuccess: "Payment received - Oil Co-op membership",
+  paymentFailed: "Payment failed - Action required",
+};
+
 export async function ensureEmailTemplates(): Promise<void> {
   for (const key of EMAIL_TEMPLATE_KEYS) {
-    const exists = await EmailTemplate.exists({ key });
-    if (exists) continue;
     const d = TEMPLATE_DEFINITIONS[key];
-    await EmailTemplate.create({
-      key,
-      name: d.name,
-      description: d.description,
-      subject: d.subject,
-      text: d.text,
-      html: d.html,
-      variables: d.variables,
-    });
+    const existing = await EmailTemplate.findOne({ key });
+    if (!existing) {
+      await EmailTemplate.create({
+        key,
+        name: d.name,
+        description: d.description,
+        subject: d.subject,
+        text: d.text,
+        html: d.html,
+        variables: d.variables,
+      });
+      continue;
+    }
+    if (existing.subject === REPLACE_UNEDITED_SUBJECT[key]) {
+      existing.name = d.name;
+      existing.description = d.description;
+      existing.subject = d.subject;
+      existing.text = d.text;
+      existing.html = d.html;
+      existing.variables = d.variables;
+      await existing.save();
+    }
   }
 }
 

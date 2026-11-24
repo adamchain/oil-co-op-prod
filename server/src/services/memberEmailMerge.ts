@@ -139,6 +139,7 @@ export function buildMemberEmailMergeData(input: {
     billingYear: succeededAnnual?.billingYear ?? new Date().getFullYear(),
     reason: failedAnnual?.description?.replace(/^Authorize\.Net:\s*/i, "") || "",
     paymentUrl: input.paymentUrl || "",
+    portalUrl: `${siteBase}/account`,
     expiresAt,
   };
 }

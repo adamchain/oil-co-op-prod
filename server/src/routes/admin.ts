@@ -28,8 +28,9 @@ import {
 import { logActivity } from "../services/activity.js";
 import { registerMember, registerMemberSchema } from "../services/memberRegistration.js";
 import { setMemberReferrer } from "../services/referrals.js";
-import { clearRenewalHold, mockRenewalTestingEnabled, runAdminMockRenewal, runAnnualRenewal } from "../services/renewals.js";
-import { classifyRenewalMember, renewalAmountCents, renewalCycle } from "../services/renewalLanes.js";
+import { clearRenewalHold, mockRenewalTestingEnabled, recordMembershipSettlement, runAdminMockRenewal, runAnnualRenewal, setNotPaidCurrentYear } from "../services/renewals.js";
+import { classifyRenewalMember, isActiveServiceMember, renewalAmountCents, renewalCycle } from "../services/renewalLanes.js";
+import { sendRenewalLaneEmails } from "../services/renewalEmails.js";
 import { sendMemberEmail, sendPaymentLinkEmail } from "../services/mail.js";
 import { applyTemplateVariables, ensureEmailTemplates } from "../services/emailTemplateStore.js";
 import { loadMemberEmailMergeData } from "../services/memberEmailMerge.js";
@@ -366,6 +367,7 @@ const testTemplateSampleData: Record<string, unknown> = {
   billingYear: 2025,
   reason: "Card declined - insufficient funds",
   paymentUrl: "https://oilcoop.example.com/pay/abc123xyz",
+  portalUrl: "https://oilcoop.example.com/account",
   expiresAt: "May 15, 2025",
   companyName: "ABC Heating Oil Co.",
   companyPhone: "(555) 123-4567",
@@ -845,7 +847,7 @@ router.get("/members/:id", async (req, res) => {
     return;
   }
   const [billingEvents, activity, communications, referral, referralsMade] = await Promise.all([
-    BillingEvent.find({ memberId: member._id }).sort({ createdAt: -1 }).limit(50).lean(),
+    BillingEvent.find({ memberId: member._id }).sort({ createdAt: -1 }).limit(200).lean(),
     ActivityLog.find({ memberId: member._id }).sort({ createdAt: -1 }).limit(100).lean(),
     CommunicationLog.find({ memberId: member._id }).sort({ createdAt: -1 }).limit(50).lean(),
     Referral.findOne({ newMemberId: member._id }).populate("referrerMemberId", "firstName lastName email memberNumber legacyProfile.legacyId").lean(),
@@ -855,12 +857,20 @@ router.get("/members/:id", async (req, res) => {
       .lean(),
   ]);
 
-  const legacyPayments = ((member.legacyProfile as any)?.paymentsHistory || []).map(
-    (p: any, i: number) => ({
+  const billing = await billingRowsForMember(member, billingEvents);
+  await syncNotPaidFlag(member, billing as Array<{ billingYear?: unknown; status?: unknown; kind?: unknown }>);
+  res.json({ member, billing, activity, communications, referral, referralsMade: visibleReferralsMade(referralsMade) });
+});
+
+const PAID_MEMBERSHIP_STATUS = new Set(["succeeded", "waived", "paid", "mock"]);
+
+function legacyPaymentRows(member: { legacyProfile?: unknown }) {
+  return ((member.legacyProfile as { paymentsHistory?: Array<Record<string, unknown>> } | null)?.paymentsHistory || []).map(
+    (p, i) => ({
       _id: `legacy-${i}`,
       kind: String(p.entryType || "").toLowerCase() === "new" ? "registration" : String(p.entryType || "").toLowerCase() === "referral" ? "manual_adjustment" : "annual",
       status: p.feeWaived ? "waived" : "paid",
-      amountCents: p.amountCents || 0,
+      amountCents: Number(p.amountCents) || 0,
       billingYear: p.billingYear,
       createdAt: p.date || new Date().toISOString(),
       manualEntry: true,
@@ -871,10 +881,38 @@ router.get("/members/:id", async (req, res) => {
       legacy: true,
     })
   );
+}
 
-  const billing = [...billingEvents, ...legacyPayments];
-  res.json({ member, billing, activity, communications, referral, referralsMade: visibleReferralsMade(referralsMade) });
-});
+/** Billing events plus imported Approach rows. Replacing the list with events alone drops the old years. */
+async function billingRowsForMember(
+  member: { _id: mongoose.Types.ObjectId; legacyProfile?: unknown },
+  events?: unknown[]
+) {
+  const billingEvents =
+    events ||
+    (await BillingEvent.find({ memberId: member._id }).sort({ createdAt: -1 }).limit(200).lean());
+  return [...billingEvents, ...legacyPaymentRows(member)];
+}
+
+function membershipPaidForYear(billing: Array<{ billingYear?: unknown; status?: unknown; kind?: unknown }>, year: number) {
+  return billing.some((row) => {
+    const y = typeof row.billingYear === "number" ? row.billingYear : Number(row.billingYear);
+    if (y !== year) return false;
+    if (String(row.kind || "") === "registration") return false;
+    return PAID_MEMBERSHIP_STATUS.has(String(row.status || ""));
+  });
+}
+
+/** Keep the Approach flag aligned with whether this year's membership is paid. */
+async function syncNotPaidFlag(
+  member: InstanceType<typeof Member>,
+  billing: Array<{ billingYear?: unknown; status?: unknown; kind?: unknown }>
+) {
+  const lp = (member.legacyProfile || {}) as { waiveFeeLifetime?: boolean };
+  const lifetime = Boolean(member.lifetimeAnnualFeeWaived || member.primaryMemberId || lp.waiveFeeLifetime);
+  const owed = !lifetime && isActiveServiceMember(member) && !membershipPaidForYear(billing, renewalCycle().currentBillingYear);
+  if (setNotPaidCurrentYear(member, owed)) await member.save();
+}
 
 // Admin correction: set / change / clear who referred this member.
 router.put("/members/:id/referrer", async (req: AuthedRequest, res) => {
@@ -1836,8 +1874,8 @@ const manualBillingSchema = z.object({
   checkNumber: z.string().max(60).optional(),
 });
 
-function refreshedBilling(memberId: mongoose.Types.ObjectId) {
-  return BillingEvent.find({ memberId }).sort({ createdAt: -1 }).limit(50).lean();
+function refreshedBilling(member: { _id: mongoose.Types.ObjectId; legacyProfile?: unknown }) {
+  return billingRowsForMember(member);
 }
 
 function renewalSummary(member: {
@@ -1845,12 +1883,14 @@ function renewalSummary(member: {
   referralWaiveCredits?: number | null;
   renewalOnHold?: boolean | null;
   renewalHoldReason?: string | null;
+  legacyProfile?: unknown;
 }) {
   return {
     nextAnnualBillingDate: member.nextAnnualBillingDate ?? null,
     referralWaiveCredits: member.referralWaiveCredits ?? 0,
     renewalOnHold: Boolean(member.renewalOnHold),
     renewalHoldReason: member.renewalHoldReason || "",
+    notPaidCurrentYr: Boolean((member.legacyProfile as { notPaidCurrentYr?: boolean } | null)?.notPaidCurrentYr),
   };
 }
 
@@ -1876,6 +1916,12 @@ router.post("/members/:id/billing", async (req: AuthedRequest, res) => {
   const body = parsed.data;
   const status = body.waived === "yes" ? "waived" : body.waived === "refund" ? "refund" : "succeeded";
   const paidDate = body.paidDate ? new Date(body.paidDate) : new Date();
+  const coversCurrentYear =
+    (status === "succeeded" || status === "waived") &&
+    (body.type === "renew" || body.type === "referral") &&
+    body.billingYear >= renewalCycle().currentBillingYear;
+  const clearedNotPaid = coversCurrentYear && setNotPaidCurrentYear(member, false);
+  let memberSaved = false;
 
   // A waived referral line is a referral credit: skip the member's next renewal by
   // moving it out one year (e.g. June 1, 2027 → June 1, 2028). Lifetime members never
@@ -1893,16 +1939,19 @@ router.post("/members/:id/billing", async (req: AuthedRequest, res) => {
       consumedReferralCredit = true;
     }
     await member.save();
+    memberSaved = true;
     description = `Referral credit — renewal moved from ${formatJuneFirst(advancedRenewalFrom)} to ${formatJuneFirst(member.nextAnnualBillingDate)}`;
   }
 
   // Recording the missed renewal (paid or waived) takes the member off hold.
   if (body.type === "renew" && (status === "succeeded" || status === "waived") && clearRenewalHold(member)) {
     await member.save();
+    memberSaved = true;
     if (description === "Manual payment entry") {
       description = `Renewal recorded — off hold; next renewal ${formatJuneFirst(member.nextAnnualBillingDate)}`;
     }
   }
+  if (clearedNotPaid && !memberSaved) await member.save();
 
   await BillingEvent.create({
     memberId: member._id,
@@ -1936,7 +1985,7 @@ router.post("/members/:id/billing", async (req: AuthedRequest, res) => {
     new mongoose.Types.ObjectId(req.userId!)
   );
 
-  res.json({ ok: true, billing: await refreshedBilling(member._id), member: renewalSummary(member) });
+  res.json({ ok: true, billing: await refreshedBilling(member), member: renewalSummary(member) });
 });
 
 router.delete("/members/:id/billing/:billingId", async (req: AuthedRequest, res) => {
@@ -1975,7 +2024,7 @@ router.delete("/members/:id/billing/:billingId", async (req: AuthedRequest, res)
     new mongoose.Types.ObjectId(req.userId!)
   );
 
-  res.json({ ok: true, billing: await refreshedBilling(member._id), member: renewalSummary(member) });
+  res.json({ ok: true, billing: await refreshedBilling(member), member: renewalSummary(member) });
 });
 
 router.delete("/members/:id", async (req: AuthedRequest, res) => {
@@ -2234,7 +2283,8 @@ router.get("/renewals/dashboard", async (_req, res) => {
   const cycle = renewalCycle();
   const today = new Date();
   // legacyProfile is a Mixed path, so this projection is done in Mongo itself.
-  const members = await Member.aggregate([
+  const [members, paidGroups] = await Promise.all([
+    Member.aggregate([
     { $match: { role: "member" } },
     {
       $project: {
@@ -2270,12 +2320,23 @@ router.get("/renewals/dashboard", async (_req, res) => {
         "legacyProfile.paymentsHistory.paymentMethod": 1,
       },
     },
+    ]),
+    BillingEvent.aggregate<{ _id: mongoose.Types.ObjectId; years: number[] }>([
+      {
+        $match: {
+          status: { $in: ["succeeded", "waived", "paid", "mock"] },
+          kind: { $in: ["annual", "manual_adjustment"] },
+        },
+      },
+      { $group: { _id: "$memberId", years: { $addToSet: "$billingYear" } } },
+    ]),
   ]);
+  const paidYearsByMember = new Map(paidGroups.map((row) => [String(row._id), row.years || []]));
 
   const normalized = members.map((mm) => {
     const due = mm.nextAnnualBillingDate ? new Date(mm.nextAnnualBillingDate) : null;
     const daysUntilDue = due ? dayDiff(due, today) : null;
-    const lane = classifyRenewalMember(mm, cycle);
+    const lane = classifyRenewalMember(mm, cycle, paidYearsByMember.get(String(mm._id)));
     const amountCents = lane.lifetime ? 0 : renewalAmountCents(mm);
     return {
       _id: mm._id,
@@ -2344,6 +2405,28 @@ router.get("/renewals/dashboard", async (_req, res) => {
     mockRenewalEnabled: mockRenewalTestingEnabled(),
     mockRenewalAuthnetOnly: authorizeNetEnabled && config.authorizeNet.env === "sandbox",
   });
+});
+
+const renewalEmailSchema = z.object({
+  lane: z.enum(["processed", "failed", "manual", "notPaid"]),
+  memberIds: z.array(z.string()).min(1).max(200),
+});
+
+/** Email one renewal lane. The client sends the list in batches. */
+router.post("/renewals/email-lane", async (req: AuthedRequest, res) => {
+  const parsed = renewalEmailSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.flatten() });
+    return;
+  }
+  const result = await sendRenewalLaneEmails(parsed.data);
+  await logActivity(
+    new mongoose.Types.ObjectId(req.userId!),
+    "admin_renewal_lane_email",
+    { lane: parsed.data.lane, requested: parsed.data.memberIds.length, ...result, adminId: req.userId },
+    new mongoose.Types.ObjectId(req.userId!)
+  );
+  res.json({ ok: true, ...result });
 });
 
 /** Temporary: record one mock auto-renewal without waiting for June 1 or charging a card. */
@@ -2450,6 +2533,8 @@ const chargeSchema = z.object({
   kind: z.enum(["registration", "annual", "manual_adjustment"]).default("annual"),
   billingYear: z.number().int().optional(),
   description: z.string().optional(),
+  /** Charge the membership fee once and do not save the card for auto-renew. */
+  membership: z.boolean().optional(),
   card: z.object({
     number: z.string().min(12),
     expiration: z.string().min(4),
@@ -2475,36 +2560,50 @@ router.post("/members/:id/charge", async (req: AuthedRequest, res) => {
   }
 
   const body = parsed.data;
+  const membership = Boolean(body.membership);
+  const amountCents = membership ? annualFeeCentsFor(member) : body.amountCents;
+  const kind = membership ? "annual" : body.kind;
+  const covered = member.nextAnnualBillingDate ? new Date(member.nextAnnualBillingDate) : new Date();
+  const billingYear = membership ? covered.getUTCFullYear() : (body.billingYear ?? new Date().getFullYear());
+  const description = membership
+    ? "Membership payment — one-time (card not saved)"
+    : body.description;
 
   if (!authorizeNetEnabled) {
     // Dev/mock path — record a mock success so the UI flow can be exercised.
     const mock = await BillingEvent.create({
       memberId: member._id,
-      kind: body.kind,
-      amountCents: body.amountCents,
+      kind,
+      amountCents,
       status: "mock",
-      description: body.description || `Mock ${body.kind} charge (Authorize.Net not configured)`,
-      billingYear: body.billingYear ?? new Date().getFullYear(),
+      description: description || `Mock ${kind} charge (Authorize.Net not configured)`,
+      billingYear,
       processedByAdminId: req.userId,
       cardLast4: body.card.number.replace(/\D/g, "").slice(-4),
+      paymentMethod: "authorize.net",
+      entryType: kind === "registration" ? "new" : "renew",
+      paidDate: new Date(),
     });
+    if (kind === "annual") recordMembershipSettlement(member, billingYear, amountCents);
+    if (kind === "registration") member.registrationFeePaidAt = new Date();
+    await member.save();
     await logActivity(
       member._id,
       "admin_card_charge_mock",
-      { amountCents: body.amountCents, adminId: req.userId },
+      { amountCents, adminId: req.userId },
       new mongoose.Types.ObjectId(req.userId!)
     );
-    res.json({ ok: true, mock: true, billingEvent: mock });
+    res.json({ ok: true, mock: true, billingEvent: mock, billing: await refreshedBilling(member), member: renewalSummary(member), amountCents });
     return;
   }
 
   const result = await chargeCard({
-    amountCents: body.amountCents,
+    amountCents,
     cardNumber: body.card.number,
     expiration: body.card.expiration,
     cardCode: body.card.cvv,
     invoiceNumber: member.memberNumber || String(member._id).slice(-8),
-    description: body.description || `${body.kind} — ${member.memberNumber || ""}`.trim(),
+    description: description || `${kind} — ${member.memberNumber || ""}`.trim(),
     email: member.email,
     firstName: member.firstName,
     lastName: member.lastName,
@@ -2517,13 +2616,16 @@ router.post("/members/:id/charge", async (req: AuthedRequest, res) => {
   if (!result.ok) {
     const failed = await BillingEvent.create({
       memberId: member._id,
-      kind: body.kind,
-      amountCents: body.amountCents,
+      kind,
+      amountCents,
       status: "failed",
       description: `Authorize.Net: ${result.error}`,
-      billingYear: body.billingYear ?? new Date().getFullYear(),
+      billingYear,
       processedByAdminId: req.userId,
       cardLast4: body.card.number.replace(/\D/g, "").slice(-4),
+      paymentMethod: "authorize.net",
+      entryType: kind === "registration" ? "new" : "renew",
+      paidDate: new Date(),
     });
     await logActivity(
       member._id,
@@ -2531,32 +2633,34 @@ router.post("/members/:id/charge", async (req: AuthedRequest, res) => {
       { error: result.error, adminId: req.userId },
       new mongoose.Types.ObjectId(req.userId!)
     );
-    res.status(402).json({ ok: false, error: result.error, billingEvent: failed });
+    res.status(402).json({
+      ok: false,
+      error: result.error,
+      billingEvent: failed,
+      billing: await refreshedBilling(member),
+    });
     return;
   }
 
   const ok = await BillingEvent.create({
     memberId: member._id,
-    kind: body.kind,
+    kind,
     amountCents: result.amountCents,
     status: "succeeded",
-    description: body.description || `Admin charge (Authorize.Net)`,
-    billingYear: body.billingYear ?? new Date().getFullYear(),
+    description: description || "Admin charge (Authorize.Net)",
+    billingYear,
     processedByAdminId: req.userId,
     authnetTransactionId: result.transactionId,
     authnetAuthCode: result.authCode,
     cardLast4: result.accountLast4,
     cardType: result.accountType,
+    paymentMethod: "authorize.net",
+    entryType: kind === "registration" ? "new" : "renew",
+    paidDate: new Date(),
   });
 
-  if (body.kind === "annual") {
-    member.lastAnnualChargeAt = new Date();
-    member.lastAnnualChargeAmountCents = result.amountCents;
-    if (!clearRenewalHold(member)) {
-      member.nextAnnualBillingDate = nextJuneFirstAfterSignup(new Date());
-    }
-  }
-  if (body.kind === "registration") {
+  if (kind === "annual") recordMembershipSettlement(member, billingYear, result.amountCents);
+  if (kind === "registration") {
     member.registrationFeePaidAt = new Date();
   }
   await member.save();
@@ -2572,7 +2676,14 @@ router.post("/members/:id/charge", async (req: AuthedRequest, res) => {
     new mongoose.Types.ObjectId(req.userId!)
   );
 
-  res.json({ ok: true, billingEvent: ok, registrationFeeCents: config.registrationFeeCents });
+  res.json({
+    ok: true,
+    billingEvent: ok,
+    billing: await refreshedBilling(member),
+    member: renewalSummary(member),
+    amountCents: result.amountCents,
+    registrationFeeCents: config.registrationFeeCents,
+  });
 });
 
 /**

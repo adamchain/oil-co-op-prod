@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../api";
 import { useAuth } from "../authContext";
 
@@ -59,16 +60,28 @@ const OUTCOME_LABELS: Record<RenewalOutcome, string> = {
   waived_lifetime: "Free — lifetime",
   waived_additional_property: "Free — additional property",
   waived_referral_credit: "Free — referral credit",
-  hold_no_payment_method: "On hold — no payment method",
-  hold_check: "On hold — awaiting check",
-  hold_auto_renew_off: "On hold — auto-renew off",
-  hold_card_expired: "On hold — card expired",
-  hold_card_declined: "On hold — card declined",
+  hold_no_payment_method: "Not paid current year — no payment method",
+  hold_check: "Not paid current year — awaiting check",
+  hold_auto_renew_off: "Not paid current year — auto-renew off",
+  hold_card_expired: "Payment failed — card expired",
+  hold_card_declined: "Payment failed — card declined",
+};
+
+type EmailLane = "processed" | "failed" | "manual" | "notPaid";
+
+const LANE_EMAIL_NOTE: Record<EmailLane, string> = {
+  processed: "Thank you for your payment. Your membership payment was successful.",
+  failed:
+    "Your account is set up to auto-renew, but the payment method on file did not go through. Update it in the member portal.",
+  manual:
+    "You do not have a payment method saved for auto-renew. The email includes a portal link to save a card and a one-time payment link.",
+  notPaid:
+    "You do not have a payment method saved for auto-renew. The email includes a portal link to save a card and a one-time payment link.",
 };
 
 const usd = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
-type LaneTab = "auto" | "manual" | "failed" | "onHold";
+type LaneTab = "auto" | "manual" | "failed" | "notPaid" | "paid";
 
 type Dashboard = {
   summary: {
@@ -164,6 +177,7 @@ export default function AdminRenewalsPage() {
 
   const failed = (data.lanes.paymentFailed || []).filter(matchesMember);
   const onHold = (data.lanes.onHold || data.filters.onHold || []).filter(matchesMember);
+  const paid = (data.lanes.successfullyProcessed || []).filter(matchesMember);
   const autoRows = [...data.lanes.autoRenewLane]
     .filter(matchesMember)
     .sort((a, b) => Number(Boolean(b.authnetPaymentProfileId)) - Number(Boolean(a.authnetPaymentProfileId)));
@@ -176,7 +190,7 @@ export default function AdminRenewalsPage() {
       <p style={{ color: "var(--admin-muted)", fontSize: "0.875rem", margin: "0 0 1rem" }}>
         Active members have active oil status or active propane status.
         Lifetime members in that group are included and are not charged. Auto-renew is who has a card on file for June 1, {nextYear}.
-        Manual is everyone else. After June 1, {year}, a failed card is “payment failed” and an unpaid manual member is on hold.
+        Manual is everyone else. After June 1, {year}, a failed card is “payment failed” and an unpaid manual member is “not paid current year.”
       </p>
       {data.mockRenewalEnabled && (
         <p style={{ color: "var(--admin-muted)", fontSize: "0.875rem", margin: "0 0 1rem" }}>
@@ -273,7 +287,7 @@ export default function AdminRenewalsPage() {
         </div>
         <div className="admin-stat tone-yellow">
           <strong>{data.summary.onHoldCount}</strong>
-          <span>On hold · manual past due</span>
+          <span>Not paid current year</span>
         </div>
         <div className="admin-stat">
           <strong>{data.filters.renewingNext7Days?.length || 0}</strong>
@@ -312,11 +326,20 @@ export default function AdminRenewalsPage() {
         <button
           type="button"
           role="tab"
-          aria-selected={tab === "onHold"}
-          className={`admin-lane-tab${tab === "onHold" ? " active" : ""}`}
-          onClick={() => setTab("onHold")}
+          aria-selected={tab === "notPaid"}
+          className={`admin-lane-tab${tab === "notPaid" ? " active" : ""}`}
+          onClick={() => setTab("notPaid")}
         >
-          On hold <span>{onHold.length}</span>
+          Not paid current year <span>{onHold.length}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "paid"}
+          className={`admin-lane-tab${tab === "paid" ? " active" : ""}`}
+          onClick={() => setTab("paid")}
+        >
+          Successfully processed <span>{paid.length}</span>
         </button>
       </div>
 
@@ -324,8 +347,9 @@ export default function AdminRenewalsPage() {
         <div className="admin-card">
           <h2>Payment failed ({failed.length})</h2>
           <p style={{ color: "var(--admin-muted)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
-            Auto-renew members whose {year} membership did not go through. They still need to update the card or pay.
+            Auto-renew members whose {year} membership did not go through. The renewal run emails them when the card fails. Use the button to send that note again.
           </p>
+          <EmailListButton token={token} lane="failed" ids={failed.map((m) => m._id)} onNotice={setNotice} onError={setError} />
           {!searching && failed.length > 40 && (
             <p style={{ color: "var(--admin-muted)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
               Showing the first 40. Search to narrow the list.
@@ -339,12 +363,13 @@ export default function AdminRenewalsPage() {
         </div>
       )}
 
-      {tab === "onHold" && (
+      {tab === "notPaid" && (
         <div className="admin-card">
-          <h2>On hold ({onHold.length})</h2>
+          <h2>Not paid current year ({onHold.length})</h2>
           <p style={{ color: "var(--admin-muted)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
-            Manual-lane members with no {year} payment. Record the payment on their history (type Renew) and they move to successfully processed.
+            Manual-lane members with no {year} payment. Their dashboard shows “Not paid current year” until a membership payment or waiver is recorded.
           </p>
+          <EmailListButton token={token} lane="notPaid" ids={onHold.map((m) => m._id)} onNotice={setNotice} onError={setError} />
           {!searching && onHold.length > 40 && (
             <p style={{ color: "var(--admin-muted)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
               Showing the first 40. Search to narrow the list.
@@ -352,7 +377,7 @@ export default function AdminRenewalsPage() {
           )}
           <MemberTable
             rows={searching ? onHold.slice(0, 80) : onHold.slice(0, 40)}
-            emptyLabel={onHold.length ? undefined : searching ? "No one on hold matches." : "Nobody in the manual lane is past due."}
+            emptyLabel={onHold.length ? undefined : searching ? "No unpaid members match." : "Nobody in the manual lane is past due."}
           />
         </div>
       )}
@@ -361,7 +386,7 @@ export default function AdminRenewalsPage() {
         <div className="admin-card">
           <h2>Auto-Renew Lane{searching ? ` (${autoRows.length})` : ""}</h2>
           <p style={{ color: "var(--admin-muted)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
-            Card on file for the June 1, {nextYear} renewal. Amount is $35 standard, $25 senior, or $20 low volume.
+            Card on file for the June 1, {nextYear} renewal. Amount is $35 standard, $25 senior, or $20 low volume. A successful charge emails a thank-you. A declined or expired card emails that the payment method failed.
           </p>
           {searching && autoRows.length > 80 && (
             <p style={{ color: "var(--admin-muted)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
@@ -384,8 +409,9 @@ export default function AdminRenewalsPage() {
         <div className="admin-card">
           <h2>Manual Renewal Lane{searching ? ` (${manualRows.length})` : ""}</h2>
           <p style={{ color: "var(--admin-muted)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
-            No card on file. They are not charged on June 1; after that date, anyone still unpaid is on hold.
+            No card on file. They are not charged on June 1; after that date, anyone still unpaid is not paid for the current year.
           </p>
+          <EmailListButton token={token} lane="manual" ids={manualRows.map((m) => m._id)} onNotice={setNotice} onError={setError} />
           {searching && manualRows.length > 80 && (
             <p style={{ color: "var(--admin-muted)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
               Showing the first 80 matches. Narrow the search to see the rest.
@@ -398,8 +424,75 @@ export default function AdminRenewalsPage() {
         </div>
       )}
 
+      {tab === "paid" && (
+        <div className="admin-card">
+          <h2>Successfully processed ({paid.length})</h2>
+          <p style={{ color: "var(--admin-muted)", fontSize: "0.85rem", margin: "0 0 0.5rem" }}>
+            Membership paid for {year}. Auto-renew charges send the thank-you email at the time of the payment. Use the button to send it to this list.
+          </p>
+          <EmailListButton token={token} lane="processed" ids={paid.map((m) => m._id)} onNotice={setNotice} onError={setError} />
+          {!searching && paid.length > 40 && (
+            <p style={{ color: "var(--admin-muted)", fontSize: "0.85rem", margin: "0.5rem 0" }}>
+              Showing the first 40. Search to narrow the list.
+            </p>
+          )}
+          <MemberTable
+            rows={searching ? paid.slice(0, 80) : paid.slice(0, 40)}
+            emptyLabel={paid.length ? undefined : searching ? "No paid members match." : "No successful payments for this renewal."}
+          />
+        </div>
+      )}
+
       <RenewalRunCard token={token} onRan={() => token && api<Dashboard>("/api/admin/renewals/dashboard", { token }).then(setData)} />
     </>
+  );
+}
+
+function EmailListButton({
+  token,
+  lane,
+  ids,
+  onNotice,
+  onError,
+}: {
+  token: string | null;
+  lane: EmailLane;
+  ids: string[];
+  onNotice: (message: string) => void;
+  onError: (message: string) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  async function send() {
+    if (!token || !ids.length) return;
+    const ok = window.confirm(
+      `Email ${ids.length} member${ids.length === 1 ? "" : "s"}?\n\n${LANE_EMAIL_NOTE[lane]}\n\nMembers without an email address are skipped.`
+    );
+    if (!ok) return;
+    setBusy(true);
+    onError("");
+    try {
+      let sent = 0;
+      let skipped = 0;
+      for (let i = 0; i < ids.length; i += 100) {
+        const r = await api<{ sent: number; skipped: number }>("/api/admin/renewals/email-lane", {
+          method: "POST",
+          token,
+          body: JSON.stringify({ lane, memberIds: ids.slice(i, i + 100) }),
+        });
+        sent += r.sent;
+        skipped += r.skipped;
+      }
+      onNotice(`Email complete: ${sent} sent, ${skipped} skipped.`);
+    } catch (e) {
+      onError(e instanceof Error ? e.message : "Could not send the list.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <button type="button" className="admin-btn" style={{ marginBottom: "0.6rem" }} disabled={busy || !ids.length} onClick={() => void send()}>
+      {busy ? "Sending…" : "Email this list"}
+    </button>
   );
 }
 
@@ -456,9 +549,13 @@ function MemberTable({
         <tbody>
           {rows.map((m) => (
             <tr key={m._id}>
-              <td>{m.memberNumber || "—"}</td>
               <td>
-                {m.firstName} {m.lastName}
+                <Link to={`/admin/workbench?member=${m._id}`}>{m.memberNumber || "—"}</Link>
+              </td>
+              <td>
+                <Link to={`/admin/workbench?member=${m._id}`}>
+                  {m.firstName} {m.lastName}
+                </Link>
               </td>
               <td>{m.email}</td>
               <td>{m.paymentMethod}</td>
@@ -503,7 +600,7 @@ function RenewalRunCard({ token, onRan }: { token: string | null; onRan: () => v
     if (!token) return;
     if (kind === "run") {
       const ok = window.confirm(
-        `Run the renewal for everyone due on ${date}?\n\nCards on file will be charged and members who can't be charged go on hold. This cannot be undone.`
+        `Run the renewal for everyone due on ${date}?\n\nCards on file will be charged. Successful charges and failed cards are emailed. Members who can't be charged are marked not paid for the current year. This cannot be undone.`
       );
       if (!ok) return;
     }
@@ -571,9 +668,11 @@ function RenewalRunCard({ token, onRan }: { token: string | null; onRan: () => v
                   {report.rows.map((r) => (
                     <tr key={r.memberId}>
                       <td>
-                        <a href={`/admin/workbench?member=${r.memberId}`}>{r.memberNumber || "—"}</a>
+                        <Link to={`/admin/workbench?member=${r.memberId}`}>{r.memberNumber || "—"}</Link>
                       </td>
-                      <td>{r.name}</td>
+                      <td>
+                        <Link to={`/admin/workbench?member=${r.memberId}`}>{r.name}</Link>
+                      </td>
                       <td>{r.plan}</td>
                       <td>{usd(r.amountCents)}</td>
                       <td>{OUTCOME_LABELS[r.outcome] || r.outcome}</td>

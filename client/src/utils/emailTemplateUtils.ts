@@ -19,6 +19,7 @@ export const EMAIL_TEMPLATE_ORDER = [
   "renewalReminder",
   "paymentSuccess",
   "paymentFailed",
+  "manualRenewal",
   "paymentLink",
   "oilCompanyAssigned",
   "auditRequest",

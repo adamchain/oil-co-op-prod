@@ -140,6 +140,17 @@ type PaymentHistoryViewProps = {
     authnetPaymentProfileId: string;
     authnetCardExpiry?: string;
   }) => void;
+  /** True when this year's membership is unpaid. The box is driven by payments, not by hand. */
+  notPaidCurrentYear?: boolean;
+  onMembershipCharged?: (
+    billing: BillingEvent[],
+    summary?: {
+      nextAnnualBillingDate?: string | null;
+      renewalOnHold?: boolean;
+      renewalHoldReason?: string;
+      notPaidCurrentYr?: boolean;
+    }
+  ) => void;
 };
 
 const emptyDraft = {
@@ -162,6 +173,8 @@ export default function PaymentHistoryView({
   onAddPayment,
   onDeletePayment,
   onVaultedCardChange,
+  notPaidCurrentYear = false,
+  onMembershipCharged,
 }: PaymentHistoryViewProps) {
   const legacyValue = (key: string) => String(form.legacyProfile[key] ?? "");
   const legacyBool = (key: string) => Boolean(form.legacyProfile[key]);
@@ -200,6 +213,62 @@ export default function PaymentHistoryView({
   const [vaultMsg, setVaultMsg] = useState("");
   const [savingLine, setSavingLine] = useState(false);
   const [lineError, setLineError] = useState("");
+  const [payBusy, setPayBusy] = useState(false);
+  const [payMsg, setPayMsg] = useState("");
+
+  const membershipAmount = formatUsdFromCents(
+    MEMBERSHIP_PLAN_META[resolveMembershipPlan({ membershipPlan: member?.membershipPlan, legacyProfile: form.legacyProfile })].annualCents
+  );
+
+  async function processMembership(card: { number: string; expiry: string; cvv: string }) {
+    if (!token || !member?._id) return;
+    const digits = card.number.replace(/\D/g, "");
+    const exp = card.expiry.replace(/\D/g, "");
+    if (digits.length < 13 || exp.length !== 4 || card.cvv.replace(/\D/g, "").length < 3) {
+      setPayMsg("Enter the full card number, MM/YY, and CVV.");
+      return;
+    }
+    const plan = resolveMembershipPlan({ membershipPlan: member.membershipPlan, legacyProfile: form.legacyProfile });
+    const cents = MEMBERSHIP_PLAN_META[plan].annualCents;
+    const ok = window.confirm(
+      `Charge ${formatUsdFromCents(cents)} for this membership?\n\nThis is a one-time payment. The card is not saved for auto-renew.`
+    );
+    if (!ok) return;
+    setPayBusy(true);
+    setPayMsg("");
+    try {
+      const r = await api<{
+        mock?: boolean;
+        amountCents: number;
+        billing: BillingEvent[];
+        member?: {
+          nextAnnualBillingDate?: string | null;
+          renewalOnHold?: boolean;
+          renewalHoldReason?: string;
+          notPaidCurrentYr?: boolean;
+        };
+      }>(`/api/admin/members/${member._id}/charge`, {
+        method: "POST",
+        token,
+        body: JSON.stringify({
+          membership: true,
+          amountCents: cents,
+          kind: "annual",
+          card: { number: digits, expiration: exp, cvv: card.cvv.replace(/\D/g, "") },
+        }),
+      });
+      onMembershipCharged?.(r.billing || [], r.member);
+      setPayMsg(
+        r.mock
+          ? `Recorded ${formatUsdFromCents(r.amountCents)} as a test payment. Authorize.Net is not configured, so the card was not charged.`
+          : `Charged ${formatUsdFromCents(r.amountCents)}. The card was not saved for auto-renew.`
+      );
+    } catch (e) {
+      setPayMsg(e instanceof Error ? e.message : "Payment failed");
+    } finally {
+      setPayBusy(false);
+    }
+  }
 
   // Every renewal / registration / manual payment line, newest first.
   const paymentRows = useMemo(
@@ -648,17 +717,13 @@ export default function PaymentHistoryView({
                   <input type="checkbox" checked={legacyBool("deliveryHistory")} onChange={(e) => setLegacy("deliveryHistory", e.target.checked)} />
                   Delivery History
                 </label>
-                <label>
-                  <input type="checkbox" checked={legacyBool("notPaidCurrentYr")} onChange={(e) => setLegacy("notPaidCurrentYr", e.target.checked)} />
-                  Not Paid Current Yr
+                <label title="Checked when this year's membership has not been paid. A payment or a waiver clears it.">
+                  <input type="checkbox" checked={notPaidCurrentYear} readOnly disabled />
+                  Not paid current year
                 </label>
               </div>
-        </div>
 
-        {/* ───────── Registration + credit card (below member) ───────── */}
-        <div className="admin-pay-bottom">
-          <div className="admin-wb-panel admin-pay-compact">
-            <div className="admin-wb-panel-title">Registration</div>
+          <div className="admin-wb-panel-title" style={{ marginTop: "0.7rem" }}>Registration</div>
             <div className="admin-form-row-wrap">
               <label className="admin-field admin-field-sm">
                 Registration Fee
@@ -714,8 +779,10 @@ export default function PaymentHistoryView({
                 Lifetime / free membership — annual dues are waived on this record (additional properties stay linked to the primary paid membership).
               </p>
             )}
-          </div>
+        </div>
 
+        {/* Credit cards sit under the member so they are visible without scrolling past registration. */}
+        <div className="admin-pay-bottom">
           <div className="admin-wb-panel admin-pay-compact">
             <div className="admin-wb-panel-title">Auto-renew card (Authorize.Net)</div>
             <p className="admin-meta" style={{ margin: "0 0 0.5rem" }}>
@@ -825,6 +892,14 @@ export default function PaymentHistoryView({
                 >
                   {vaultBusy ? "Saving…" : member.authnetPaymentProfileId ? "Update vaulted card" : "Save for auto-renew"}
                 </button>
+                <button
+                  type="button"
+                  className="admin-btn admin-btn-primary"
+                  disabled={payBusy || vaultBusy}
+                  onClick={() => void processMembership(vaultCard)}
+                >
+                  {payBusy ? "Processing…" : `Process payment for membership (${membershipAmount})`}
+                </button>
                 {member.authnetPaymentProfileId && (
                   <button
                     type="button"
@@ -912,8 +987,26 @@ export default function PaymentHistoryView({
                 Name on Card
                 <input className="admin-input" value={legacyValue("ccName")} onChange={(e) => setLegacy("ccName", e.target.value)} />
               </label>
+              <button
+                type="button"
+                className="admin-btn admin-btn-primary"
+                disabled={payBusy}
+                onClick={() =>
+                  void processMembership({
+                    number: legacyValue("ccNumber"),
+                    expiry: legacyValue("ccExp"),
+                    cvv: legacyValue("ccCvv"),
+                  })
+                }
+              >
+                {payBusy ? "Processing…" : `Process payment for membership (${membershipAmount})`}
+              </button>
             </div>
+            <p className="admin-meta" style={{ margin: "0.15rem 0 0" }}>
+              One-time charge for {membershipAmount}. The card is not saved for auto-renew.
+            </p>
           </div>
+          {payMsg && <p className="admin-meta">{payMsg}</p>}
         </div>
       </div>
     </div>

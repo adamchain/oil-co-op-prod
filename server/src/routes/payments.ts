@@ -17,8 +17,7 @@ import {
   addPaymentProfile,
 } from "../services/authorizeNet.js";
 import { logActivity } from "../services/activity.js";
-import { nextJuneFirstAfterSignup } from "../utils/juneBilling.js";
-import { clearRenewalHold } from "../services/renewals.js";
+import { recordMembershipSettlement } from "../services/renewals.js";
 
 const router = Router();
 
@@ -86,7 +85,7 @@ const processPaymentSchema = z.object({
   cardNumber: z.string().min(12),
   expiration: z.string().min(4), // "MMYY" or "MM/YY"
   cvv: z.string().min(3),
-  saveCard: z.boolean().default(true),
+  saveCard: z.boolean().default(false),
 });
 
 router.post("/link/:token/pay", async (req, res) => {
@@ -137,6 +136,11 @@ router.post("/link/:token/pay", async (req, res) => {
     paymentToken.usedAt = new Date();
     paymentToken.transactionId = "mock";
     await paymentToken.save();
+
+    if (paymentToken.kind === "annual") {
+      recordMembershipSettlement(member, paymentToken.billingYear || new Date().getUTCFullYear(), paymentToken.amountCents);
+      await member.save();
+    }
 
     await logActivity(member._id, "payment_link_used_mock", {
       amountCents: paymentToken.amountCents,
@@ -204,14 +208,11 @@ router.post("/link/:token/pay", async (req, res) => {
 
   // Update member billing info
   if (paymentToken.kind === "annual") {
-    member.lastAnnualChargeAt = new Date();
-    member.lastAnnualChargeAmountCents = chargeResult.amountCents;
-    if (!clearRenewalHold(member)) {
-      member.nextAnnualBillingDate = nextJuneFirstAfterSignup(new Date());
-    }
-    member.reminderSent30d = false;
-    member.reminderSent7d = false;
-    member.reminderSent1d = false;
+    recordMembershipSettlement(
+      member,
+      paymentToken.billingYear || new Date().getUTCFullYear(),
+      chargeResult.amountCents
+    );
   } else if (paymentToken.kind === "registration") {
     member.registrationFeePaidAt = new Date();
   }

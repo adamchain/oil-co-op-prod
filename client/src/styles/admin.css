@@ -1946,9 +1946,9 @@ button.admin-wb-panel-title.admin-wb-panel-toggle:hover {
   box-sizing: border-box;
 }
 
-/* Registration card absorbs the leftover height so the left column fills down */
+/* Cards stay at their own height, directly under the member. Registration lives on the right. */
 .admin-pay-view .admin-pay-bottom .admin-pay-compact:first-child {
-  flex: 1;
+  flex: 0 0 auto;
 }
 
 .admin-pay-view .admin-pay-compact .admin-form-row-wrap {

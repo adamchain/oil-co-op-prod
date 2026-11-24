@@ -34,6 +34,7 @@ const sampleData = {
   billingYear: 2025,
   reason: "Card declined - insufficient funds",
   paymentUrl: "https://oilcoop.example.com/pay/abc123xyz",
+  portalUrl: "https://oilcoop.example.com/account",
   expiresAt: "May 15, 2025",
   companyName: "ABC Heating Oil Co.",
   companyPhone: "(555) 123-4567",

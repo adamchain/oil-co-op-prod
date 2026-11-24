@@ -161,7 +161,11 @@ export function isActiveServiceMember(m: LaneMember): boolean {
   return oilActive || propaneActive;
 }
 
-export function classifyRenewalMember(m: LaneMember, cycle: RenewalCycle = renewalCycle()): RenewalClass {
+export function classifyRenewalMember(
+  m: LaneMember,
+  cycle: RenewalCycle = renewalCycle(),
+  extraPaidYears?: Iterable<number>
+): RenewalClass {
   const empty: RenewalClass = {
     activeService: false,
     lifetime: false,
@@ -179,6 +183,11 @@ export function classifyRenewalMember(m: LaneMember, cycle: RenewalCycle = renew
 
   const cardYears = paymentYears(lp, true);
   const payYears = paymentYears(lp, false);
+  if (extraPaidYears) {
+    for (const year of extraPaidYears) {
+      if (typeof year === "number" && year >= 1990 && year <= 2100) payYears.add(year);
+    }
+  }
   const optedOut = optedOutOfAutoRenew(m);
   // Auto-renew lane = exactly who the run will charge on the upcoming June 1, so the
   // dashboard count matches "Will charge card". Members who historically paid by card

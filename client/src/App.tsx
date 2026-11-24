@@ -12,6 +12,7 @@ import CommunityPage from "./public-site/CommunityPage";
 import ReferralPage from "./public-site/ReferralPage";
 import RelatedLinksPage from "./public-site/RelatedLinksPage";
 import SignupPage from "./pages/SignupPage";
+import PayMembershipPage from "./pages/PayMembershipPage";
 import LoginPage from "./pages/LoginPage";
 import AccountPage from "./pages/AccountPage";
 import AdminMembersPage from "./pages/AdminMembersPage";
@@ -59,6 +60,7 @@ export default function App() {
           <Route path="/links" element={<RelatedLinksPage />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/pay/:token" element={<PayMembershipPage />} />
         </Route>
 
         <Route element={<RequireAuth />}>

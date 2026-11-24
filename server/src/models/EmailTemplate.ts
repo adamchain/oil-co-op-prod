@@ -5,6 +5,7 @@ export const EMAIL_TEMPLATE_KEYS = [
   "renewalReminder",
   "paymentSuccess",
   "paymentFailed",
+  "manualRenewal",
   "paymentLink",
   "oilCompanyAssigned",
   "auditRequest",

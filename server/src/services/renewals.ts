@@ -7,6 +7,7 @@ import { annualFeeCentsFor } from "../utils/membershipFees.js";
 import { chargeAnnualForCustomer } from "./stripeBilling.js";
 import { chargeCustomerProfile } from "./authorizeNet.js";
 import { logActivity } from "./activity.js";
+import { sendPaymentFailedEmail, sendPaymentSuccessEmail } from "./mail.js";
 import { cardExpiredBy, isActiveServiceMember } from "./renewalLanes.js";
 
 /**
@@ -83,6 +84,7 @@ async function putOnHold(m: MemberDocLike, reason: keyof typeof HOLD_REASON_LABE
   m.renewalOnHold = true;
   m.renewalHoldReason = reason;
   m.renewalHoldSince = dueDate;
+  setNotPaidCurrentYear(m, true);
   await m.save();
   await logActivity(m._id, "annual_renewal_on_hold", { reason, dueDate: dueDate.toISOString() });
 }
@@ -99,6 +101,36 @@ export function clearRenewalHold(m: MemberDocLike): boolean {
   m.renewalHoldSince = null;
   m.nextAnnualBillingDate = followingJuneFirst(new Date(m.nextAnnualBillingDate));
   resetReminders(m);
+  setNotPaidCurrentYear(m, false);
+  return true;
+}
+
+/**
+ * A membership payment or waiver covers `billingYear`. Clears the not-paid flag.
+ * The next renewal moves to the June after that year, unless it is already later
+ * (imported records are often already set to next June).
+ */
+export function recordMembershipSettlement(m: MemberDocLike, billingYear: number, amountCents: number) {
+  m.lastAnnualChargeAt = new Date();
+  m.lastAnnualChargeAmountCents = amountCents;
+  setNotPaidCurrentYear(m, false);
+  if (clearRenewalHold(m)) return;
+  const nextYear = m.nextAnnualBillingDate ? new Date(m.nextAnnualBillingDate).getUTCFullYear() : 0;
+  if (nextYear <= billingYear) {
+    m.nextAnnualBillingDate = new Date(Date.UTC(billingYear + 1, 5, 1, 12, 0, 0));
+    resetReminders(m);
+  }
+}
+
+/** Approach-style flag. True once the renewal date has passed without a membership payment. */
+export function setNotPaidCurrentYear(m: MemberDocLike, owed: boolean): boolean {
+  const lp = {
+    ...((typeof m.legacyProfile === "object" && m.legacyProfile ? m.legacyProfile : {}) as Record<string, unknown>),
+  };
+  if (Boolean(lp.notPaidCurrentYr) === owed) return false;
+  lp.notPaidCurrentYr = owed;
+  m.legacyProfile = lp;
+  m.markModified("legacyProfile");
   return true;
 }
 
@@ -166,6 +198,7 @@ export async function runAnnualRenewal(opts: { date: Date; dryRun?: boolean }): 
       if (isLinkedProperty || lp.waiveFeeLifetime) m.lifetimeAnnualFeeWaived = true;
       m.nextAnnualBillingDate = next;
       resetReminders(m);
+      setNotPaidCurrentYear(m, false);
       await m.save();
       await logActivity(m._id, "annual_billing_waived", { reason: row.outcome });
       continue;
@@ -216,6 +249,11 @@ export async function runAnnualRenewal(opts: { date: Date; dryRun?: boolean }): 
         billingYear: year,
       });
       await putOnHold(m, "card_expired", due);
+      void sendPaymentFailedEmail(
+        m,
+        amount,
+        `The card on file${m.authnetCardLast4 ? ` ending ${m.authnetCardLast4}` : ""} is expired`
+      ).catch((err) => console.error(err));
       continue;
     }
 
@@ -238,11 +276,17 @@ export async function runAnnualRenewal(opts: { date: Date; dryRun?: boolean }): 
       m.lastAnnualChargeAmountCents = amount;
       m.nextAnnualBillingDate = next;
       resetReminders(m);
+      setNotPaidCurrentYear(m, false);
       await m.save();
       await logActivity(m._id, outcome === "charged" ? "annual_charge_succeeded" : "annual_charge_mock", {
         amountCents: amount,
         processor,
       });
+      if (outcome === "charged") {
+        const tx = String(fields.authnetTransactionId || fields.stripePaymentIntentId || "");
+        const last4 = String(fields.cardLast4 || m.authnetCardLast4 || "");
+        void sendPaymentSuccessEmail(m, amount, tx, last4, year).catch((err) => console.error(err));
+      }
       row.outcome = outcome;
       row.detail = `Next renewal → June 1, ${next.getUTCFullYear()}`;
     };
@@ -259,6 +303,7 @@ export async function runAnnualRenewal(opts: { date: Date; dryRun?: boolean }): 
       });
       await logActivity(m._id, "annual_charge_failed", { error, processor });
       await putOnHold(m, "card_declined", due);
+      void sendPaymentFailedEmail(m, amount, error).catch((err) => console.error(err));
       row.outcome = "hold_card_declined";
       row.detail = error;
     };
@@ -387,6 +432,7 @@ export async function runAdminMockRenewal(memberId: string): Promise<
   m.renewalOnHold = false;
   m.renewalHoldReason = "";
   m.renewalHoldSince = null;
+  setNotPaidCurrentYear(m, false);
   resetReminders(m);
   await m.save();
   await logActivity(m._id, "annual_charge_mock", {

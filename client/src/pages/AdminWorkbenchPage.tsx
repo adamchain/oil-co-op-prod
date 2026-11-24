@@ -18,7 +18,7 @@ import { memberRecordMatchesQuery } from "../utils/memberSearch";
 import { formatPhoneValue } from "../utils/phone";
 import { hydrateLegacyProfile } from "../utils/legacyProfile";
 import { oilCompanyNameForCode } from "../utils/oilCompanyCodes";
-import { MEMBERSHIP_PLAN_META, formatUsdFromCents, resolveMembershipPlan } from "../utils/membershipFees";
+import { MEMBERSHIP_PLAN_META, currentBillingYear, formatUsdFromCents, membershipPaidForYear, resolveMembershipPlan } from "../utils/membershipFees";
 import PaymentFindModal from "../components/PaymentFindModal";
 import { type InvoiceMember } from "../utils/invoice";
 import { downloadMembershipInvoicePdf } from "../utils/invoicePdf";
@@ -85,14 +85,6 @@ type Member = {
 
 type MembershipFlagKey = "standardMembership" | "seniorMember" | "lowVolume" | "waiveFeeLifetime";
 
-const HOLD_REASON_LABELS: Record<string, string> = {
-  no_payment_method: "no payment method",
-  check: "awaiting check",
-  auto_renew_off: "auto-renew off",
-  card_expired: "card expired",
-  card_declined: "card declined",
-};
-
 type SameNameRecord = {
   _id: string;
   memberNumber: string;
@@ -127,6 +119,7 @@ type RenewalSummary = {
   referralWaiveCredits?: number;
   renewalOnHold?: boolean;
   renewalHoldReason?: string;
+  notPaidCurrentYr?: boolean;
 };
 
 type BillingEvent = {
@@ -512,10 +505,22 @@ export default function AdminWorkbenchPage() {
               nextAnnualBillingDate: summary.nextAnnualBillingDate ?? m.nextAnnualBillingDate,
               renewalOnHold: summary.renewalOnHold ?? m.renewalOnHold,
               renewalHoldReason: summary.renewalHoldReason ?? m.renewalHoldReason,
+              legacyProfile:
+                summary.notPaidCurrentYr === undefined
+                  ? m.legacyProfile
+                  : { ...(m.legacyProfile || {}), notPaidCurrentYr: summary.notPaidCurrentYr },
             }
           : m
       )
     );
+    if (summary.notPaidCurrentYr === undefined) return;
+    setForm((f) => {
+      if (formAppliesToMemberIdRef.current !== memberId) return f;
+      const next = { ...f, legacyProfile: { ...f.legacyProfile, notPaidCurrentYr: summary.notPaidCurrentYr } };
+      baselineSerializedRef.current = serializeWorkbenchForm(next);
+      formRef.current = next;
+      return next;
+    });
   }
   const [filters, setFilters] = useState<MemberFilter[]>(() => decodeFilters(searchParams.get("filters") || ""));
   const [quickSearch, setQuickSearch] = useState<string>(() => searchParams.get("q") || "");
@@ -551,6 +556,7 @@ export default function AdminWorkbenchPage() {
   const [referralCustomOpen, setReferralCustomOpen] = useState(false);
   const [propaneCompanies, setPropaneCompanies] = useState<PropaneCompany[]>([]);
   const [billing, setBilling] = useState<BillingEvent[]>([]);
+  const [billingReadyId, setBillingReadyId] = useState<string | null>(null);
   const [communications, setCommunications] = useState<Comm[]>([]);
   const [referral, setReferral] = useState<Referral | null>(null);
   const [referralsMade, setReferralsMade] = useState<ReferralMade[]>([]);
@@ -1286,6 +1292,7 @@ export default function AdminWorkbenchPage() {
     if (!token || !current) {
       setSameNameRecords([]);
       setBilling([]);
+      setBillingReadyId(null);
       setCommunications([]);
       setReferral(null);
       setEmailMergeData(null);
@@ -1347,11 +1354,14 @@ export default function AdminWorkbenchPage() {
       pendingAddressFocusRef.current = false;
       window.setTimeout(() => address1Ref.current?.focus(), 80);
     }
+    const billingMemberId = current._id;
+    setBillingReadyId(null);
     api<{ member?: Member; billing: BillingEvent[]; communications: Comm[]; referral: Referral | null; referralsMade?: ReferralMade[]; merge?: Record<string, unknown> }>(
-      `/api/admin/members/${current._id}`,
+      `/api/admin/members/${billingMemberId}`,
       { token }
     ).then((r) => {
       setBilling(r.billing || []);
+      setBillingReadyId(billingMemberId);
       setCommunications(r.communications || []);
       setReferral(r.referral || null);
       setReferralsMade(r.referralsMade || []);
@@ -1900,7 +1910,32 @@ export default function AdminWorkbenchPage() {
   }, [pendingMembershipChange]);
 
   const isSenior = legacyBool("seniorMember");
-  const isLifetime = legacyBool("waiveFeeLifetime");
+  const isLifetime = legacyBool("waiveFeeLifetime") || Boolean(current?.lifetimeAnnualFeeWaived) || Boolean(current?.primaryMemberId);
+  const activeServiceMember = (() => {
+    const oil = String(form.legacyProfile.oilWorkbenchStatus || form.legacyProfile.workbenchMemberStatus || "").toUpperCase();
+    const propane = String(form.legacyProfile.propaneStatus || "").toUpperCase();
+    return oil === "ACTIVE" || propane === "ACTIVE";
+  })();
+  const notPaidCurrentYear = Boolean(
+    current &&
+      billingReadyId === current._id &&
+      !isLifetime &&
+      activeServiceMember &&
+      !membershipPaidForYear(billing, currentBillingYear())
+  );
+  useEffect(() => {
+    if (!current || billingReadyId !== current._id) return;
+    if (Boolean(form.legacyProfile.notPaidCurrentYr) === notPaidCurrentYear) return;
+    setForm((f) => {
+      if (formAppliesToMemberIdRef.current !== current._id) return f;
+      const next = { ...f, legacyProfile: { ...f.legacyProfile, notPaidCurrentYr: notPaidCurrentYear } };
+      if (serializeWorkbenchForm(f) === baselineSerializedRef.current) {
+        baselineSerializedRef.current = serializeWorkbenchForm(next);
+        formRef.current = next;
+      }
+      return next;
+    });
+  }, [current?._id, billingReadyId, notPaidCurrentYear]);
   const isWaived = legacyBool("waiveFeeSenior") || String(legacyValue("registrationPaymentStatus")).toLowerCase() === "waived";
   const isLowVolume = legacyBool("lowVolume");
   const currentPropertyNumber = propertyGroup.findIndex((p) => p._id === current?._id) + 1;
@@ -2557,12 +2592,9 @@ export default function AdminWorkbenchPage() {
                     : totalMemberCount != null ? totalMemberCount : filteredMembers.length
                   ).toLocaleString()}`}
           </span>
-          {current?.renewalOnHold && (
-            <span className="admin-pill hold" title="Renewal on hold — record the renewal payment to clear it">
-              Renewal on hold
-              {current.renewalHoldReason && HOLD_REASON_LABELS[current.renewalHoldReason]
-                ? ` · ${HOLD_REASON_LABELS[current.renewalHoldReason]}`
-                : ""}
+          {notPaidCurrentYear && (
+            <span className="admin-pill hold" title="This year's membership has not been paid. A payment or a waiver clears it.">
+              Not paid current year
             </span>
           )}
         </div>
@@ -2704,6 +2736,13 @@ export default function AdminWorkbenchPage() {
                     <label style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.7rem", fontWeight: 600, whiteSpace: "nowrap" }}>
                       <input type="checkbox" checked={legacyBool("waiveFeeLifetime")} onChange={(e) => requestMembershipChange("waiveFeeLifetime", e.target.checked)} style={membershipCheckboxStyle(legacyBool("waiveFeeLifetime"))} />
                       Lifetime
+                    </label>
+                    <label
+                      style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", fontSize: "0.7rem", fontWeight: 700, whiteSpace: "nowrap", color: notPaidCurrentYear ? "#b45309" : undefined }}
+                      title="Checked automatically when this year's membership has not been paid. A payment or a waiver clears it."
+                    >
+                      <input type="radio" checked={notPaidCurrentYear} readOnly disabled />
+                      Not paid current year
                     </label>
                   </div>
                 </div>
@@ -3462,6 +3501,11 @@ export default function AdminWorkbenchPage() {
                   setMembers((prev) =>
                     prev.map((m) => (m._id === current._id ? { ...m, ...patch } : m))
                   );
+                }}
+                notPaidCurrentYear={notPaidCurrentYear}
+                onMembershipCharged={(rows, summary) => {
+                  setBilling(rows);
+                  applyRenewalSummary(current._id, summary);
                 }}
               />
             ) : (

@@ -245,12 +245,9 @@ export async function sendPaymentSuccessEmail(
   const amountStr = `$${(amount / 100).toFixed(2)}`;
 
   const text =
-    `Hi ${member.firstName},\n\n` +
-    `Your annual membership payment of ${amountStr} has been processed successfully.\n\n` +
+    `Thank you for your payment, ${member.firstName}. Your membership payment of ${amountStr} for ${billingYear} was successful.\n\n` +
     `Card: ****${cardLast4}\n` +
-    `Transaction ID: ${transactionId}\n` +
-    `Billing Year: ${billingYear}\n\n` +
-    `Thank you for your continued membership!\n`;
+    `Transaction: ${transactionId}\n`;
 
   const html = paymentSuccessHtml(
     member.firstName,
@@ -263,7 +260,7 @@ export async function sendPaymentSuccessEmail(
   const resolved = await resolveTemplate(
     "paymentSuccess",
     {
-      subject: "Payment received - Oil Co-op membership",
+      subject: "Thank you for your payment",
       text,
       html,
     },
@@ -289,26 +286,27 @@ export async function sendPaymentFailedEmail(
   if (!member.notificationSettings?.billingNotices) return;
 
   const amountStr = `$${(amount / 100).toFixed(2)}`;
+  const portalUrl = `${(process.env.SITE_URL || config.clientOrigin).replace(/\/$/, "")}/account`;
+  const reasonText = reason ? ` (${reason})` : "";
 
   const text =
-    `Hi ${member.firstName},\n\n` +
-    `We were unable to process your annual membership payment of ${amountStr}.\n\n` +
-    (reason ? `Reason: ${reason}\n\n` : "") +
-    `Please call our office to update your payment method or arrange an alternative payment.\n`;
+    `${member.firstName}, your account is set up to auto-renew, but the payment method on file did not go through${reasonText}.\n\n` +
+    `The membership amount was ${amountStr}. Please sign in to your portal and update your payment method: ${portalUrl}\n`;
 
   const html = paymentFailedHtml(member.firstName, amountStr, reason);
 
   const resolved = await resolveTemplate(
     "paymentFailed",
     {
-      subject: "Payment failed - Action required",
+      subject: "Your auto-renew payment did not go through",
       text,
       html,
     },
     {
       firstName: member.firstName,
       amount: amountStr,
-      reason: reason || "",
+      reason: reasonText,
+      portalUrl,
     }
   );
 
