@@ -220,14 +220,6 @@ type BackupHistoryEntry = {
   sizeBytes: number;
 };
 
-/** Oil status Active (blank shows as Active) or propane status Active. */
-function isActiveOilMember(m: { legacyProfile?: Record<string, unknown> | null }): boolean {
-  const lp = (m.legacyProfile || {}) as Record<string, unknown>;
-  const oil = String(lp.oilWorkbenchStatus ?? "").trim();
-  const propane = String(lp.propaneStatus ?? "").trim();
-  return oil === "" || oil.toUpperCase() === "ACTIVE" || propane.toUpperCase() === "ACTIVE";
-}
-
 function defaultWorkbenchMemberStatus(m: Member): string {
   const lp = (m.legacyProfile || {}) as Record<string, unknown>;
   const stored = lp.workbenchMemberStatus;
@@ -1195,7 +1187,6 @@ export default function AdminWorkbenchPage() {
   const filteredMembers = useMemo(() => {
     const q = quickSearch.trim().toLowerCase();
     return members.filter((m) => {
-      if (filters.length > 0 && !q && !isActiveOilMember(m)) return false;
       if (filters.length > 0) {
         const allFiltersMatch = filters.every((f) => {
           const def = filterFields.find((x) => x.key === f.field);
@@ -1225,8 +1216,6 @@ export default function AdminWorkbenchPage() {
       // Wait until the filtered list has actually loaded. Clearing now would
       // cancel that request and leave the previous 200-record page in place.
       if (loading) return;
-      const opened = members.find((m) => m._id === memberParam);
-      if (opened && !isActiveOilMember(opened) && filters.length > 0 && !quickSearch.trim()) return;
       // The record exists but is filtered out — clear filters to reveal it, and
       // suppress the index-reset that the filter change triggers so reconciliation
       // (which re-runs and lands on this member) isn't clobbered back to 0.
@@ -3114,7 +3103,7 @@ export default function AdminWorkbenchPage() {
                     <input
                       type="radio"
                       name="wb-oil-status"
-                      checked={(legacyValue("oilWorkbenchStatus") || "ACTIVE") === s}
+                      checked={legacyValue("oilWorkbenchStatus") === s}
                       onChange={() => setLegacy("oilWorkbenchStatus", s)}
                     />
                     {s}

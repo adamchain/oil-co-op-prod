@@ -384,9 +384,6 @@ export function evaluateFilter(
   if (filter.field === "legacyProfile.waiveFeeLifetime" && !asFilterBool(raw)) {
     raw = member.lifetimeAnnualFeeWaived;
   }
-  if (filter.field === "legacyProfile.oilWorkbenchStatus" && isEmptyValue(raw)) {
-    raw = getValueAtPath(member, "legacyProfile.workbenchMemberStatus");
-  }
   if (filter.field === "legacyProfile.deliveryHistory") {
     const rows = getValueAtPath(member, "legacyProfile.deliveryHistoryRows");
     if (member.deliveryHistoryHasRows === true || (Array.isArray(rows) && rows.length > 0)) {

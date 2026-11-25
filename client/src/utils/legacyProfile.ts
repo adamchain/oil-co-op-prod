@@ -124,11 +124,6 @@ export function hydrateLegacyProfile(lp: Record<string, unknown>): Record<string
     lp.notPaidCurrent = parseLegacyYes(lp.notPaidCurrent);
   }
 
-  if (!String(lp.oilWorkbenchStatus ?? "").trim()) {
-    const ws = String(lp.workbenchMemberStatus ?? "").trim();
-    if (ws) lp.oilWorkbenchStatus = ws;
-  }
-
   if (!String(lp.oilStartDate ?? "").trim()) {
     const iso = firstDate(lp, ["oilStartDate", "newMemberDt", "NEW_MEMBER"]);
     if (iso) lp.oilStartDate = iso;

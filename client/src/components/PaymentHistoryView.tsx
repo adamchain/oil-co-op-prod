@@ -630,7 +630,7 @@ export default function PaymentHistoryView({
                     <input
                       type="radio"
                       name="pay-oil-status"
-                      checked={(legacyValue("oilWorkbenchStatus") || "ACTIVE") === s}
+                      checked={legacyValue("oilWorkbenchStatus") === s}
                       onChange={() => setLegacy("oilWorkbenchStatus", s)}
                     />
                     {s}

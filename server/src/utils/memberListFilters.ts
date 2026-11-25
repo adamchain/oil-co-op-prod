@@ -356,27 +356,11 @@ function enumRegex(value: string): RegExp {
 }
 
 function oilStatusEquals(value: string): Record<string, unknown> {
-  const rx = enumRegex(value);
-  return {
-    $or: [
-      { "legacyProfile.oilWorkbenchStatus": rx },
-      {
-        $and: [
-          blankClause("legacyProfile.oilWorkbenchStatus"),
-          { "legacyProfile.workbenchMemberStatus": rx },
-        ],
-      },
-    ],
-  };
+  return { "legacyProfile.oilWorkbenchStatus": enumRegex(value) };
 }
 
 function oilStatusEmpty(): Record<string, unknown> {
-  return {
-    $and: [
-      blankClause("legacyProfile.oilWorkbenchStatus"),
-      blankClause("legacyProfile.workbenchMemberStatus"),
-    ],
-  };
+  return blankClause("legacyProfile.oilWorkbenchStatus");
 }
 
 const HOW_JOINED_GROUPS: Record<string, string[]> = {
